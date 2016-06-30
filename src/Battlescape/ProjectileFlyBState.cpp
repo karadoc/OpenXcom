@@ -564,7 +564,7 @@ void ProjectileFlyBState::think()
 						}
 					}
 
-					if (_projectileImpact == 4)
+					if (_projectileImpact == V_UNIT)
 					{
 						BattleUnit *victim = _parent->getSave()->getTile(_parent->getMap()->getProjectile()->getPosition(offset) / Position(16,16,24))->getUnit();
 						if (victim && !victim->isOut() && victim->getFaction() == FACTION_HOSTILE)
