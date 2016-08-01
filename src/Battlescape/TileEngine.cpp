@@ -2764,10 +2764,10 @@ int TileEngine::calculateParabola(const Position& origin, const Position& target
 		int result = calculateLine(lastPosition, nextPosition, false, &contactPoint, excludeUnit);
 		if (result != V_EMPTY)
 		{
-			if (lastPosition.z < nextPosition.z)
-			{
-				result = V_OUTOFBOUNDS;
-			}
+			// if (lastPosition.z < nextPosition.z)
+			// {
+				// result = V_OUTOFBOUNDS;
+			// }
 			if (trajectory != nullptr)
 			{ // store the position of impact
 				assert(contactPoint.size() > 0);
