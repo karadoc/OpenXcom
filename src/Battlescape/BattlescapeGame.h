@@ -39,8 +39,10 @@ class TileEngine;
 class Pathfinding;
 class Mod;
 class InfoboxOKState;
+class SoldierDiary;
 
-enum BattleActionType { BA_NONE, BA_TURN, BA_WALK, BA_PRIME, BA_THROW, BA_AUTOSHOT, BA_SNAPSHOT, BA_AIMEDSHOT, BA_HIT, BA_USE, BA_LAUNCH, BA_MINDCONTROL, BA_PANIC, BA_RETHINK, BA_EXECUTE };
+enum BattleActionType : Uint8 { BA_NONE, BA_TURN, BA_WALK, BA_KNEEL, BA_PRIME, BA_THROW, BA_AUTOSHOT, BA_SNAPSHOT, BA_AIMEDSHOT, BA_HIT, BA_USE, BA_LAUNCH, BA_MINDCONTROL, BA_PANIC, BA_RETHINK, BA_EXECUTE };
+enum BattleActionMove { BAM_NORMAL = 0, BAM_RUN = 1, BAM_STRAFE = 2 };
 
 struct BattleActionCost : RuleItemUseCost
 {
@@ -81,7 +83,7 @@ struct BattleAction : BattleActionCost
     int number; // first action of turn, second, etc.?
 
 	//Default constructor
-	BattleAction() : targeting(false), value(0), strafe(false), run(false), ignoreSpottedEnemies(false), diff(0), autoShotCounter(0), cameraPosition(0, 0, -1), desperate(false), finalFacing(-1), finalAction(false), number(0) { }
+	BattleAction() : target(-1, -1, -1), targeting(false), value(0), strafe(false), run(false), diff(0), autoShotCounter(0), cameraPosition(0, 0, -1), desperate(false), finalFacing(-1), finalAction(false), number(0) { }
 };
 
 /**
@@ -139,7 +141,7 @@ public:
 	/// Sets state think interval.
 	void setStateInterval(Uint32 interval);
 	/// Checks for casualties in battle.
-	void checkForCasualties(const RuleDamageType *murderweapon, BattleUnit *murderer, bool hiddenExplosion = false, bool terrainExplosion = false);
+	void checkForCasualties(const RuleDamageType *damageType, const BattleItem *murderweapon, BattleUnit *murderer, bool hiddenExplosion = false, bool terrainExplosion = false);
 	/// Checks reserved tu and energy.
 	bool checkReservedTU(BattleUnit *bu, int tu, int energy, bool justChecking = false);
 	/// Handles unit AI.

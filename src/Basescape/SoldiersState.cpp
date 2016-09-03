@@ -197,6 +197,7 @@ SoldiersState::~SoldiersState()
  */
 void SoldiersState::cbxSortByChange(Action *action)
 {
+	bool ctrlPressed = SDL_GetModState() & KMOD_CTRL;
 	size_t selIdx = _cbxSortBy->getSelected();
 	if (selIdx == (size_t)-1)
 	{
@@ -206,7 +207,16 @@ void SoldiersState::cbxSortByChange(Action *action)
 	SortFunctor *compFunc = _sortFunctors[selIdx];
 	if (compFunc)
 	{
-		std::stable_sort(_base->getSoldiers()->begin(), _base->getSoldiers()->end(), *compFunc);
+		// if CTRL is pressed, we only want to show the dynamic column, without actual sorting
+		if (!ctrlPressed)
+		{
+			std::stable_sort(_base->getSoldiers()->begin(), _base->getSoldiers()->end(), *compFunc);
+			bool shiftPressed = SDL_GetModState() & KMOD_SHIFT;
+			if (shiftPressed)
+			{
+				std::reverse(_base->getSoldiers()->begin(), _base->getSoldiers()->end());
+			}
+		}
 	}
 	else
 	{
@@ -252,6 +262,8 @@ void SoldiersState::initList(size_t scrl)
 {
 	unsigned int row = 0;
 	_lstSoldiers->clearList();
+	float absBonus = _base->getSickBayAbsoluteBonus();
+	float relBonus = _base->getSickBayRelativeBonus();
 	for (std::vector<Soldier*>::iterator i = _base->getSoldiers()->begin(); i != _base->getSoldiers()->end(); ++i)
 	{
 		// call corresponding getter
@@ -264,7 +276,7 @@ void SoldiersState::initList(size_t scrl)
 			ss << L"";
 		}
 
-		_lstSoldiers->addRow(4, (*i)->getName(true).c_str(), tr((*i)->getRankString()).c_str(), (*i)->getCraftString(_game->getLanguage()).c_str(), ss.str().c_str());
+		_lstSoldiers->addRow(4, (*i)->getName(true).c_str(), tr((*i)->getRankString()).c_str(), (*i)->getCraftString(_game->getLanguage(), absBonus, relBonus).c_str(), ss.str().c_str());
 		if ((*i)->getCraft() == 0)
 		{
 			_lstSoldiers->setRowColor(row, _lstSoldiers->getSecondaryColor());

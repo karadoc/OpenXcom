@@ -940,6 +940,39 @@
     <ClCompile Include="Geoscape\TrainingState.cpp">
       <Filter>Geoscape</Filter>
     </ClCompile>
+    <ClCompile Include="Battlescape\ItemSprite.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Mod\RuleStartingCondition.cpp">
+      <Filter>Mod</Filter>
+    </ClCompile>
+    <ClCompile Include="Mod\RuleItemCategory.cpp">
+      <Filter>Mod</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\CommendationLateState.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\CommendationState.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Mod\RuleCommendations.cpp">
+      <Filter>Mod</Filter>
+    </ClCompile>
+    <ClCompile Include="Savegame\SoldierDiary.cpp">
+      <Filter>Savegame</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\SoldierDiaryMissionState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\SoldierDiaryOverviewState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\SoldierDiaryPerformanceState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Mod\RuleConverter.cpp">
+      <Filter>Mod</Filter>
+    </ClCompile>
     <ClCompile Include="Basescape\SoldierSortUtil.cpp">
       <Filter>Basescape</Filter>
     </ClCompile>
@@ -955,17 +988,29 @@
     <ClCompile Include="Battlescape\ConfirmEndMissionState.cpp">
       <Filter>Battlescape</Filter>
     </ClCompile>
-    <ClCompile Include="Battlescape\ItemSprite.cpp">
-      <Filter>Battlescape</Filter>
-    </ClCompile>
     <ClCompile Include="Geoscape\UfoTrackerState.cpp">
       <Filter>Geoscape</Filter>
     </ClCompile>
-    <ClCompile Include="Mod\RuleStartingCondition.cpp">
-      <Filter>Mod</Filter>
+    <ClCompile Include="Basescape\TechTreeViewerState.cpp">
+      <Filter>Basescape</Filter>
     </ClCompile>
-    <ClCompile Include="Mod\RuleItemCategory.cpp">
-      <Filter>Mod</Filter>
+    <ClCompile Include="Basescape\TechTreeSelectState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\ManufactureDependenciesTreeState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\InventoryLoadState.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\InventorySaveState.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\CraftPilotsState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\CraftPilotSelectState.cpp">
+      <Filter>Basescape</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1782,9 +1827,6 @@
     <ClInclude Include="Menu\ListLoadOriginalState.h">
       <Filter>Menu</Filter>
     </ClInclude>
-    <ClInclude Include="Savegame\SaveConverterXcom1.h">
-      <Filter>Savegame</Filter>
-    </ClInclude>
     <ClInclude Include="Engine\FlcPlayer.h">
       <Filter>Engine</Filter>
     </ClInclude>
@@ -1938,6 +1980,48 @@
     <ClInclude Include="Geoscape\TrainingState.h">
       <Filter>Geoscape</Filter>
     </ClInclude>
+    <ClInclude Include="Battlescape\ItemSprite.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Mod\RuleStartingCondition.h">
+      <Filter>Mod</Filter>
+    </ClInclude>
+    <ClInclude Include="Mod\RuleItemCategory.h">
+      <Filter>Mod</Filter>
+    </ClInclude>
+    <ClInclude Include="Savegame\BattleUnitStatistics.h">
+      <Filter>Savegame</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\CommendationLateState.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\CommendationState.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Geoscape\Cord.h">
+      <Filter>Geoscape</Filter>
+    </ClInclude>
+    <ClInclude Include="Savegame\MissionStatistics.h">
+      <Filter>Savegame</Filter>
+    </ClInclude>
+    <ClInclude Include="Mod\RuleCommendations.h">
+      <Filter>Mod</Filter>
+    </ClInclude>
+    <ClInclude Include="Savegame\SoldierDiary.h">
+      <Filter>Savegame</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\SoldierDiaryMissionState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\SoldierDiaryOverviewState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\SoldierDiaryPerformanceState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Mod\RuleConverter.h">
+      <Filter>Mod</Filter>
+    </ClInclude>
     <ClInclude Include="Basescape\SoldierSortUtil.h">
       <Filter>Basescape</Filter>
     </ClInclude>
@@ -1953,17 +2037,29 @@
     <ClInclude Include="Battlescape\ConfirmEndMissionState.h">
       <Filter>Battlescape</Filter>
     </ClInclude>
-    <ClInclude Include="Battlescape\ItemSprite.h">
-      <Filter>Battlescape</Filter>
-    </ClInclude>
     <ClInclude Include="Geoscape\UfoTrackerState.h">
       <Filter>Geoscape</Filter>
     </ClInclude>
-    <ClInclude Include="Mod\RuleStartingCondition.h">
-      <Filter>Mod</Filter>
+    <ClInclude Include="Basescape\TechTreeViewerState.h">
+      <Filter>Basescape</Filter>
     </ClInclude>
-    <ClInclude Include="Mod\RuleItemCategory.h">
-      <Filter>Mod</Filter>
+    <ClInclude Include="Basescape\TechTreeSelectState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\ManufactureDependenciesTreeState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\InventoryLoadState.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\InventorySaveState.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\CraftPilotsState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\CraftPilotSelectState.h">
+      <Filter>Basescape</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

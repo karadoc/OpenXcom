@@ -98,7 +98,7 @@ ConfirmLandingState::ConfirmLandingState(Craft *craft, Texture *texture, int sha
 	_txtBegin->setAlign(ALIGN_CENTER);
 	std::wostringstream ss;
 	ss << L'\x01' << tr("STR_BEGIN_MISSION");
-	_txtBegin->setText(ss.str().c_str());
+	_txtBegin->setText(ss.str());
 
 	SurfaceSet *sprites = _game->getMod()->getSurfaceSet("DayNightIndicator");
 	if (sprites != 0)

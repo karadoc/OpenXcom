@@ -24,7 +24,9 @@
 #include "../Savegame/BattleUnit.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Surface.h"
+#include "../Engine/ScriptBind.h"
 #include "Mod.h"
+#include <algorithm>
 
 namespace OpenXcom
 {
@@ -38,7 +40,7 @@ const float TilesToVexels = 16.0f;
  */
 RuleItem::RuleItem(const std::string &type) :
 	_type(type), _name(type), _size(0.0), _costBuy(0), _costSell(0), _transferTime(24), _weight(3),
-	_bigSprite(-1), _bigSpriteAlt(0), _floorSprite(-1), _floorSpriteAlt(-1), _handSprite(120), _bulletSprite(-1),
+	_bigSprite(-1), _floorSprite(-1), _handSprite(120), _bulletSprite(-1),
 	_fireSound(-1),
 	_hitSound(-1), _hitAnimation(0), _hitMissSound(-1), _hitMissAnimation(-1),
 	_meleeSound(39), _meleeAnimation(0), _meleeMissSound(-1), _meleeMissAnimation(-1),
@@ -51,12 +53,13 @@ RuleItem::RuleItem(const std::string &type) :
 	_battleType(BT_NONE), _fuseType(BFT_NONE), _twoHanded(false), _blockBothHands(false), _waypoint(false), _fixedWeapon(false), _fixedWeaponShow(false), _allowSelfHeal(false), _isConsumable(false), _isFireExtinguisher(false), _invWidth(1), _invHeight(1),
 	_painKiller(0), _heal(0), _stimulant(0), _medikitType(BMT_NORMAL), _woundRecovery(0), _healthRecovery(0), _stunRecovery(0), _energyRecovery(0), _moraleRecovery(0), _painKillerRecovery(1.0f), _recoveryPoints(0), _armor(20), _turretType(-1),
 	_aiUseDelay(-1), _aiMeleeHitCount(25),
-	_recover(true), _liveAlien(false), _attraction(0), _flatUse(0, 1), _flatMelee(-1, -1), _flatThrow(0, 1), _flatPrime(0, 1), _arcingShot(false), _experienceTrainingMode(ETM_DEFAULT), _listOrder(0),
-	_maxRange(200), _aimRange(200), _snapRange(15), _autoRange(7), _minRange(0), _dropoff(2), _bulletSpeed(0), _explosionSpeed(0), _autoShots(3), _shotgunPellets(0),
+	_recover(true), _liveAlien(false), _liveAlienPrisonType(0), _attraction(0), _flatUse(0, 1), _flatMelee(-1, -1), _flatThrow(0, 1), _flatPrime(0, 1), _arcingShot(false), _experienceTrainingMode(ETM_DEFAULT), _listOrder(0),
+	_maxRange(200), _aimRange(200), _snapRange(15), _autoRange(7), _minRange(0), _dropoff(2), _bulletSpeed(0), _explosionSpeed(0), _autoShots(3), _shotgunPellets(0), _shotgunBehaviorType(0), _shotgunSpread(100), _shotgunChoke(100),
 	_LOSRequired(false), _underwaterOnly(false), _psiReqiured(false),
 	_meleePower(0), _specialType(-1), _vaporColor(-1), _vaporDensity(0), _vaporProbability(15),
 	_customItemPreviewIndex(0),
-	_kneelBonus(-1), _oneHandedPenalty(-1)
+	_kneelBonus(-1), _oneHandedPenalty(-1),
+	_monthlySalary(0), _monthlyMaintenance(0)
 {
 	_accuracyMulti.setFiring();
 	_meleeMulti.setMelee();
@@ -189,11 +192,11 @@ void RuleItem::updateCategories(std::map<std::string, std::string> *replacementR
  * @param mod Mod for the item.
  * @param listOrder The list weight for this item.
  */
-void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
+void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModScript& parsers)
 {
 	if (const YAML::Node &parent = node["refNode"])
 	{
-		load(parent, mod, listOrder);
+		load(parent, mod, listOrder, parsers);
 	}
 	_type = node["type"].as<std::string>(_type);
 	_name = node["name"].as<std::string>(_name);
@@ -209,25 +212,9 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
 	{
 		_bigSprite = mod->getSpriteOffset(node["bigSprite"].as<int>(_bigSprite), "BIGOBS.PCK");
 	}
-	if (node["bigSpriteAlt"])
-	{
-		_bigSpriteAlt = mod->getSpriteOffset(node["bigSpriteAlt"].as<int>(_bigSpriteAlt), "BIGOBS.PCK");
-	}
-	else if (node["bigSprite"])
-	{
-		_bigSpriteAlt = _bigSprite;
-	}
 	if (node["floorSprite"])
 	{
 		_floorSprite = mod->getSpriteOffset(node["floorSprite"].as<int>(_floorSprite), "FLOOROB.PCK");
-	}
-	if (node["floorSpriteAlt"])
-	{
-		_floorSpriteAlt = mod->getSpriteOffset(node["floorSpriteAlt"].as<int>(_floorSpriteAlt), "FLOOROB.PCK");
-	}
-	else if (node["floorSprite"])
-	{
-		_floorSpriteAlt = _floorSprite;
 	}
 	if (node["handSprite"])
 	{
@@ -440,6 +427,7 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
 	}
 	_recover = node["recover"].as<bool>(_recover);
 	_liveAlien = node["liveAlien"].as<bool>(_liveAlien);
+	_liveAlienPrisonType = node["prisonType"].as<int>(_liveAlienPrisonType);
 	_attraction = node["attraction"].as<int>(_attraction);
 	_arcingShot = node["arcingShot"].as<bool>(_arcingShot);
 	_experienceTrainingMode = (ExperienceTrainingMode)node["experienceTrainingMode"].as<int>(_experienceTrainingMode);
@@ -454,6 +442,9 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
 	_explosionSpeed = node["explosionSpeed"].as<int>(_explosionSpeed);
 	_autoShots = node["autoShots"].as<int>(_autoShots);
 	_shotgunPellets = node["shotgunPellets"].as<int>(_shotgunPellets);
+	_shotgunBehaviorType = node["shotgunBehavior"].as<int>(_shotgunBehaviorType);
+	_shotgunSpread = node["shotgunSpread"].as<int>(_shotgunSpread);
+	_shotgunChoke = node["shotgunChoke"].as<int>(_shotgunChoke);
 	_zombieUnit = node["zombieUnit"].as<std::string>(_zombieUnit);
 	_LOSRequired = node["LOSRequired"].as<bool>(_LOSRequired);
 	_meleePower = node["meleePower"].as<int>(_meleePower);
@@ -465,6 +456,8 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
 	_customItemPreviewIndex = node["customItemPreviewIndex"].as<int>(_customItemPreviewIndex);
 	_kneelBonus = node["kneelBonus"].as<int>(_kneelBonus);
 	_oneHandedPenalty = node["oneHandedPenalty"].as<int>(_oneHandedPenalty);
+	_monthlySalary = node["monthlySalary"].as<int>(_monthlySalary);
+	_monthlyMaintenance = node["monthlyMaintenance"].as<int>(_monthlyMaintenance);
 
 	_damageBonus.load(node["damageBonus"]);
 	_meleeBonus.load(node["meleeBonus"]);
@@ -476,6 +469,12 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder)
 	_powerRangeThreshold = node["powerRangeThreshold"].as<float>(_powerRangeThreshold);
 
 	_psiReqiured = node["psiRequired"].as<bool>(_psiReqiured);
+	_scriptValues.load(node, parsers.getShared());
+
+	_recolorScript.load(_type, node, parsers.recolorItemSprite);
+	_spriteScript.load(_type, node, parsers.selectItemSprite);
+
+	_reacActionScript.load(_type, node, parsers.reactionWeaponAction);
 
 	if (!_listOrder)
 	{
@@ -601,30 +600,12 @@ int RuleItem::getBigSprite() const
 }
 
 /**
- * Gets the alternative reference in BIGOBS.PCK for use in inventory.
- * @return The sprite reference.
- */
-int RuleItem::getBigSpriteAlt() const
-{
-	return _bigSpriteAlt;
-}
-
-/**
  * Gets the reference in FLOOROB.PCK for use in battlescape.
  * @return The sprite reference.
  */
 int RuleItem::getFloorSprite() const
 {
 	return _floorSprite;
-}
-
-/**
- * Gets the alternative reference in FLOOROB.PCK for use in battlescape.
- * @return The sprite reference.
- */
-int RuleItem::getFloorSpriteAlt() const
-{
-	return _floorSpriteAlt;
 }
 
 /**
@@ -1048,7 +1029,7 @@ int RuleItem::getTUUnload() const
  * Gets a list of compatible ammo.
  * @return Pointer to a list of compatible ammo.
  */
-std::vector<std::string> *RuleItem::getCompatibleAmmo()
+const std::vector<std::string> *RuleItem::getCompatibleAmmo() const
 {
 	return &_compatibleAmmo;
 }
@@ -1152,15 +1133,17 @@ int RuleItem::getSpecialChance() const
  */
 void RuleItem::drawHandSprite(SurfaceSet *texture, Surface *surface, BattleItem *item) const
 {
-	Surface *frame = texture->getFrame(item ? item->getBigSprite() : this->getBigSprite());
+	Surface *frame = nullptr;
 	if (item)
 	{
-		ScriptWorker scr;
-		BattleItem::ScriptFill(&scr, item, true, 0, 0);
-		scr.executeBlit(frame, surface, this->getHandSpriteOffX(), this->getHandSpriteOffY());
+		frame = item->getBigSprite(texture);
+		ScriptWorkerBlit scr;
+		BattleItem::ScriptFill(&scr, item, BODYPART_ITEM_INVENTORY, 0, 0);
+		scr.executeBlit(frame, surface, this->getHandSpriteOffX(), this->getHandSpriteOffY(), 0);
 	}
 	else
 	{
+		frame = texture->getFrame(this->getBigSprite());
 		frame->setX(this->getHandSpriteOffX());
 		frame->setY(this->getHandSpriteOffY());
 		frame->blit(surface);
@@ -1435,6 +1418,15 @@ bool RuleItem::isAlien() const
 }
 
 /**
+* Returns to which type of prison does the live alien belong.
+* @return Prison type.
+*/
+int RuleItem::getPrisonType() const
+{
+	return _liveAlienPrisonType;
+}
+
+/**
  * Returns whether this item charges a flat rate of use and attack cost.
  * @return True if this item charges a flat rate of use and attack cost.
  */
@@ -1624,6 +1616,34 @@ int RuleItem::getShotgunPellets() const
 }
 
 /**
+* Gets the shotgun behavior type. This is an attribute of shotgun ammo.
+* @return 0 = cone-like spread (vanilla), 1 = grouping.
+*/
+int RuleItem::getShotgunBehaviorType() const
+{
+	return _shotgunBehaviorType;
+}
+
+/**
+* Gets the spread of shotgun projectiles. This is an attribute of shotgun ammo.
+* Can be used in both shotgun behavior types.
+* @return The shotgun spread.
+*/
+int RuleItem::getShotgunSpread() const
+{
+	return _shotgunSpread;
+}
+
+/**
+* Gets the shotgun choke value for modifying pellet spread. This is an attribute of the weapon (not ammo).
+* @return The shotgun choke value.
+*/
+int RuleItem::getShotgunChoke() const
+{
+	return _shotgunChoke;
+}
+
+/**
  * Gets the unit that the victim is morphed into when attacked.
  * @return The weapon's zombie unit.
  */
@@ -1757,6 +1777,91 @@ int RuleItem::getVaporProbability() const
 }
 
 /**
+ * Get recoloring script.
+ * @return Script for recoloring.
+ */
+const ModScript::RecolorItemParser::Container &RuleItem::getRecolorScript() const
+{
+	return _recolorScript;
+}
+
+/**
+ * Get switch sprite script.
+ * @return Script for switching.
+ */
+const ModScript::SelectItemParser::Container &RuleItem::getSpriteScript() const
+{
+	return _spriteScript;
+}
+/**
+ * Get script that caclualte reaction based on item that is used for action.
+ * @return Script that calculate reaction.
+ */
+const ModScript::ReactionUnitParser::Container &RuleItem::getReacActionScript() const
+{
+	return _reacActionScript;
+}
+
+namespace
+{
+
+void getBattleTypeScript(RuleItem *ri, int &ret)
+{
+	if (ri)
+	{
+		ret = (int)ri->getBattleType();
+		return;
+	}
+	ret = (int)BT_NONE;
+}
+
+}
+
+
+/**
+ * Register RuleItem in script parser.
+ * @param parser Script parser.
+ */
+void RuleItem::ScriptRegister(ScriptParserBase* parser)
+{
+	parser->registerPointerType<Mod>();
+
+	Bind<RuleItem> ri = { parser };
+
+	ri.addCustomConst("BT_NONE", BT_NONE);
+	ri.addCustomConst("BT_FIREARM", BT_FIREARM);
+	ri.addCustomConst("BT_AMMO", BT_AMMO);
+	ri.addCustomConst("BT_MELEE", BT_MELEE);
+	ri.addCustomConst("BT_GRENADE", BT_GRENADE);
+	ri.addCustomConst("BT_PROXIMITYGRENADE", BT_PROXIMITYGRENADE);
+	ri.addCustomConst("BT_MEDIKIT", BT_MEDIKIT);
+	ri.addCustomConst("BT_SCANNER", BT_SCANNER);
+	ri.addCustomConst("BT_MINDPROBE", BT_MINDPROBE);
+	ri.addCustomConst("BT_PSIAMP", BT_PSIAMP);
+	ri.addCustomConst("BT_FLARE", BT_FLARE);
+	ri.addCustomConst("BT_CORPSE", BT_CORPSE);
+
+	ri.add<&RuleItem::getAccuracyAimed>("getAccuracyAimed");
+	ri.add<&RuleItem::getAccuracyAuto>("getAccuracyAuto");
+	ri.add<&RuleItem::getAccuracyMelee>("getAccuracyMelee");
+	ri.add<&RuleItem::getAccuracyMind>("getAccuracyMind");
+	ri.add<&RuleItem::getAccuracyPanic>("getAccuracyPanic");
+	ri.add<&RuleItem::getAccuracySnap>("getAccuracySnap");
+	ri.add<&RuleItem::getAccuracyThrow>("getAccuracyThrow");
+	ri.add<&RuleItem::getAccuracyUse>("getAccuracyUse");
+
+	ri.add<&RuleItem::getArmor>("getArmorValue");
+	ri.add<&RuleItem::getWeight>("getWeight");
+	ri.add<&getBattleTypeScript>("getBattleType");
+	ri.add<&RuleItem::isWaypoint>("isWaypoint");
+	ri.add<&RuleItem::isWaterOnly>("isWaterOnly");
+	ri.add<&RuleItem::isTwoHanded>("isTwoHanded");
+	ri.add<&RuleItem::isBlockingBothHands>("isBlockingBothHands");
+
+	ri.addScriptValue<&RuleItem::_scriptValues>(false);
+}
+
+/**
  * Gets the index of the sprite in the CustomItemPreview sprite set.
  * @return Sprite index.
  */
@@ -1781,6 +1886,24 @@ int RuleItem::getKneelBonus(Mod *mod) const
 int RuleItem::getOneHandedPenalty(Mod *mod) const
 {
 	return _oneHandedPenalty != -1 ? _oneHandedPenalty : mod->getOneHandedPenaltyGlobal();
+}
+
+/**
+* Gets the monthly salary.
+* @return Monthly salary.
+*/
+int RuleItem::getMonthlySalary() const
+{
+	return _monthlySalary;
+}
+
+/**
+* Gets the monthly maintenance.
+* @return Monthly maintenance.
+*/
+int RuleItem::getMonthlyMaintenance() const
+{
+	return _monthlyMaintenance;
 }
 
 }

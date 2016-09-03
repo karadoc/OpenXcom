@@ -47,15 +47,16 @@ class SavedGame;
 class Language;
 class AlienBAIState;
 class CivilianBAIState;
-template<typename...> class ScriptContainer;
-template<typename, typename...> class ScriptParser;
-class ScriptWorker;
+template<typename, typename...> class ScriptContainer;
+template<typename...> class ScriptParser;
+class ScriptWorkerBlit;
+struct BattleUnitStatistics;
+struct StatAdjustment;
 
 enum UnitStatus {STATUS_STANDING, STATUS_WALKING, STATUS_FLYING, STATUS_TURNING, STATUS_AIMING, STATUS_COLLAPSING, STATUS_DEAD, STATUS_UNCONSCIOUS, STATUS_PANICKING, STATUS_BERSERK, STATUS_IGNORE_ME};
 enum UnitFaction {FACTION_PLAYER, FACTION_HOSTILE, FACTION_NEUTRAL};
 enum UnitBodyPart {BODYPART_HEAD, BODYPART_TORSO, BODYPART_RIGHTARM, BODYPART_LEFTARM, BODYPART_RIGHTLEG, BODYPART_LEFTLEG, BODYPART_MAX};
-enum UnitBodyPartEx {BODYPART_LEGS = BODYPART_MAX, BODYPART_COLLAPSING, BODYPART_ITEM, BODYPART_BIG_TORSO, BODYPART_BIG_PROPULSION = BODYPART_BIG_TORSO + 4, BODYPART_BIG_TURRET = BODYPART_BIG_PROPULSION + 4};
-
+enum UnitBodyPartEx {BODYPART_LEGS = BODYPART_MAX, BODYPART_COLLAPSING, BODYPART_ITEM_RIGHTHAND, BODYPART_ITEM_LEFTHAND, BODYPART_ITEM_FLOOR, BODYPART_ITEM_INVENTORY, BODYPART_LARGE_TORSO, BODYPART_LARGE_PROPULSION = BODYPART_LARGE_TORSO + 4, BODYPART_LARGE_TURRET = BODYPART_LARGE_PROPULSION + 4};
 
 /**
  * Represents a moving unit in the battlescape, player controlled or AI controlled
@@ -83,7 +84,7 @@ private:
 	std::unordered_set<Tile *> _visibleTilesLookup;
 	int _tu, _energy, _health, _morale, _stunlevel;
 	bool _kneeled, _floating, _dontReselect;
-	int _currentArmor[SIDE_MAX];
+	int _currentArmor[SIDE_MAX], _maxArmor[SIDE_MAX];
 	int _fatalWounds[BODYPART_MAX];
 	int _fire;
 	std::vector<BattleItem*> _inventory;
@@ -104,6 +105,11 @@ private:
 	int _turnsSinceSpotted;
 	std::string _spawnUnit;
 	std::string _activeHand;
+    BattleUnitStatistics* _statistics;
+	int _murdererId;	// used to credit the murderer with the kills that this unit got by blowing up on death
+    UnitSide _fatalShotSide;
+    UnitBodyPart _fatalShotBodyPart;
+    std::string _murdererWeapon, _murdererWeaponAmmo;
 
 	// static data
 	std::string _type;
@@ -114,7 +120,8 @@ private:
 	int _standHeight, _kneelHeight, _floatHeight;
 	std::vector<int> _deathSound;
 	int _value, _aggroSound, _moveSound;
-	int _intelligence, _aggression, _maxViewDistanceAtDarkSq, _maxViewDistanceAtDaySq;
+	int _intelligence, _aggression;
+	int _maxViewDistanceAtDark, _maxViewDistanceAtDay;
 	SpecialAbility _specab;
 	Armor *_armor;
 	SoldierGender _gender;
@@ -143,19 +150,19 @@ private:
 	void prepareMorale(int morale);
 public:
 	static const int MAX_SOLDIER_ID = 1000000;
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "BattleUnit";
 	/// Register all useful function used by script.
 	static void ScriptRegister(ScriptParserBase* parser);
 	/// Init all required data in script using object data.
-	static void ScriptFill(ScriptWorker* w, BattleUnit* unit, int body_part, int anim_frame, int shade, int burn);
-	/// Global unit scriptr parser.
-	static const Armor::RecolorParser Parser;
+	static void ScriptFill(ScriptWorkerBlit* w, BattleUnit* unit, int body_part, int anim_frame, int shade, int burn);
 
 	/// Creates a BattleUnit from solder.
 	BattleUnit(Soldier *soldier, int depth, int maxViewDistance);
+	/// Creates a BattleUnit from unit.
+	BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, StatAdjustment *adjustment, int depth, int maxViewDistance);
 	/// Updates a BattleUnit from a Soldier (after a change of armor).
 	void updateArmorFromSoldier(Soldier *soldier, int depth, int maxViewDistance);
-	/// Creates a BattleUnit from unit.
-	BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, int diff, int depth, int maxViewDistance);
 	/// Cleans up the BattleUnit.
 	~BattleUnit();
 	/// Loads the unit from YAML.
@@ -233,7 +240,7 @@ public:
 	/// Get overkill damage to unit.
 	int getOverKillDamage() const;
 	/// Do damage to the unit.
-	int damage(const Position &relative, int power, const RuleDamageType *type);
+	int damage(const Position &relative, int power, const RuleDamageType *type, UnitSide sideOverride = SIDE_MAX, UnitBodyPart bodypartOverride = BODYPART_MAX);
 	/// Heal stun level of the unit.
 	void healStun(int power);
 	/// Gets the unit's stun level.
@@ -249,9 +256,9 @@ public:
 	/// The unit is out - either dead or unconscious.
 	bool isOut() const;
 	/// Get the number of time units a certain action takes.
-	RuleItemUseCost getActionTUs(BattleActionType actionType, BattleItem *item) const;
+	RuleItemUseCost getActionTUs(BattleActionType actionType, const BattleItem *item) const;
 	/// Get the number of time units a certain action takes.
-	RuleItemUseCost getActionTUs(BattleActionType actionType, RuleItem *item) const;
+	RuleItemUseCost getActionTUs(BattleActionType actionType, const RuleItem *item) const;
 	/// Spend time units if it can.
 	bool spendTimeUnits(int tu);
 	/// Spend energy if it can.
@@ -288,6 +295,8 @@ public:
 	void setArmor(int armor, UnitSide side);
 	/// Get armor value.
 	int getArmor(UnitSide side) const;
+	/// Get max armor value.
+	int getMaxArmor(UnitSide side) const;
 	/// Get total number of fatal wounds.
 	int getFatalWounds() const;
 	/// Get the current reaction score.
@@ -330,6 +339,10 @@ public:
 	BattleItem *getMainHandWeapon(bool quickest = true) const;
 	/// Gets a grenade from the belt, if any.
 	BattleItem *getGrenadeFromBelt() const;
+	/// Gets the item from right hand.
+	BattleItem *getRightHandWeapon() const;
+	/// Gets the item from left hand.
+	BattleItem *getLeftHandWeapon() const;
 	/// Reloads righthand weapon if needed.
 	bool checkAmmo();
 	/// Check if this unit is in the exit area
@@ -373,7 +386,7 @@ public:
 	/// Get motion points for the motion scanner.
 	int getMotionPoints() const;
 	/// Gets the unit's armor.
-	Armor *getArmor() const;
+	const Armor *getArmor() const;
 	/// Sets the unit's name.
 	void setName(const std::wstring &name);
 	/// Gets the unit's name.
@@ -402,10 +415,12 @@ public:
 	int getIntelligence() const;
 	/// Get the unit's aggression.
 	int getAggression() const;
+	/// Helper method.
+	int getMaxViewDistanceSq(int baseVisibility, int nerf, int buff) const;
 	/// Get square of maximum view distance at dark.
-	inline int getMaxViewDistanceAtDarkSq() const {return _maxViewDistanceAtDarkSq;}
+	int getMaxViewDistanceAtDarkSq(const Armor *otherUnitArmor) const;
 	/// Get square of maximum view distance at day.
-	inline int getMaxViewDistanceAtDaySq() const { return _maxViewDistanceAtDaySq; }
+	int getMaxViewDistanceAtDaySq(const Armor *otherUnitArmor) const;
 	/// Get the units's special ability.
 	int getSpecialAbility() const;
 	/// Set the units's respawn flag.
@@ -436,8 +451,6 @@ public:
 	int getAggroSound() const;
 	/// Sets the unit's energy level.
 	void setEnergy(int energy);
-	/// Halve the unit's armor values.
-	void halveArmor();
 	/// Get the faction that killed this unit.
 	UnitFaction killedBy() const;
 	/// Set the faction that killed this unit.
@@ -470,7 +483,7 @@ public:
 	/// this function checks if a tile is visible, using maths.
 	bool checkViewSector(Position pos, bool useTurretDirection = false) const;
 	/// adjust this unit's stats according to difficulty.
-	void adjustStats(const int diff);
+	void adjustStats(const StatAdjustment &adjustment);
 	/// did this unit already take fire damage this turn? (used to avoid damaging large units multiple times.)
 	bool tookFireDamage() const;
 	/// switch the state of the fire damage tracker.
@@ -511,6 +524,26 @@ public:
 	void goToTimeOut();
 	/// Recovers the unit's time units and energy.
 	void recoverTimeUnits();
+    /// Get the unit's mission statistics.
+    BattleUnitStatistics* getStatistics();
+	/// Set the unit murderer's id.
+	void setMurdererId(int id);
+	/// Get the unit murderer's id.
+	int getMurdererId() const;
+    /// Set information on the unit's fatal shot.
+    void setFatalShotInfo(UnitSide side, UnitBodyPart bodypart);
+    /// Get information on the unit's fatal shot's side.
+    UnitSide getFatalShotSide() const;
+    /// Get information on the unit's fatal shot's body part.
+    UnitBodyPart getFatalShotBodyPart() const;
+    /// Get the unit murderer's weapon.
+    std::string getMurdererWeapon() const;
+    /// Set the unit murderer's weapon.
+    void setMurdererWeapon(std::string weapon);
+       /// Get the unit murderer's weapon's ammo.
+    std::string getMurdererWeaponAmmo() const;
+    /// Set the unit murderer's weapon's ammo.
+    void setMurdererWeaponAmmo(std::string weaponAmmo);
 };
 
 } //namespace OpenXcom

@@ -39,13 +39,14 @@ class RuleSoldier
 private:
 	std::string _type;
 	std::vector<std::string> _requires;
-	UnitStats _minStats, _maxStats, _statCaps;
+	UnitStats _minStats, _maxStats, _statCaps, _trainingStatCaps, _dogfightExperience;
 	std::string _armor;
 	int _costBuy, _costSalary, _standHeight, _kneelHeight, _floatHeight, _femaleFrequency;
 	std::vector<int> _deathSoundMale, _deathSoundFemale;
 	std::vector<SoldierNamePool*> _names;
 	std::string _armorForAvatar;
 	int _avatarOffsetX, _avatarOffsetY;
+	bool _allowPromotion, _allowPiloting;
 
 	void addSoldierNamePool(const std::string &namFile);
 public:
@@ -65,6 +66,10 @@ public:
 	UnitStats getMaxStats() const;
 	/// Gets the stat caps.
 	UnitStats getStatCaps() const;
+	/// Gets the training stat caps.
+	UnitStats getTrainingStatCaps() const;
+	/// Gets the improvement chances for pilots (after dogfight).
+	UnitStats getDogfightExperience() const;
 	/// Gets the cost of the soldier.
 	int getBuyCost() const;
 	/// Gets the monthly salary of the soldier.
@@ -83,6 +88,10 @@ public:
 	int getAvatarOffsetX() const;
 	/// Gets the Y offset used for avatar.
 	int getAvatarOffsetY() const;
+	/// Gets the allow promotion flag.
+	bool getAllowPromotion() const;
+	/// Gets the allow piloting flag.
+	bool getAllowPiloting() const;
 	/// Gets the female appearance ratio.
 	int getFemaleFrequency() const;
 	/// Gets the soldier's male death sounds.

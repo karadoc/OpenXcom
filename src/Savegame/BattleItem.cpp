@@ -19,11 +19,13 @@
 #include "BattleItem.h"
 #include "BattleUnit.h"
 #include "Tile.h"
+#include "../Mod/Mod.h"
 #include "../Mod/RuleItem.h"
 #include "../Mod/RuleInventory.h"
 #include "../Engine/Surface.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Script.h"
+#include "../Engine/ScriptBind.h"
 
 namespace OpenXcom
 {
@@ -150,7 +152,7 @@ YAML::Node BattleItem::save() const
  * Gets the ruleset for the item's type.
  * @return Pointer to ruleset.
  */
-RuleItem *BattleItem::getRules() const
+const RuleItem *BattleItem::getRules() const
 {
 	return _rules;
 }
@@ -212,7 +214,16 @@ bool BattleItem::spendBullet()
  * Gets the item's owner.
  * @return Pointer to Battleunit.
  */
-BattleUnit *BattleItem::getOwner() const
+BattleUnit *BattleItem::getOwner()
+{
+	return _owner;
+}
+
+/**
+ * Gets the item's owner.
+ * @return Pointer to Battleunit.
+ */
+const BattleUnit *BattleItem::getOwner() const
 {
 	return _owner;
 }
@@ -221,7 +232,16 @@ BattleUnit *BattleItem::getOwner() const
  * Gets the item's previous owner.
  * @return Pointer to Battleunit.
  */
-BattleUnit *BattleItem::getPreviousOwner() const
+BattleUnit *BattleItem::getPreviousOwner()
+{
+	return _previousOwner;
+}
+
+/**
+ * Gets the item's previous owner.
+ * @return Pointer to Battleunit.
+ */
+const BattleUnit *BattleItem::getPreviousOwner() const
 {
 	return _previousOwner;
 }
@@ -352,41 +372,67 @@ bool BattleItem::occupiesSlot(int x, int y, BattleItem *item) const
 }
 
 /**
- * Is item using alternative graphic.
- * @return Return current floor sprite.
- */
-bool BattleItem::isSpriteAlt() const
-{
-	switch (_rules->getBattleType())
-	{
-	case BT_NONE:
-	case BT_CORPSE:
-		return _unit && _unit->getStatus() != STATUS_DEAD;
-	case BT_FIREARM:
-		return _ammoItem != 0;
-	case BT_GRENADE:
-	case BT_PROXIMITYGRENADE:
-		return _fuseTimer != -1;
-	default:
-		return false;
-	}
-}
-/**
  * Gets the item's floor sprite.
  * @return Return current floor sprite.
  */
-int BattleItem::getFloorSprite() const
+Surface *BattleItem::getFloorSprite(SurfaceSet *set) const
 {
-	return isSpriteAlt() ? _rules->getFloorSpriteAlt() : _rules->getFloorSprite();
+	int i = _rules->getFloorSprite();
+	if (i != -1)
+	{
+		Surface *surf = set->getFrame(i);
+		//enforce compatibility with basic version
+		if (surf == nullptr)
+		{
+			throw Exception("Invlid surface set 'FLOOROB.PCK' for item '" + _rules->getType() + "': not enoght frames");
+		}
+
+		ModScript::SelectItemParser::Worker work{ this, BODYPART_ITEM_FLOOR, 0, 0 };
+		i = work.execute(_rules->getSpriteScript(), i, 0);
+
+		surf = set->getFrame(i);
+		if (surf == nullptr)
+		{
+			throw Exception("Invlid surface set 'FLOOROB.PCK' for item '" + _rules->getType() + "': not enoght frames");
+		}
+		return surf;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 /**
  * Gets the item's inventory sprite.
  * @return Return current inventory sprite.
  */
-int BattleItem::getBigSprite() const
+Surface *BattleItem::getBigSprite(SurfaceSet *set) const
 {
-	return isSpriteAlt() ? _rules->getBigSpriteAlt() : _rules->getBigSprite();
+	int i = _rules->getBigSprite();
+	if (i != -1)
+	{
+		Surface *surf = set->getFrame(i);
+		//enforce compatibility with basic version
+		if (surf == nullptr)
+		{
+			throw Exception("Invlid surface set 'BIGOBS.PCK' for item '" + _rules->getType() + "': not enoght frames");
+		}
+
+		ModScript::SelectItemParser::Worker work{ this, BODYPART_ITEM_INVENTORY, 0, 0 };
+		i = work.execute(_rules->getSpriteScript(), i, 0);
+
+		surf = set->getFrame(i);
+		if (surf == nullptr)
+		{
+			throw Exception("Invlid surface set 'BIGOBS.PCK' for item '" + _rules->getType() + "': not enoght frames");
+		}
+		return surf;
+	}
+	else
+	{
+		return nullptr;
+	}
 }
 
 /**
@@ -394,6 +440,15 @@ int BattleItem::getBigSprite() const
  * @return The ammo item.
  */
 BattleItem *BattleItem::getAmmoItem()
+{
+	return _ammoItem;
+}
+
+/**
+ * Gets the item's ammo item.
+ * @return The ammo item.
+ */
+const BattleItem *BattleItem::getAmmoItem() const
 {
 	return _ammoItem;
 }
@@ -429,9 +484,9 @@ int BattleItem::setAmmoItem(BattleItem *item)
 	if (_ammoItem)
 		return -1;
 
-	for (std::vector<std::string>::iterator i = _rules->getCompatibleAmmo()->begin(); i != _rules->getCompatibleAmmo()->end(); ++i)
+	for (const std::string &s : *_rules->getCompatibleAmmo())
 	{
-		if (*i == item->getRules()->getType())
+		if (s == item->getRules()->getType())
 		{
 			_ammoItem = item;
 			item->setIsAmmo(true);
@@ -473,7 +528,16 @@ int BattleItem::getId() const
  * Gets the corpse's unit.
  * @return Pointer to BattleUnit.
  */
-BattleUnit *BattleItem::getUnit() const
+BattleUnit *BattleItem::getUnit()
+{
+	return _unit;
+}
+
+/**
+ * Gets the corpse's unit.
+ * @return Pointer to BattleUnit.
+ */
+const BattleUnit *BattleItem::getUnit() const
 {
 	return _unit;
 }
@@ -549,6 +613,7 @@ void BattleItem::setXCOMProperty (bool flag)
 {
 	_XCOMProperty = flag;
 }
+
 /**
  * Gets the XCom property flag. This is to determine at debriefing what goes into the base/craft.
  * @return True if it's XCom property.
@@ -600,6 +665,16 @@ bool BattleItem::getGlow() const
 }
 
 /**
+ * Gets range of glow in tiles.
+ * @return Range.
+ */
+int BattleItem::getGlowRange() const
+{
+	auto owner = _unit ? _unit : _previousOwner;
+	return owner ? _rules->getPowerBonus(owner) : _rules->getPower();
+}
+
+/**
  * Sets the flag on this item indicating whether or not it is a clip used in a weapon.
  * @param ammo set the ammo flag to this.
  */
@@ -612,21 +687,93 @@ void BattleItem::setIsAmmo(bool ammo)
  * Checks if this item is loaded into a weapon.
  * @return if this is loaded into a weapon or not.
  */
-bool BattleItem::isAmmo()
+bool BattleItem::isAmmo() const
 {
 	return _isAmmo;
 }
 
-void BattleItem::ScriptFill(ScriptWorker* w, BattleItem* item, bool inventory, int anim_frame, int shade)
+/**
+ * Register BattleItem in script parser.
+ * @param parser Script parser.
+ */
+void BattleItem::ScriptRegister(ScriptParserBase* parser)
 {
-	w->proc = 0;
-	w->shade = shade;
+	parser->registerPointerType<Mod>();
+	parser->registerPointerType<RuleItem>();
+	parser->registerPointerType<BattleUnit>();
+
+	Bind<BattleItem> bi = { parser };
+
+	bi.addRules<RuleItem, &BattleItem::getRules>("getRuleItem");
+	bi.addPair<BattleUnit, &BattleItem::getUnit, &BattleItem::getUnit>("getBattleUnit");
+	bi.addPair<BattleItem, &BattleItem::getAmmoItem, &BattleItem::getAmmoItem>("getAmmoItem");
+	bi.addPair<BattleUnit, &BattleItem::getPreviousOwner, &BattleItem::getPreviousOwner>("getPreviousOwner");
+	bi.addPair<BattleUnit, &BattleItem::getOwner, &BattleItem::getOwner>("getOwner");
+	bi.add<&BattleItem::getId>("getId");
+	bi.add<&BattleItem::getAmmoQuantity>("getAmmoQuantity");
+	bi.add<&BattleItem::getFuseTimer>("getFuseTimer");
+	bi.add<&BattleItem::getGlow>("getGlow");
+	bi.add<&BattleItem::getHealQuantity>("getHealQuantity");
+	bi.add<&BattleItem::getPainKillerQuantity>("getPainKillerQuantity");
+	bi.add<&BattleItem::getStimulantQuantity>("getStimulantQuantity");
+	bi.add<&BattleItem::isAmmo>("isAmmo");
+}
+
+namespace
+{
+
+void commonImpl(BindBase& b, Mod* mod)
+{
+	b.addCustomPtr<const Mod>("rules", mod);
+
+	b.addCustomConst("blit_item_righthand", BODYPART_ITEM_RIGHTHAND);
+	b.addCustomConst("blit_item_lefthand", BODYPART_ITEM_LEFTHAND);
+	b.addCustomConst("blit_item_floor", BODYPART_ITEM_FLOOR);
+	b.addCustomConst("blit_item_big", BODYPART_ITEM_INVENTORY);
+}
+
+}
+
+/**
+ * Constructor of recolor script parser.
+ */
+ModScript::RecolorItemParser::RecolorItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParser{ shared, name, "new_pixel", "old_pixel", "item", "blit_part", "anim_frame", "shade" }
+{
+	BindBase b { this };
+
+	commonImpl(b, mod);
+
+	setDefault("add_shade new_pixel shade; return new_pixel;");
+}
+
+/**
+ * Constructor of select sprite script parser.
+ */
+ModScript::SelectItemParser::SelectItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name, "sprite_index", "sprite_offset", "item", "blit_part", "anim_frame", "shade" }
+{
+	BindBase b { this };
+
+	commonImpl(b, mod);
+
+	setDefault("add sprite_index sprite_offset; return sprite_index;");
+}
+
+/**
+ * Init all required data in script using object data.
+ */
+void BattleItem::ScriptFill(ScriptWorkerBlit* w, BattleItem* item, int part, int anim_frame, int shade)
+{
+	w->clear();
 	if(item)
 	{
-		BattleUnit* itemUnit = item->getUnit();
-		if(itemUnit)
+		const auto &scr = item->getRules()->getRecolorScript();
+		if (scr)
 		{
-			BattleUnit::ScriptFill(w, itemUnit, inventory ? BODYPART_ITEM : BODYPART_COLLAPSING, anim_frame, shade, 0);
+			w->update(scr, item, part, anim_frame, shade);
+		}
+		else
+		{
+			BattleUnit::ScriptFill(w, item->getUnit(), part, anim_frame, shade, 0);
 		}
 	}
 }

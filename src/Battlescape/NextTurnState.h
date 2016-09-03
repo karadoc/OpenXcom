@@ -20,6 +20,8 @@
 #define OPENXCOM_NEXTTURNSTATE_H
 
 #include "../Engine/State.h"
+#include "../Savegame/BattleUnit.h"
+#include "../Mod/RuleStartingCondition.h"
 
 namespace OpenXcom
 {
@@ -39,11 +41,13 @@ class NextTurnState : public State
 private:
 	static const int NEXT_TURN_DELAY = 500;
 	Window *_window;
-	Text *_txtTitle, *_txtTurn, *_txtSide, *_txtMessage;
+	Text *_txtTitle, *_txtTurn, *_txtSide, *_txtMessage, *_txtMessage2, *_txtMessage3;
 	SavedBattleGame *_battleGame;
 	BattlescapeState *_state;
 	Timer *_timer;
 	Surface *_bg;
+	/// Applies a given environmental condition effects to a given faction.
+	bool applyEnvironmentalConditionToFaction(UnitFaction faction, EnvironmentalCondition condition);
 public:
 	/// Creates the Next Turn state.
 	NextTurnState(SavedBattleGame *battleGame, BattlescapeState *state);

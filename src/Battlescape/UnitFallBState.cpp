@@ -244,7 +244,7 @@ void UnitFallBState::think()
 						ub = unitsToMove.erase(ub);
 					}
 				}
-				_parent->checkForCasualties(0,*unit);
+				_parent->checkForCasualties(nullptr, nullptr, *unit);
 			}
 		}
 		// we are just standing around, we are done falling.
@@ -271,7 +271,10 @@ void UnitFallBState::think()
 				_terrain->calculateFOV((*unit)->getPosition(), 1, false); //update everyone else to see this unit, as well as all this unit's visible units.
 				_terrain->calculateFOV((*unit), true, false); //update tiles
 				_parent->checkForProximityGrenades(*unit);
-				if (_parent->getTileEngine()->checkReactionFire(*unit))
+				BattleAction fall;
+				fall.type = BA_WALK;
+				fall.actor = *unit;
+				if (_parent->getTileEngine()->checkReactionFire(*unit, fall))
 					_parent->getPathfinding()->abortPath();
 				unit = _parent->getSave()->getFallingUnits()->erase(unit);
 			}

@@ -222,11 +222,14 @@
     <ClCompile Include="Basescape\CraftArmorState.cpp" />
     <ClCompile Include="Basescape\CraftEquipmentState.cpp" />
     <ClCompile Include="Basescape\CraftInfoState.cpp" />
+    <ClCompile Include="Basescape\CraftPilotSelectState.cpp" />
+    <ClCompile Include="Basescape\CraftPilotsState.cpp" />
     <ClCompile Include="Basescape\CraftSoldiersState.cpp" />
     <ClCompile Include="Basescape\CraftsState.cpp" />
     <ClCompile Include="Basescape\CraftWeaponsState.cpp" />
     <ClCompile Include="Basescape\DismantleFacilityState.cpp" />
     <ClCompile Include="Basescape\ManageAlienContainmentState.cpp" />
+    <ClCompile Include="Basescape\ManufactureDependenciesTreeState.cpp" />
     <ClCompile Include="Basescape\ManufactureState.cpp" />
     <ClCompile Include="Basescape\NewManufactureListState.cpp" />
     <ClCompile Include="Basescape\ManufactureInfoState.cpp" />
@@ -244,12 +247,17 @@
     <ClCompile Include="Basescape\SackSoldierState.cpp" />
     <ClCompile Include="Basescape\SellState.cpp" />
     <ClCompile Include="Basescape\SoldierArmorState.cpp" />
+    <ClCompile Include="Basescape\SoldierDiaryMissionState.cpp" />
+    <ClCompile Include="Basescape\SoldierDiaryOverviewState.cpp" />
+    <ClCompile Include="Basescape\SoldierDiaryPerformanceState.cpp" />
     <ClCompile Include="Basescape\SoldierAvatarState.cpp" />
     <ClCompile Include="Basescape\SoldierInfoState.cpp" />
     <ClCompile Include="Basescape\SoldierMemorialState.cpp" />
     <ClCompile Include="Basescape\SoldierSortUtil.cpp" />
     <ClCompile Include="Basescape\SoldiersState.cpp" />
     <ClCompile Include="Basescape\StoresState.cpp" />
+    <ClCompile Include="Basescape\TechTreeSelectState.cpp" />
+    <ClCompile Include="Basescape\TechTreeViewerState.cpp" />
     <ClCompile Include="Basescape\TransferBaseState.cpp" />
     <ClCompile Include="Basescape\TransferConfirmState.cpp" />
     <ClCompile Include="Basescape\TransferItemsState.cpp" />
@@ -268,6 +276,8 @@
     <ClCompile Include="Battlescape\BriefingState.cpp" />
     <ClCompile Include="Battlescape\Camera.cpp" />
     <ClCompile Include="Battlescape\CannotReequipState.cpp" />
+    <ClCompile Include="Battlescape\CommendationLateState.cpp" />
+    <ClCompile Include="Battlescape\CommendationState.cpp" />
     <ClCompile Include="Battlescape\ConfirmEndMissionState.cpp" />
     <ClCompile Include="Battlescape\DebriefingState.cpp" />
     <ClCompile Include="Battlescape\Explosion.cpp" />
@@ -275,6 +285,8 @@
     <ClCompile Include="Battlescape\InfoboxOKState.cpp" />
     <ClCompile Include="Battlescape\InfoboxState.cpp" />
     <ClCompile Include="Battlescape\Inventory.cpp" />
+    <ClCompile Include="Battlescape\InventoryLoadState.cpp" />
+    <ClCompile Include="Battlescape\InventorySaveState.cpp" />
     <ClCompile Include="Battlescape\InventoryState.cpp" />
     <ClCompile Include="Battlescape\ItemSprite.cpp" />
     <ClCompile Include="Battlescape\Map.cpp" />
@@ -439,6 +451,8 @@
     <ClCompile Include="Mod\RuleItemCategory.cpp" />
     <ClCompile Include="Mod\RuleStartingCondition.cpp" />
     <ClCompile Include="Mod\RuleStatBonus.cpp" />
+    <ClCompile Include="Mod\RuleCommendations.cpp" />
+    <ClCompile Include="Mod\RuleConverter.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -512,6 +526,7 @@
     <ClCompile Include="Savegame\Node.cpp" />
     <ClCompile Include="Savegame\SoldierAvatar.cpp" />
     <ClCompile Include="Savegame\SoldierDeath.cpp" />
+    <ClCompile Include="Savegame\SoldierDiary.cpp" />
     <ClCompile Include="Savegame\Target.cpp" />
     <ClCompile Include="Savegame\MissionSite.cpp" />
     <ClCompile Include="Savegame\Tile.cpp" />
@@ -551,10 +566,13 @@
     <ClInclude Include="Basescape\CraftArmorState.h" />
     <ClInclude Include="Basescape\CraftEquipmentState.h" />
     <ClInclude Include="Basescape\CraftInfoState.h" />
+    <ClInclude Include="Basescape\CraftPilotSelectState.h" />
+    <ClInclude Include="Basescape\CraftPilotsState.h" />
     <ClInclude Include="Basescape\CraftSoldiersState.h" />
     <ClInclude Include="Basescape\CraftsState.h" />
     <ClInclude Include="Basescape\CraftWeaponsState.h" />
     <ClInclude Include="Basescape\DismantleFacilityState.h" />
+    <ClInclude Include="Basescape\ManufactureDependenciesTreeState.h" />
     <ClInclude Include="Basescape\NewManufactureListState.h" />
     <ClInclude Include="Basescape\ManageAlienContainmentState.h" />
     <ClInclude Include="Basescape\ManufactureInfoState.h" />
@@ -573,12 +591,17 @@
     <ClInclude Include="Basescape\SackSoldierState.h" />
     <ClInclude Include="Basescape\SellState.h" />
     <ClInclude Include="Basescape\SoldierArmorState.h" />
+    <ClInclude Include="Basescape\SoldierDiaryMissionState.h" />
+    <ClInclude Include="Basescape\SoldierDiaryOverviewState.h" />
+    <ClInclude Include="Basescape\SoldierDiaryPerformanceState.h" />
     <ClInclude Include="Basescape\SoldierAvatarState.h" />
     <ClInclude Include="Basescape\SoldierInfoState.h" />
     <ClInclude Include="Basescape\SoldierMemorialState.h" />
     <ClInclude Include="Basescape\SoldierSortUtil.h" />
     <ClInclude Include="Basescape\SoldiersState.h" />
     <ClInclude Include="Basescape\StoresState.h" />
+    <ClInclude Include="Basescape\TechTreeSelectState.h" />
+    <ClInclude Include="Basescape\TechTreeViewerState.h" />
     <ClInclude Include="Basescape\TransferBaseState.h" />
     <ClInclude Include="Basescape\TransferConfirmState.h" />
     <ClInclude Include="Basescape\TransferItemsState.h" />
@@ -597,6 +620,8 @@
     <ClInclude Include="Battlescape\BriefingState.h" />
     <ClInclude Include="Battlescape\Camera.h" />
     <ClInclude Include="Battlescape\CannotReequipState.h" />
+    <ClInclude Include="Battlescape\CommendationLateState.h" />
+    <ClInclude Include="Battlescape\CommendationState.h" />
     <ClInclude Include="Battlescape\ConfirmEndMissionState.h" />
     <ClInclude Include="Battlescape\DebriefingState.h" />
     <ClInclude Include="Battlescape\Explosion.h" />
@@ -604,6 +629,8 @@
     <ClInclude Include="Battlescape\InfoboxOKState.h" />
     <ClInclude Include="Battlescape\InfoboxState.h" />
     <ClInclude Include="Battlescape\Inventory.h" />
+    <ClInclude Include="Battlescape\InventoryLoadState.h" />
+    <ClInclude Include="Battlescape\InventorySaveState.h" />
     <ClInclude Include="Battlescape\InventoryState.h" />
     <ClInclude Include="Battlescape\ItemSprite.h" />
     <ClInclude Include="Battlescape\Map.h" />
@@ -689,6 +716,7 @@
     <ClInclude Include="fmath.h" />
     <ClInclude Include="Geoscape\AlienBaseState.h" />
     <ClInclude Include="Geoscape\AllocateTrainingState.h" />
+    <ClInclude Include="Geoscape\Cord.h" />
     <ClInclude Include="Geoscape\DogfightErrorState.h" />
     <ClInclude Include="Geoscape\MissionDetectedState.h" />
     <ClInclude Include="Geoscape\AllocatePsiTrainingState.h" />
@@ -777,6 +805,8 @@
     <ClInclude Include="Mod\RuleItemCategory.h" />
     <ClInclude Include="Mod\RuleStartingCondition.h" />
     <ClInclude Include="Mod\RuleStatBonus.h" />
+    <ClInclude Include="Mod\RuleCommendations.h" />
+    <ClInclude Include="Mod\RuleConverter.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Mod\ArticleDefinition.h" />
@@ -827,6 +857,7 @@
     <ClInclude Include="Savegame\BaseFacility.h" />
     <ClInclude Include="Savegame\BattleItem.h" />
     <ClInclude Include="Savegame\BattleUnit.h" />
+    <ClInclude Include="Savegame\BattleUnitStatistics.h" />
     <ClInclude Include="Savegame\Country.h" />
     <ClInclude Include="Savegame\Craft.h" />
     <ClInclude Include="Savegame\CraftWeapon.h" />
@@ -834,12 +865,12 @@
     <ClInclude Include="Savegame\EquipmentLayoutItem.h" />
     <ClInclude Include="Savegame\GameTime.h" />
     <ClInclude Include="Savegame\ItemContainer.h" />
+    <ClInclude Include="Savegame\MissionStatistics.h" />
     <ClInclude Include="Savegame\MovingTarget.h" />
     <ClInclude Include="Savegame\Production.h" />
     <ClInclude Include="Savegame\Region.h" />
     <ClInclude Include="Savegame\ResearchProject.h" />
     <ClInclude Include="Savegame\SaveConverter.h" />
-    <ClInclude Include="Savegame\SaveConverterXcom1.h" />
     <ClInclude Include="Savegame\SavedBattleGame.h" />
     <ClInclude Include="Savegame\SavedGame.h" />
     <ClInclude Include="Savegame\SerializationHelper.h" />
@@ -847,6 +878,7 @@
     <ClInclude Include="Savegame\Node.h" />
     <ClInclude Include="Savegame\SoldierAvatar.h" />
     <ClInclude Include="Savegame\SoldierDeath.h" />
+    <ClInclude Include="Savegame\SoldierDiary.h" />
     <ClInclude Include="Savegame\Target.h" />
     <ClInclude Include="Savegame\MissionSite.h" />
     <ClInclude Include="Savegame\Tile.h" />

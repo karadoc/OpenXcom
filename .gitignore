@@ -10,6 +10,7 @@ configure
 Makefile
 Makefile.in
 depcomp
+compile
 .deps/
 *.tar.gz
 *.tar.xz
@@ -91,5 +92,6 @@ Dependencies/
 *.swp
 #Ignore NetBeans project directory
 nbproject/
+.tx/
 src/OpenXcom.2010.VC.opendb
 bin/user

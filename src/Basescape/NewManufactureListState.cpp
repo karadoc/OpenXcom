@@ -34,6 +34,7 @@
 #include "../Savegame/ItemContainer.h"
 #include "ManufactureStartState.h"
 #include "../Mod/Mod.h"
+#include "TechTreeViewerState.h"
 
 namespace OpenXcom
 {
@@ -90,6 +91,7 @@ NewManufactureListState::NewManufactureListState(Base *base) : _base(base), _sho
 	_lstManufacture->setMargin(2);
 	_lstManufacture->onMouseClick((ActionHandler)&NewManufactureListState::lstProdClickLeft, SDL_BUTTON_LEFT);
 	_lstManufacture->onMouseClick((ActionHandler)&NewManufactureListState::lstProdClickRight, SDL_BUTTON_RIGHT);
+	_lstManufacture->onMouseClick((ActionHandler)&NewManufactureListState::lstProdClickMiddle, SDL_BUTTON_MIDDLE);
 
 	_btnOk->setText(tr("STR_OK"));
 	_btnOk->onMouseClick((ActionHandler)&NewManufactureListState::btnOkClick);
@@ -180,7 +182,7 @@ void NewManufactureListState::lstProdClickLeft(Action *)
 	RuleManufacture *rule = 0;
 	for (std::vector<RuleManufacture *>::iterator it = _possibleProductions.begin(); it != _possibleProductions.end(); ++it)
 	{
-		if ((*it)->getName().c_str() == _displayedStrings[_lstManufacture->getSelectedRow()])
+		if ((*it)->getName() == _displayedStrings[_lstManufacture->getSelectedRow()])
 		{
 			rule = (*it);
 			break;
@@ -203,7 +205,7 @@ void NewManufactureListState::lstProdClickRight(Action *)
 	{
 		// display either category or requirements
 		_showRequirements = !_showRequirements;
-		const std::set<std::string> &baseFunc = _base->getProvidedBaseFunc();
+		const std::vector<std::string> &baseFunc = _base->getProvidedBaseFunc();
 
 		for (int row = 0; row < _lstManufacture->getRows(); ++row)
 		{
@@ -216,7 +218,7 @@ void NewManufactureListState::lstProdClickRight(Action *)
 					int count = 0;
 					for (std::vector<std::string>::const_iterator iter = info->getRequireBaseFunc().begin(); iter != info->getRequireBaseFunc().end(); ++iter)
 					{
-						if (baseFunc.find(*iter) != baseFunc.end())
+						if (std::find(baseFunc.begin(), baseFunc.end(), *iter) != baseFunc.end())
 						{
 							continue;
 						}
@@ -257,6 +259,16 @@ void NewManufactureListState::lstProdClickRight(Action *)
 			_lstManufacture->setRowColor(_lstManufacture->getSelectedRow(), 208); // white
 		}
 	}
+}
+
+/**
+* Opens the TechTreeViewer for the corresponding topic.
+* @param action Pointer to an action.
+*/
+void NewManufactureListState::lstProdClickMiddle(Action *)
+{
+	const RuleManufacture *selectedTopic = _game->getMod()->getManufacture(_displayedStrings[_lstManufacture->getSelectedRow()]);
+	_game->pushState(new TechTreeViewerState(0, selectedTopic));
 }
 
 /**
@@ -333,7 +345,7 @@ void NewManufactureListState::fillProductionList(bool refreshCategories)
 	bool hasUnseen = false;
 	for (std::vector<RuleManufacture *>::iterator it = _possibleProductions.begin(); it != _possibleProductions.end(); ++it)
 	{
-		if (((*it)->getCategory().c_str() == _catStrings[_cbxCategory->getSelected()]) || (_catStrings[_cbxCategory->getSelected()] == "STR_ALL_ITEMS"))
+		if (((*it)->getCategory() == _catStrings[_cbxCategory->getSelected()]) || (_catStrings[_cbxCategory->getSelected()] == "STR_ALL_ITEMS"))
 		{
 			// quick search
 			if (searchString != L"")

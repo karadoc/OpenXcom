@@ -48,7 +48,7 @@
 #include "../Savegame/Waypoint.h"
 #include "../Savegame/Transfer.h"
 #include "../Savegame/Soldier.h"
-#include "../Savegame/SoldierDeath.h"
+#include "../Savegame/SoldierDiary.h"
 #include "../Menu/PauseState.h"
 #include "UfoTrackerState.h"
 #include "InterceptState.h"
@@ -423,6 +423,7 @@ void GeoscapeState::blit()
 		(*it)->blit();
 	}
 }
+
 /**
  * Handle key shortcuts.
  * @param action Pointer to an action.
@@ -443,6 +444,48 @@ void GeoscapeState::handle(Action *action)
 			if (_game->getSavedGame()->getDebugMode())
 			{
 				_txtDebug->setText(L"DEBUG MODE");
+			}
+			else
+			{
+				_txtDebug->setText(L"");
+			}
+		}
+		// "ctrl-c" - delete all soldier commendations
+		if (Options::debug && action->getDetails()->key.keysym.sym == SDLK_c && (SDL_GetModState() & KMOD_CTRL) != 0)
+		{
+			if (_game->getSavedGame()->getDebugMode())
+			{
+				_txtDebug->setText(L"SOLDIER COMMENDATIONS DELETED");
+                for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
+				{
+					for (std::vector<Soldier*>::iterator j = (*i)->getSoldiers()->begin(); j != (*i)->getSoldiers()->end(); ++j)
+					{
+						for (std::vector<SoldierCommendations*>::iterator k = (*j)->getDiary()->getSoldierCommendations()->begin(); k != (*j)->getDiary()->getSoldierCommendations()->end(); ++k)
+						{
+							delete *k;
+						}
+						(*j)->getDiary()->getSoldierCommendations()->clear();
+					}
+				}
+			}
+			else
+			{
+				_txtDebug->setText(L"");
+			}
+		}
+		// "ctrl-a" - delete all soldier diaries
+		if (Options::debug && action->getDetails()->key.keysym.sym == SDLK_a && (SDL_GetModState() & KMOD_CTRL) != 0)
+		{
+			if (_game->getSavedGame()->getDebugMode())
+			{
+				_txtDebug->setText(L"SOLDIER DIARIES DELETED");
+				for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
+				{
+					for (std::vector<Soldier*>::iterator j = (*i)->getSoldiers()->begin(); j != (*i)->getSoldiers()->end(); ++j)
+					{
+						(*j)->resetDiary();
+					}
+				}
 			}
 			else
 			{
@@ -777,11 +820,7 @@ void GeoscapeState::time5Seconds()
 					{
 						if ((*k)->getCraft() == (*j))
 						{
-							SoldierDeath *death = new SoldierDeath();
-							death->setTime(*_game->getSavedGame()->getTime());
-							(*k)->die(death);
-							_game->getSavedGame()->getDeadSoldiers()->push_back((*k));
-							k = (*i)->getSoldiers()->erase(k);
+							k = _game->getSavedGame()->killSoldier(*k);
 						}
 						else
 						{
@@ -870,7 +909,8 @@ void GeoscapeState::time5Seconds()
 							if (underwater && !_globe->insideLand((*j)->getLongitude(), (*j)->getLatitude()))
 							{
 								popup(new DogfightErrorState((*j), tr("STR_UNABLE_TO_ENGAGE_AIRBORNE")));
-								_dogfightsToBeStarted.back()->btnMinimizeClick(0);
+								_dogfightsToBeStarted.back()->setMinimized(true);
+								_dogfightsToBeStarted.back()->setWaitForPoly(true);
 							}
 							if (!_dogfightStartTimer->isRunning())
 							{
@@ -1364,7 +1404,11 @@ void GeoscapeState::time30Minutes()
 				if (detected)
 				{
 					(*u)->setDetected(true);
-					popup(new UfoDetectedState((*u), this, true, (*u)->getHyperDetected()));
+					// don't show if player said he doesn't want to see this UFO anymore
+					if (!_game->getSavedGame()->isUfoOnIgnoreList((*u)->getId()))
+					{
+						popup(new UfoDetectedState((*u), this, true, (*u)->getHyperDetected()));
+					}
 				}
 			}
 			else
@@ -1477,7 +1521,7 @@ void GeoscapeState::time1Hour()
 		std::map<Production*, productionProgress_e> toRemove;
 		for (std::vector<Production*>::const_iterator j = (*i)->getProductions().begin(); j != (*i)->getProductions().end(); ++j)
 		{
-			toRemove[(*j)] = (*j)->step((*i), _game->getSavedGame(), _game->getMod());
+			toRemove[(*j)] = (*j)->step((*i), _game->getSavedGame(), _game->getMod(), _game->getLanguage());
 		}
 		for (std::map<Production*, productionProgress_e>::iterator j = toRemove.begin(); j != toRemove.end(); ++j)
 		{
@@ -1490,7 +1534,7 @@ void GeoscapeState::time1Hour()
 
 		if (Options::storageLimitsEnforced && (*i)->storesOverfull())
 		{
-			popup(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg((*i)->getName()).c_str(), _palette, _game->getMod()->getInterface("geoscape")->getElement("errorMessage")->color, "BACK13.SCR", _game->getMod()->getInterface("geoscape")->getElement("errorPalette")->color));
+			popup(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg((*i)->getName()), _palette, _game->getMod()->getInterface("geoscape")->getElement("errorMessage")->color, "BACK13.SCR", _game->getMod()->getInterface("geoscape")->getElement("errorPalette")->color));
 			popup(new SellState((*i), 0));
 		}
 	}
@@ -1671,11 +1715,13 @@ void GeoscapeState::time1Day()
 			delete(*iter);
 		}
 		// Handle soldier wounds
+		float absBonus = (*i)->getSickBayAbsoluteBonus();
+		float relBonus = (*i)->getSickBayRelativeBonus();
 		for (std::vector<Soldier*>::iterator j = (*i)->getSoldiers()->begin(); j != (*i)->getSoldiers()->end(); ++j)
 		{
-			if ((*j)->getWoundRecovery() > 0)
+			if ((*j)->isWounded())
 			{
-				(*j)->heal();
+				(*j)->heal(absBonus, relBonus);
 			}
 			if ((*j)->isInTraining())
 			{
@@ -1860,11 +1906,15 @@ void GeoscapeState::globeClick(Action *action)
 	if (_game->getSavedGame()->getDebugMode())
 	{
 		double lon, lat;
+		int texture, shade;
 		_globe->cartToPolar(mouseX, mouseY, &lon, &lat);
 		double lonDeg = lon / M_PI * 180, latDeg = lat / M_PI * 180;
+		_globe->getPolygonTextureAndShade(lon, lat, &texture, &shade);
 		std::wostringstream ss;
 		ss << "rad: " << lon << " , " << lat << std::endl;
 		ss << "deg: " << lonDeg << " , " << latDeg << std::endl;
+		ss << "texture: " << texture << ", shade: " << shade << std::endl;
+
 		_txtDebug->setText(ss.str());
 	}
 }
@@ -2091,7 +2141,15 @@ void GeoscapeState::handleDogfights()
 	{
 		if ((*d)->isMinimized())
 		{
-			_minimizedDogfights++;
+			if ((*d)->getWaitForPoly() && _globe->insideLand((*d)->getUfo()->getLongitude(), (*d)->getUfo()->getLatitude()))
+			{
+				(*d)->setMinimized(false);
+				(*d)->setWaitForPoly(false);
+			}
+			else
+			{
+				_minimizedDogfights++;
+			}
 		}
 		else
 		{
@@ -2274,7 +2332,7 @@ void GeoscapeState::determineAlienMissions()
 		}
 		if (command->getLabel() > 0 && conditions.find(command->getLabel()) != conditions.end())
 		{
-			std::stringstream ss;
+			std::ostringstream ss;
 			ss << "Mission generator encountered an error: multiple commands: " << command->getType() << " and ";
 			for (std::vector<RuleMissionScript*>::const_iterator j = availableMissions.begin(); j != availableMissions.end(); ++j)
 			{
@@ -2622,6 +2680,7 @@ bool GeoscapeState::processCommand(RuleMissionScript *command)
 	return true;
 
 }
+
 /**
  * Handler for clicking on a timer button.
  * @param action pointer to the mouse action.

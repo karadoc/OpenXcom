@@ -30,6 +30,8 @@
 #include "../Engine/Timer.h"
 #include "Globe.h"
 #include "../Savegame/SavedGame.h"
+#include "../Savegame/Soldier.h"
+#include "../Mod/RuleSoldier.h"
 #include "../Savegame/Craft.h"
 #include "../Mod/RuleCraft.h"
 #include "../Savegame/CraftWeapon.h"
@@ -235,12 +237,10 @@ const int DogfightState::_projectileBlobs[4][6][3] =
  * @param ufo Pointer to the UFO being intercepted.
  */
 DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
-	_state(state), _craft(craft), _ufo(ufo),
-	_timeout(50), _currentDist(640), _targetDist(560),
-	_end(false), _endUfoHandled(false), _endCraftHandled(false), _destroyUfo(false), _destroyCraft(false),
-	_ufoBreakingOff(false), _minimized(false), _endDogfight(false), _animatingHit(false),
-	_ufoSize(0), _craftHeight(0), _currentCraftDamageColor(0), _interceptionNumber(0), _interceptionsCount(0),
-	_x(0), _y(0), _minimizedIconX(0), _minimizedIconY(0)
+	_state(state), _craft(craft), _ufo(ufo), _timeout(50), _currentDist(640), _targetDist(560),
+	_end(false), _endUfoHandled(false), _endCraftHandled(false), _destroyUfo(false), _destroyCraft(false), _ufoBreakingOff(false),
+	_minimized(false), _endDogfight(false), _animatingHit(false), _waitForPoly(false), _ufoSize(0), _craftHeight(0), _currentCraftDamageColor(0), _interceptionNumber(0),
+	_interceptionsCount(0), _x(0), _y(0), _minimizedIconX(0), _minimizedIconY(0), _firedAtLeastOnce(false)
 {
 	_screen = false;
 	_craft->setInDogfight(true);
@@ -253,6 +253,12 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 		_weaponEnabled[i] = true;
 		_weaponFireCountdown[i] = 0;
 	}
+
+	// pilot modifiers
+	const std::vector<Soldier*> pilots = _craft->getPilotList();
+	_pilotAccuracyBonus = _craft->getPilotAccuracyBonus(pilots);
+	_pilotDodgeBonus = _craft->getPilotDodgeBonus(pilots);
+	_pilotApproachSpeedModifier = _craft->getPilotApproachSpeedModifier(pilots);
 
 	// Create objects
 	_window = new Surface(160, 96, _x, _y);
@@ -565,6 +571,35 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
  */
 DogfightState::~DogfightState()
 {
+	// award experience to the pilots
+	if (_firedAtLeastOnce && _craft && _ufo && (_ufo->isCrashed() || _ufo->isDestroyed()))
+	{
+		const std::vector<Soldier*> pilots = _craft->getPilotList();
+		for (std::vector<Soldier*>::const_iterator it = pilots.begin(); it != pilots.end(); ++it)
+		{
+			if ((*it)->getCurrentStats()->firing < (*it)->getRules()->getStatCaps().firing)
+			{
+				if (RNG::percent((*it)->getRules()->getDogfightExperience().firing))
+				{
+					(*it)->getCurrentStats()->firing++;
+				}
+			}
+			if ((*it)->getCurrentStats()->reactions < (*it)->getRules()->getStatCaps().reactions)
+			{
+				if (RNG::percent((*it)->getRules()->getDogfightExperience().reactions))
+				{
+					(*it)->getCurrentStats()->reactions++;
+				}
+			}
+			if ((*it)->getCurrentStats()->bravery < (*it)->getRules()->getStatCaps().bravery)
+			{
+				if (RNG::percent((*it)->getRules()->getDogfightExperience().bravery))
+				{
+					(*it)->getCurrentStats()->bravery += 10; // increase by 10 to keep OCD at bay
+				}
+			}
+		}
+	}
 	delete _craftDamageAnimTimer;
 	while (!_projectiles.empty())
 	{
@@ -792,7 +827,7 @@ void DogfightState::update()
 		{
 			if (_currentDist < _targetDist && !_ufo->isCrashed() && !_craft->isDestroyed())
 			{
-				distanceChange = 4;
+				distanceChange = 2 * _pilotApproachSpeedModifier;
 				if (_currentDist + distanceChange >_targetDist)
 				{
 					distanceChange = _targetDist - _currentDist;
@@ -800,7 +835,7 @@ void DogfightState::update()
 			}
 			else if (_currentDist > _targetDist && !_ufo->isCrashed() && !_craft->isDestroyed())
 			{
-				distanceChange = -2;
+				distanceChange = -1 * _pilotApproachSpeedModifier;
 			}
 
 			// don't let the interceptor mystically push or pull its fired projectiles
@@ -811,7 +846,7 @@ void DogfightState::update()
 		}
 		else
 		{
-			distanceChange = 4;
+			distanceChange = 2 * _pilotApproachSpeedModifier;
 
 			// UFOs can try to outrun our missiles, don't adjust projectile positions here
 			// If UFOs ever fire anything but beams, those positions need to be adjust here though.
@@ -835,7 +870,11 @@ void DogfightState::update()
 				if (((p->getPosition() >= _currentDist) || (p->getGlobalType() == CWPGT_BEAM && p->toBeRemoved())) && !_ufo->isCrashed() && !p->getMissed())
 				{
 					// UFO hit.
-					if (RNG::percent(((p->getAccuracy() * (100 + 300 / (5 - _ufoSize)) + 100) / 200) - _ufo->getCraftStats().avoidBonus + _craft->getCraftStats().hitBonus))
+					int chanceToHit = (p->getAccuracy() * (100 + 300 / (5 - _ufoSize)) + 100) / 200; // vanilla xcom
+					chanceToHit -= _ufo->getCraftStats().avoidBonus;
+					chanceToHit += _craft->getCraftStats().hitBonus;
+					chanceToHit += _pilotAccuracyBonus;
+					if (RNG::percent(chanceToHit))
 					{
 						// Formula delivered by Volutar, altered by Extended version.
 						int power = p->getDamage() * (_craft->getCraftStats().powerBonus + 100) / 100;
@@ -891,7 +930,11 @@ void DogfightState::update()
 			{
 				if (p->getGlobalType() == CWPGT_MISSILE || (p->getGlobalType() == CWPGT_BEAM && p->toBeRemoved()))
 				{
-					if (RNG::percent(p->getAccuracy() - _craft->getCraftStats().avoidBonus + _ufo->getCraftStats().hitBonus))
+					int chancetoHit = p->getAccuracy(); // vanilla xcom
+					chancetoHit -= _craft->getCraftStats().avoidBonus;
+					chancetoHit += _ufo->getCraftStats().hitBonus;
+					chancetoHit -= _pilotDodgeBonus;
+					if (RNG::percent(chancetoHit))
 					{
 						// Formula delivered by Volutar, altered by Extended version.
 						int power = p->getDamage() * (_ufo->getCraftStats().powerBonus + 100) / 100;
@@ -1190,6 +1233,7 @@ void DogfightState::fireWeapon(int i)
 			_projectiles.push_back(p);
 
 			_game->getMod()->getSound("GEO.CAT", w1->getRules()->getSound())->play();
+			_firedAtLeastOnce = true;
 		}
 	}
 }
@@ -1323,28 +1367,6 @@ void DogfightState::btnMinimizeClick(Action *)
 		if (_currentDist >= STANDOFF_DIST)
 		{
 			setMinimized(true);
-			_window->setVisible(false);
-			_preview->setVisible(false);
-			_btnStandoff->setVisible(false);
-			_btnCautious->setVisible(false);
-			_btnStandard->setVisible(false);
-			_btnAggressive->setVisible(false);
-			_btnDisengage->setVisible(false);
-			_btnUfo->setVisible(false);
-			_btnMinimize->setVisible(false);
-			_battle->setVisible(false);
-			for (int i = 0; i < _weaponNum; ++i)
-			{
-				_weapon[i]->setVisible(false);
-				_range[i]->setVisible(false);
-				_txtAmmo[i]->setVisible(false);
-			}
-			_damage->setVisible(false);
-			_txtDistance->setVisible(false);
-			_preview->setVisible(false);
-			_txtStatus->setVisible(false);
-			_btnMinimizedIcon->setVisible(true);
-			_txtInterceptionNumber->setVisible(true);
 		}
 		else
 		{
@@ -1641,7 +1663,33 @@ bool DogfightState::isMinimized() const
  */
 void DogfightState::setMinimized(const bool minimized)
 {
+	// set these to the same as the incoming minimized state
 	_minimized = minimized;
+	_btnMinimizedIcon->setVisible(minimized);
+	_txtInterceptionNumber->setVisible(minimized);
+
+	// set these to the opposite of the incoming minimized state
+	_window->setVisible(!minimized);
+	_btnStandoff->setVisible(!minimized);
+	_btnCautious->setVisible(!minimized);
+	_btnStandard->setVisible(!minimized);
+	_btnAggressive->setVisible(!minimized);
+	_btnDisengage->setVisible(!minimized);
+	_btnUfo->setVisible(!minimized);
+	_btnMinimize->setVisible(!minimized);
+	_battle->setVisible(!minimized);
+	for (int i = 0; i < _weaponNum; ++i)
+	{
+		_weapon[i]->setVisible(!minimized);
+		_range[i]->setVisible(!minimized);
+		_txtAmmo[i]->setVisible(!minimized);
+	}
+	_damage->setVisible(!minimized);
+	_txtDistance->setVisible(!minimized);
+	_txtStatus->setVisible(!minimized);
+
+	// set to false regardless
+	_preview->setVisible(false);
 }
 
 /**
@@ -1660,31 +1708,11 @@ void DogfightState::btnMinimizedIconClick(Action *)
 		if (underwater && !_state->getGlobe()->insideLand(_craft->getLongitude(), _craft->getLatitude()))
 		{
 			_state->popup(new DogfightErrorState(_craft, tr("STR_UNABLE_TO_ENGAGE_AIRBORNE")));
+			setWaitForPoly(true);
 		}
 		else
 		{
 			setMinimized(false);
-			_window->setVisible(true);
-			_btnStandoff->setVisible(true);
-			_btnCautious->setVisible(true);
-			_btnStandard->setVisible(true);
-			_btnAggressive->setVisible(true);
-			_btnDisengage->setVisible(true);
-			_btnUfo->setVisible(true);
-			_btnMinimize->setVisible(true);
-			_battle->setVisible(true);
-			for (int i = 0; i < _weaponNum; ++i)
-			{
-				_weapon[i]->setVisible(true);
-				_range[i]->setVisible(true);
-				_txtAmmo[i]->setVisible(true);
-			}
-			_damage->setVisible(true);
-			_txtDistance->setVisible(true);
-			_txtStatus->setVisible(true);
-			_btnMinimizedIcon->setVisible(false);
-			_txtInterceptionNumber->setVisible(false);
-			_preview->setVisible(false);
 		}
 	}
 }
@@ -1844,4 +1872,13 @@ int DogfightState::getInterceptionNumber() const
 	return _interceptionNumber;
 }
 
+void DogfightState::setWaitForPoly(bool wait)
+{
+	_waitForPoly = wait;
+}
+
+bool DogfightState::getWaitForPoly()
+{
+	return _waitForPoly;
+}
 }

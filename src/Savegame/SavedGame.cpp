@@ -37,6 +37,7 @@
 #include "Country.h"
 #include "Base.h"
 #include "Craft.h"
+#include "EquipmentLayoutItem.h"
 #include "Region.h"
 #include "Ufo.h"
 #include "Waypoint.h"
@@ -56,6 +57,8 @@
 #include "../Mod/RuleRegion.h"
 #include "../Mod/RuleSoldier.h"
 #include "BaseFacility.h"
+#include "MissionStatistics.h"
+#include "SoldierDeath.h"
 
 namespace OpenXcom
 {
@@ -156,6 +159,18 @@ SavedGame::~SavedGame()
 	{
 		delete *i;
 	}
+	for (int j = 0; j < MAX_EQUIPMENT_LAYOUT_TEMPLATES; ++j)
+	{
+		for (std::vector<EquipmentLayoutItem*>::iterator i = _globalEquipmentLayout[j].begin(); i != _globalEquipmentLayout[j].end(); ++i)
+		{
+			delete *i;
+		}
+	}
+	for (std::vector<MissionStatistics*>::iterator i = _missionStatistics.begin(); i != _missionStatistics.end(); ++i)
+	{
+		delete *i;
+	}
+
 	delete _battleGame;
 }
 
@@ -212,12 +227,12 @@ std::vector<SaveInfo> SavedGame::getList(Language *lang, bool autoquick)
 		}
 		catch (Exception &e)
 		{
-			Log(LOG_ERROR) << e.what();
+			Log(LOG_ERROR) << (*i) << ": " << e.what();
 			continue;
 		}
 		catch (YAML::Exception &e)
 		{
-			Log(LOG_ERROR) << e.what();
+			Log(LOG_ERROR) << (*i) << ": " << e.what();
 			continue;
 		}
 	}
@@ -478,6 +493,42 @@ void SavedGame::load(const std::string &filename, Mod *mod)
 		}
 	}
 
+	for (int j = 0; j < MAX_EQUIPMENT_LAYOUT_TEMPLATES; ++j)
+	{
+		std::ostringstream oss;
+		oss << "globalEquipmentLayout" << j;
+		std::string key = oss.str();
+		if (const YAML::Node &layout = doc[key])
+		{
+			for (YAML::const_iterator i = layout.begin(); i != layout.end(); ++i)
+			{
+				EquipmentLayoutItem *layoutItem = new EquipmentLayoutItem(*i);
+				if (mod->getInventory(layoutItem->getSlot()) && mod->getItem(layoutItem->getItemType()) && (layoutItem->getAmmoItem() == "NONE" || mod->getItem(layoutItem->getAmmoItem())))
+				{
+					_globalEquipmentLayout[j].push_back(layoutItem);
+				}
+				else
+				{
+					delete layoutItem;
+				}
+			}
+		}
+		std::ostringstream oss2;
+		oss2 << "globalEquipmentLayoutName" << j;
+		std::string key2 = oss2.str();
+		if (doc[key2])
+		{
+			_globalEquipmentLayoutName[j] = Language::utf8ToWstr(doc[key2].as<std::string>());
+		}
+	}
+
+	for (YAML::const_iterator i = doc["missionStatistics"].begin(); i != doc["missionStatistics"].end(); ++i)
+	{
+		MissionStatistics *ms = new MissionStatistics();
+		ms->load(*i);
+		_missionStatistics.push_back(ms);
+	}
+
 	if (const YAML::Node &battle = doc["battleGame"])
 	{
 		_battleGame = new SavedBattleGame(mod);
@@ -504,7 +555,12 @@ void SavedGame::save(const std::string &filename) const
 	YAML::Node brief;
 	brief["name"] = Language::wstrToUtf8(_name);
 	brief["version"] = OPENXCOM_VERSION_SHORT;
-	brief["build"] = OPENXCOM_VERSION_GIT;
+	std::string git_sha = OPENXCOM_VERSION_GIT;
+	if (git_sha[0] ==  '.')
+	{
+		git_sha.erase(0,1);
+	}
+	brief["build"] = git_sha;
 	brief["time"] = _time->save();
 	if (_battleGame != 0)
 	{
@@ -512,11 +568,22 @@ void SavedGame::save(const std::string &filename) const
 		brief["turn"] = _battleGame->getTurn();
 	}
 
+	// only save mods that work with the current master
 	std::vector<std::string> activeMods;
+	std::string curMasterId;
 	for (std::vector< std::pair<std::string, bool> >::iterator i = Options::mods.begin(); i != Options::mods.end(); ++i)
 	{
 		if (i->second)
 		{
+			ModInfo modInfo = Options::getModInfos().find(i->first)->second;
+			if (modInfo.isMaster())
+			{
+				curMasterId = i->first;
+			}
+			else if (!modInfo.getMaster().empty() && modInfo.getMaster() != curMasterId)
+			{
+				continue;
+			}
 			activeMods.push_back(i->first);
 		}
 	}
@@ -597,6 +664,28 @@ void SavedGame::save(const std::string &filename) const
 	{
 		node["deadSoldiers"].push_back((*i)->save());
 	}
+	for (int j = 0; j < MAX_EQUIPMENT_LAYOUT_TEMPLATES; ++j)
+	{
+		std::ostringstream oss;
+		oss << "globalEquipmentLayout" << j;
+		std::string key = oss.str();
+		if (!_globalEquipmentLayout[j].empty())
+		{
+			for (std::vector<EquipmentLayoutItem*>::const_iterator i = _globalEquipmentLayout[j].begin(); i != _globalEquipmentLayout[j].end(); ++i)
+				node[key].push_back((*i)->save());
+		}
+		std::ostringstream oss2;
+		oss2 << "globalEquipmentLayoutName" << j;
+		std::string key2 = oss2.str();
+		if (!_globalEquipmentLayoutName[j].empty())
+		{
+			node[key2] = Language::wstrToUtf8(_globalEquipmentLayoutName[j]);
+		}
+	}
+	for (std::vector<MissionStatistics*>::const_iterator i = _missionStatistics.begin(); i != _missionStatistics.end(); ++i)
+	{
+		node["missionStatistics"].push_back((*i)->save());
+	}
 	if (_battleGame != 0)
 	{
 		node["battleGame"] = _battleGame->save();
@@ -640,6 +729,7 @@ int SavedGame::getDifficultyCoefficient() const
 
 	return Mod::DIFFICULTY_COEFFICIENT[_difficulty];
 }
+
 /**
  * Changes the game's difficulty to a new level.
  * @param difficulty New difficulty.
@@ -1066,7 +1156,7 @@ void SavedGame::getAvailableResearchProjects (std::vector<RuleResearch *> & proj
 	const std::vector<const RuleResearch *> &discovered = getDiscoveredResearch();
 	const std::vector<std::string> &researchProjects = mod->getResearchList();
 	const std::vector<ResearchProject *> &baseResearchProjects = base->getResearch();
-	const std::set<std::string> &baseFunc = base->getProvidedBaseFunc();
+	const std::vector<std::string> &baseFunc = base->getProvidedBaseFunc();
 	std::vector<const RuleResearch *> unlocked;
 
 
@@ -1175,7 +1265,7 @@ void SavedGame::getAvailableProductions (std::vector<RuleManufacture *> & produc
 {
 	const std::vector<std::string> &items = mod->getManufactureList();
 	const std::vector<Production *> &baseProductions = base->getProductions();
-	const std::set<std::string> &baseFunc = base->getProvidedBaseFunc();
+	const std::vector<std::string> &baseFunc = base->getProvidedBaseFunc();
 
 	for (std::vector<std::string>::const_iterator iter = items.begin();
 		iter != items.end();
@@ -1439,6 +1529,13 @@ Soldier *SavedGame::getSoldier(int id) const
 			}
 		}
 	}
+	for (std::vector<Soldier*>::const_iterator j = _deadSoldiers.begin(); j != _deadSoldiers.end(); ++j)
+	{
+		if ((*j)->getId() == id)
+		{
+			return (*j);
+		}
+	}
 	return 0;
 }
 
@@ -1470,7 +1567,7 @@ bool SavedGame::handlePromotions(std::vector<Soldier*> &participants)
 		}
 	}
 
-	int totalSoldiers = (int)(soldiers.size());
+	int totalSoldiers = soldierData.totalSoldiers;
 
 	if (soldierData.totalCommanders == 0)
 	{
@@ -1554,6 +1651,15 @@ bool SavedGame::handlePromotions(std::vector<Soldier*> &participants)
  */
 void SavedGame::processSoldier(Soldier *soldier, PromotionInfo &soldierData)
 {
+	if (soldier->getRules()->getAllowPromotion())
+	{
+		soldierData.totalSoldiers++;
+	}
+	else
+	{
+		return;
+	}
+
 	switch (soldier->getRank())
 	{
 	case RANK_COMMANDER:
@@ -1572,6 +1678,7 @@ void SavedGame::processSoldier(Soldier *soldier, PromotionInfo &soldierData)
 		break;
 	}
 }
+
 /**
  * Checks how many soldiers of a rank exist and which one has the highest score.
  * @param soldiers full list of live soldiers.
@@ -1716,6 +1823,7 @@ std::vector<int64_t> &SavedGame::getExpenditures()
 {
 	return _expenditures;
 }
+
 /**
  * return if the player has been
  * warned about poor performance.
@@ -1898,7 +2006,7 @@ void SavedGame::setLastSelectedArmor(const std::string &value)
  * Gets the last selected armour
  * @return last used armor type string
  */
-std::string SavedGame::getLastSelectedArmor()
+std::string SavedGame::getLastSelectedArmor() const
 {
 	return _lastselectedArmor;
 }
@@ -1922,5 +2030,85 @@ Craft *SavedGame::findCraftByUniqueId(const CraftId& craftId) const
 	return NULL;
 }
 
+/**
+* Returns the global equipment layout at specified index.
+* @return Pointer to the EquipmentLayoutItem list.
+*/
+std::vector<EquipmentLayoutItem*> *SavedGame::getGlobalEquipmentLayout(int index)
+{
+	return &_globalEquipmentLayout[index];
+}
+
+/**
+* Returns the name of a global equipment layout at specified index.
+* @return A name.
+*/
+const std::wstring &SavedGame::getGlobalEquipmentLayoutName(int index) const
+{
+	return _globalEquipmentLayoutName[index];
+}
+
+/**
+* Sets the name of a global equipment layout at specified index.
+* @param index Array index.
+* @param name New name.
+*/
+void SavedGame::setGlobalEquipmentLayoutName(int index, const std::wstring &name)
+{
+	_globalEquipmentLayoutName[index] = name;
+}
+
+/**
+ * Returns the list of mission statistics.
+ * @return Pointer to statistics list.
+ */
+std::vector<MissionStatistics*> *SavedGame::getMissionStatistics()
+{
+	return &_missionStatistics;
+}
+
+/**
+* Adds a UFO to the ignore list.
+* @param ufoId Ufo ID.
+*/
+void SavedGame::addUfoToIgnoreList(int ufoId)
+{
+	if (ufoId != 0)
+	{
+		_ignoredUfos.insert(ufoId);
+	}
+}
+
+/**
+* Checks if a UFO is on the ignore list.
+* @param ufoId Ufo ID.
+*/
+bool SavedGame::isUfoOnIgnoreList(int ufoId)
+{
+	return _ignoredUfos.find(ufoId) != _ignoredUfos.end();
+}
+
+/**
+ * Registers a soldier's death in the memorial.
+ * @param soldier Pointer to dead soldier.
+ * @param cause Pointer to cause of death, NULL if missing in action.
+ */
+std::vector<Soldier*>::iterator SavedGame::killSoldier(Soldier *soldier, BattleUnitKills *cause)
+{
+	std::vector<Soldier*>::iterator j;
+	for (std::vector<Base*>::const_iterator i = _bases.begin(); i != _bases.end(); ++i)
+	{
+		for (j = (*i)->getSoldiers()->begin(); j != (*i)->getSoldiers()->end(); ++j)
+		{
+			if ((*j) == soldier)
+			{
+				soldier->die(new SoldierDeath(*_time, cause));
+				_deadSoldiers.push_back(soldier);
+				return (*i)->getSoldiers()->erase(j);
+			}
+		}
+	}
+	return j;
+}
 
 }

@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "SoldierInfoState.h"
+#include "SoldierDiaryOverviewState.h"
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Engine/Action.h"
@@ -32,6 +33,7 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/Craft.h"
 #include "../Savegame/Soldier.h"
+#include "../Savegame/SoldierDiary.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Mod/Armor.h"
 #include "../Menu/ErrorMessageState.h"
@@ -80,9 +82,10 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 	_btnArmor = new TextButton(110, 14, 130, 33);
 	_edtSoldier = new TextEdit(this, 210, 16, 40, 9);
 	_btnSack = new TextButton(60, 14, 260, 33);
+    _btnDiary = new TextButton(60, 14, 260, 48);
 	_txtRank = new Text(130, 9, 0, 48);
 	_txtMissions = new Text(100, 9, 130, 48);
-	_txtKills = new Text(100, 9, 230, 48);
+	_txtKills = new Text(100, 9, 200, 48);
 	_txtCraft = new Text(130, 9, 0, 56);
 	_txtRecovery = new Text(180, 9, 130, 56);
 	_txtPsionic = new Text(150, 9, 0, 66);
@@ -156,6 +159,7 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 	add(_btnArmor, "button", "soldierInfo");
 	add(_edtSoldier, "text1", "soldierInfo");
 	add(_btnSack, "button", "soldierInfo");
+	add(_btnDiary, "button", "soldierInfo");
 	add(_txtRank, "text1", "soldierInfo");
 	add(_txtMissions, "text1", "soldierInfo");
 	add(_txtKills, "text1", "soldierInfo");
@@ -256,6 +260,9 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 
 	_btnSack->setText(tr("STR_SACK"));
 	_btnSack->onMouseClick((ActionHandler)&SoldierInfoState::btnSackClick);
+
+	_btnDiary->setText(tr("STR_DIARY"));
+	_btnDiary->onMouseClick((ActionHandler)&SoldierInfoState::btnDiaryClick);
 
 	_txtPsionic->setText(tr("STR_IN_PSIONIC_TRAINING"));
 
@@ -448,9 +455,14 @@ void SoldierInfoState::init()
 	}
 	_txtCraft->setText(tr("STR_CRAFT_").arg(craft));
 
-	if (_soldier->getWoundRecovery() > 0)
+	if (_soldier->isWounded())
 	{
-		_txtRecovery->setText(tr("STR_WOUND_RECOVERY").arg(tr("STR_DAY", _soldier->getWoundRecovery())));
+		int recoveryTime = 0;
+		if (_base != 0)
+		{
+			recoveryTime = _soldier->getWoundRecovery(_base->getSickBayAbsoluteBonus(), _base->getSickBayRelativeBonus());
+		}
+		_txtRecovery->setText(tr("STR_WOUND_RECOVERY").arg(tr("STR_DAY", recoveryTime)));
 	}
 	else
 	{
@@ -461,7 +473,7 @@ void SoldierInfoState::init()
 
 	if (current->psiSkill > 0 || (Options::psiStrengthEval && _game->getSavedGame()->isResearched(_game->getMod()->getPsiRequirements())))
 	{
-		std::wstringstream ss14;
+		std::wostringstream ss14;
 		ss14 << withArmor.psiStrength;
 		_numPsiStrength->setText(ss14.str());
 		_barPsiStrength->setMax(current->psiStrength);
@@ -481,7 +493,7 @@ void SoldierInfoState::init()
 
 	if (current->psiSkill > 0)
 	{
-		std::wstringstream ss15;
+		std::wostringstream ss15;
 		ss15 << withArmor.psiSkill;
 		_numPsiSkill->setText(ss15.str());
 		_barPsiSkill->setMax(current->psiSkill);
@@ -525,6 +537,14 @@ void SoldierInfoState::edtSoldierPress(Action *)
 }
 
 /**
+ * Set the soldier Id.
+ */
+void SoldierInfoState::setSoldierId(size_t soldier)
+{
+	_soldierId = soldier;
+}
+
+/**
  * Changes the soldier's name.
  * @param action Pointer to an action.
  */
@@ -539,11 +559,12 @@ void SoldierInfoState::edtSoldierChange(Action *)
  */
 void SoldierInfoState::btnOkClick(Action *)
 {
+    
 	_game->popState();
 	if (_game->getSavedGame()->getMonthsPassed() > -1 && Options::storageLimitsEnforced && _base != 0 && _base->storesOverfull())
 	{
 		_game->pushState(new SellState(_base, 0));
-		_game->pushState(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg(_base->getName()).c_str(), _palette, _game->getMod()->getInterface("soldierInfo")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("soldierInfo")->getElement("errorPalette")->color));
+		_game->pushState(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg(_base->getName()), _palette, _game->getMod()->getInterface("soldierInfo")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("soldierInfo")->getElement("errorPalette")->color));
 	}
 }
 
@@ -591,6 +612,15 @@ void SoldierInfoState::btnArmorClick(Action *)
 void SoldierInfoState::btnSackClick(Action *)
 {
 	_game->pushState(new SackSoldierState(_base, _soldierId));
+}
+
+/**
+ * Shows the Diary Soldier window.
+ * @param action Pointer to an action.
+ */
+void SoldierInfoState::btnDiaryClick(Action *)
+{
+	_game->pushState(new SoldierDiaryOverviewState(_base, _soldierId, this));
 }
 
 /**

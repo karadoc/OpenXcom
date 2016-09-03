@@ -30,7 +30,8 @@ class BattleUnit;
 class Tile;
 class SurfaceSet;
 class Surface;
-class ScriptWorker;
+class ScriptWorkerBlit;
+class ScriptParserBase;
 
 /**
  * Represents a single item in the battlescape.
@@ -54,8 +55,12 @@ private:
 	bool _XCOMProperty, _droppedOnAlienTurn, _isAmmo;
 public:
 
-	/// Init all required data in script using object data
-	static void ScriptFill(ScriptWorker* w, BattleItem* item, bool inventory, int anim_frame, int shade);
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "BattleItem";
+	/// Register all useful function used by script.
+	static void ScriptRegister(ScriptParserBase* parser);
+	/// Init all required data in script using object data.
+	static void ScriptFill(ScriptWorkerBlit* w, BattleItem* item, int part, int anim_frame, int shade);
 
 	/// Creates a item of the specified type.
 	BattleItem(RuleItem *rules, int *id);
@@ -66,7 +71,7 @@ public:
 	/// Saves the item to YAML.
 	YAML::Node save() const;
 	/// Gets the item's ruleset.
-	RuleItem *getRules() const;
+	const RuleItem *getRules() const;
 	/// Gets the item's ammo quantity
 	int getAmmoQuantity() const;
 	/// Sets the item's ammo quantity.
@@ -78,9 +83,13 @@ public:
 	/// Spend one bullet.
 	bool spendBullet();
 	/// Gets the item's owner.
-	BattleUnit *getOwner() const;
+	BattleUnit *getOwner();
+	/// Gets the item's owner.
+	const BattleUnit *getOwner() const;
 	/// Gets the item's previous owner.
-	BattleUnit *getPreviousOwner() const;
+	BattleUnit *getPreviousOwner();
+	/// Gets the item's previous owner.
+	const BattleUnit *getPreviousOwner() const;
 	/// Sets the owner.
 	void setOwner(BattleUnit *owner);
 	/// Sets the item's previous owner.
@@ -101,14 +110,14 @@ public:
 	void setSlotY(int y);
 	/// Checks if the item is occupying a slot.
 	bool occupiesSlot(int x, int y, BattleItem *item = 0) const;
-	/// Is item using alternative graphic.
-	bool isSpriteAlt() const;
 	/// Gets the item's floor sprite.
-	int getFloorSprite() const;
+	Surface *getFloorSprite(SurfaceSet *set) const;
 	/// Gets the item's inventory sprite.
-	int getBigSprite() const;
+	Surface *getBigSprite(SurfaceSet *set) const;
 	/// Gets the item's ammo item.
 	BattleItem *getAmmoItem();
+	/// Gets the item's ammo item.
+	const BattleItem *getAmmoItem() const;
 	/// Determines if this item uses ammo.
 	bool needsAmmo() const;
 	/// Sets the item's ammo item.
@@ -120,7 +129,9 @@ public:
 	/// Gets it's unique id.
 	int getId() const;
 	/// Gets the corpse's unit.
-	BattleUnit *getUnit() const;
+	BattleUnit *getUnit();
+	/// Gets the corpse's unit.
+	const BattleUnit *getUnit() const;
 	/// Sets the corpse's unit.
 	void setUnit(BattleUnit *unit);
 	/// Set medikit Heal quantity
@@ -147,10 +158,12 @@ public:
 	void convertToCorpse(RuleItem *rules);
 	/// Get if item can glow.
 	bool getGlow() const;
+	/// Gets range of glow in tiles.
+	int getGlowRange() const;
 	/// Sets a flag on the item indicating if this is a clip in a weapon or not.
 	void setIsAmmo(bool ammo);
 	/// Checks a flag on the item to see if it's a clip in a weapon or not.
-	bool isAmmo();
+	bool isAmmo() const;
 };
 
 }

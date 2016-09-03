@@ -182,6 +182,11 @@ void AllocateTrainingState::cbxSortByChange(Action *action)
 	if (compFunc)
 	{
 		std::stable_sort(_base->getSoldiers()->begin(), _base->getSoldiers()->end(), *compFunc);
+		bool shiftPressed = SDL_GetModState() & KMOD_SHIFT;
+		if (shiftPressed)
+		{
+			std::reverse(_base->getSoldiers()->begin(), _base->getSoldiers()->end());
+		}
 	}
 	else
 	{
@@ -248,14 +253,15 @@ void AllocateTrainingState::initList(size_t scrl)
 		std::wostringstream strength;
 		strength << (*s)->getCurrentStats()->strength;
 
+		bool isWounded = (*s)->isWounded();
 		if ((*s)->isInTraining())
 		{
-			_lstSoldiers->addRow(9, (*s)->getName(true).c_str(), tu.str().c_str(), stamina.str().c_str(), health.str().c_str(), firing.str().c_str(), throwing.str().c_str(), melee.str().c_str(), strength.str().c_str(), tr("STR_YES").c_str());
+			_lstSoldiers->addRow(9, (*s)->getName(true).c_str(), tu.str().c_str(), stamina.str().c_str(), health.str().c_str(), firing.str().c_str(), throwing.str().c_str(), melee.str().c_str(), strength.str().c_str(), tr(isWounded ? "STR_NO_WOUNDED" : "STR_YES").c_str());
 			_lstSoldiers->setRowColor(row, _lstSoldiers->getSecondaryColor());
 		}
 		else
 		{
-			_lstSoldiers->addRow(9, (*s)->getName(true).c_str(), tu.str().c_str(), stamina.str().c_str(), health.str().c_str(), firing.str().c_str(), throwing.str().c_str(), melee.str().c_str(), strength.str().c_str(), tr("STR_NO").c_str());
+			_lstSoldiers->addRow(9, (*s)->getName(true).c_str(), tu.str().c_str(), stamina.str().c_str(), health.str().c_str(), firing.str().c_str(), throwing.str().c_str(), melee.str().c_str(), strength.str().c_str(), tr(isWounded ? "STR_NO_WOUNDED" : "STR_NO").c_str());
 			_lstSoldiers->setRowColor(row, _lstSoldiers->getColor());
 		}
 		row++;
@@ -385,11 +391,12 @@ void AllocateTrainingState::lstSoldiersClick(Action *action)
 	_sel = _lstSoldiers->getSelectedRow();
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
+		bool isWounded = _base->getSoldiers()->at(_sel)->isWounded();
 		if (!_base->getSoldiers()->at(_sel)->isInTraining())
 		{
 			if (_base->getUsedTraining() < _base->getAvailableTraining())
 			{
-				_lstSoldiers->setCellText(_sel, 8, tr("STR_YES").c_str());
+				_lstSoldiers->setCellText(_sel, 8, tr(isWounded ? "STR_NO_WOUNDED" : "STR_YES").c_str());
 				_lstSoldiers->setRowColor(_sel, _lstSoldiers->getSecondaryColor());
 				_space--;
 				_txtRemaining->setText(tr("STR_REMAINING_TRAINING_FACILITY_CAPACITY").arg(_space));
@@ -398,7 +405,7 @@ void AllocateTrainingState::lstSoldiersClick(Action *action)
 		}
 		else
 		{
-			_lstSoldiers->setCellText(_sel, 8, tr("STR_NO").c_str());
+			_lstSoldiers->setCellText(_sel, 8, tr(isWounded ? "STR_NO_WOUNDED" : "STR_NO").c_str());
 			_lstSoldiers->setRowColor(_sel, _lstSoldiers->getColor());
 			_space++;
 			_txtRemaining->setText(tr("STR_REMAINING_TRAINING_FACILITY_CAPACITY").arg(_space));

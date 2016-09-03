@@ -46,7 +46,6 @@ private:
 	std::vector<Position> _trajectory;
 	size_t _position;
 	float _distance;
-	Surface *_sprite;
 	int _speed;
 	int _bulletSprite;
 	bool _reversed;
@@ -59,7 +58,7 @@ public:
 	~Projectile();
 	/// Calculates the trajectory for a straight path.
 	int calculateTrajectory(double accuracy);
-	int calculateTrajectory(double accuracy, Position originVoxel);
+	int calculateTrajectory(double accuracy, Position originVoxel, bool excludeUnit = true);
 	/// Calculates the trajectory for a curved path.
 	int calculateThrow(double accuracy);
 	/// Moves the projectile one step in its trajectory.
@@ -70,8 +69,6 @@ public:
 	int getParticle(int i) const;
 	/// Gets the item.
 	BattleItem *getItem() const;
-	/// Gets the sprite.
-	Surface *getSprite() const;
 	/// Skips the bullet flight.
 	void skipTrajectory();
 	/// Gets the Position of origin for the projectile.

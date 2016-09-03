@@ -168,6 +168,11 @@ void AllocatePsiTrainingState::cbxSortByChange(Action *action)
 	if (compFunc)
 	{
 		std::stable_sort(_base->getSoldiers()->begin(), _base->getSoldiers()->end(), *compFunc);
+		bool shiftPressed = SDL_GetModState() & KMOD_SHIFT;
+		if (shiftPressed)
+		{
+			std::reverse(_base->getSoldiers()->begin(), _base->getSoldiers()->end());
+		}
 	}
 	else
 	{
@@ -229,7 +234,7 @@ void AllocatePsiTrainingState::initList(size_t scrl)
 		}
 		else
 		{
-			ssStr << tr("STR_UNKNOWN").c_str();
+			ssStr << tr("STR_UNKNOWN");
 		}
 		if ((*s)->getCurrentStats()->psiSkill > 0)
 		{
@@ -381,7 +386,7 @@ void AllocatePsiTrainingState::lstSoldiersClick(Action *action)
 		{
 			if (_base->getUsedPsiLabs() < _base->getAvailablePsiLabs())
 			{
-				_lstSoldiers->setCellText(_sel, 3, tr("STR_YES").c_str());
+				_lstSoldiers->setCellText(_sel, 3, tr("STR_YES"));
 				_lstSoldiers->setRowColor(_sel, _lstSoldiers->getSecondaryColor());
 				_labSpace--;
 				_txtRemaining->setText(tr("STR_REMAINING_PSI_LAB_CAPACITY").arg(_labSpace));
@@ -390,7 +395,7 @@ void AllocatePsiTrainingState::lstSoldiersClick(Action *action)
 		}
 		else
 		{
-			_lstSoldiers->setCellText(_sel, 3, tr("STR_NO").c_str());
+			_lstSoldiers->setCellText(_sel, 3, tr("STR_NO"));
 			_lstSoldiers->setRowColor(_sel, _lstSoldiers->getColor());
 			_labSpace++;
 			_txtRemaining->setText(tr("STR_REMAINING_PSI_LAB_CAPACITY").arg(_labSpace));

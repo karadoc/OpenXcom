@@ -16,16 +16,41 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_CRAFTID_H
-#define OPENXCOM_CRAFTID_H
+#ifndef OPENXCOM_COMMENDATIONLATESTATE_H
+#define OPENXCOM_COMMENDATIONLATESTATE_H
 
-#include <utility>
-#include <string>
+#include "../Engine/State.h"
 
 namespace OpenXcom
 {
 
-typedef std::pair<std::string, int> CraftId;
+class TextButton;
+class Window;
+class Text;
+class TextList;
+class Soldier;
+
+/**
+ * Medals screen that displays dead soldier medals.
+ */
+class CommendationLateState : public State
+{
+private:
+	TextButton *_btnOk;
+	Window *_window;
+	Text *_txtTitle;
+	TextList *_lstSoldiers;
+	std::vector<std::string> _commendationsNames;
+public:
+	/// Creates the Medals state.
+	CommendationLateState(std::vector<Soldier*> soldiers);
+	/// Cleans up the Medals state.
+	~CommendationLateState();
+	/// Handler for clicking on a medal.
+	void lstSoldiersMouseClick(Action *action);
+	/// Handler for clicking the OK button.
+	void btnOkClick(Action *action);
+};
 
 }
 

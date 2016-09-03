@@ -52,10 +52,10 @@ ConfirmDestinationState::ConfirmDestinationState(Craft *craft, Target *target) :
 	_screen = false;
 
 	// Create objects
-	_window = new Window(this, 224, 72, 16, 64);
+	_window = new Window(this, 244, 72, 6, 64);
 	_btnOk = new TextButton(50, 12, 68, 104);
 	_btnCancel = new TextButton(50, 12, 138, 104);
-	_txtTarget = new Text(212, 32, 22, 72);
+	_txtTarget = new Text(232, 32, 12, 72);
 
 	// Set palette
 	setInterface("confirmDestination", w != 0 && w->getId() == 0);
@@ -151,6 +151,14 @@ void ConfirmDestinationState::btnOkClick(Action *)
 		_game->popState();
 		_game->popState();
 		_game->pushState(new CraftErrorState(0, tr("STR_STARTING_CONDITION_CRAFT")));
+		return;
+	}
+
+	if (!_craft->arePilotsOnboard())
+	{
+		_game->popState();
+		_game->popState();
+		_game->pushState(new CraftErrorState(0, tr("STR_NOT_ENOUGH_PILOTS").arg(_craft->getRules()->getPilots())));
 		return;
 	}
 

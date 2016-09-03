@@ -194,7 +194,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 	{
 		UnitFaction faction = (UnitFaction)(*i)["faction"].as<int>();
 		UnitFaction originalFaction = (UnitFaction)(*i)["originalFaction"].as<int>(faction);
-		int id = (*i)["soldierId"].as<int>();
+		int id = (*i)["id"].as<int>();
 		BattleUnit *unit;
 		if (id < BattleUnit::MAX_SOLDIER_ID) // Unit is linked to a geoscape soldier
 		{
@@ -207,7 +207,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 			std::string armor = (*i)["genUnitArmor"].as<std::string>();
 			// create a new Unit.
 			if(!mod->getUnit(type) || !mod->getArmor(armor)) continue;
-			unit = new BattleUnit(mod->getUnit(type), originalFaction, id, mod->getArmor(armor), savedGame->getDifficultyCoefficient(), _depth, mod->getMaxViewDistance());
+			unit = new BattleUnit(mod->getUnit(type), originalFaction, id, mod->getArmor(armor), mod->getStatAdjustment(savedGame->getDifficulty()), _depth, mod->getMaxViewDistance());
 		}
 		unit->load(*i);
 		unit->setSpecialWeapon(this);
@@ -853,7 +853,7 @@ bool SavedBattleGame::canUseWeapon(const BattleItem* weapon, const BattleUnit* u
 	{
 		return false;
 	}
-	if (rule->isBlockingBothHands() && unit->getFaction() == FACTION_PLAYER && !isBerserking && unit->getItem("STR_LEFT_HAND") != 0 && unit->getItem("STR_RIGHT_HAND") != 0)
+	if (rule->isBlockingBothHands() && unit->getFaction() == FACTION_PLAYER && !isBerserking && unit->getLeftHandWeapon() != 0 && unit->getRightHandWeapon() != 0)
 	{
 		return false;
 	}
@@ -1146,8 +1146,8 @@ bool SavedBattleGame::addItem(BattleItem *item, BattleUnit *unit, bool allowSeco
 	RuleInventory *leftHand = _rule->getInventory("STR_LEFT_HAND");
 	bool placed = false;
 	bool loaded = false;
-	BattleItem *rightWeapon = unit->getItem("STR_RIGHT_HAND");
-	BattleItem *leftWeapon = unit->getItem("STR_LEFT_HAND");
+	BattleItem *rightWeapon = unit->getRightHandWeapon();
+	BattleItem *leftWeapon = unit->getLeftHandWeapon();
 	int weight = 0;
 
 	// tanks and aliens don't care about weight or multiple items,
@@ -1201,6 +1201,10 @@ bool SavedBattleGame::addItem(BattleItem *item, BattleUnit *unit, bool allowSeco
 				placed = true;
 				_items.push_back(item);
 				item->setXCOMProperty(unit->getFaction() == FACTION_PLAYER);
+				if (item->getRules()->getTurretType() > -1)
+				{
+					unit->setTurretType(item->getRules()->getTurretType());
+				}
 			}
 		}
 		// or in the left/right hand
@@ -1211,6 +1215,10 @@ bool SavedBattleGame::addItem(BattleItem *item, BattleUnit *unit, bool allowSeco
 			placed = true;
 			_items.push_back(item);
 			item->setXCOMProperty(unit->getFaction() == FACTION_PLAYER);
+			if (item->getRules()->getTurretType() > -1)
+			{
+				unit->setTurretType(item->getRules()->getTurretType());
+			}
 		}
 		return placed;
 	}
@@ -1272,9 +1280,9 @@ bool SavedBattleGame::addItem(BattleItem *item, BattleUnit *unit, bool allowSeco
 		keep = (unit->getFaction() != FACTION_PLAYER);
 		if (rightWeapon)
 		{
-			for (std::vector<std::string>::iterator i = rightWeapon->getRules()->getCompatibleAmmo()->begin(); i != rightWeapon->getRules()->getCompatibleAmmo()->end(); ++i)
+			for (const std::string &s : *rightWeapon->getRules()->getCompatibleAmmo())
 			{
-				if (*i == item->getRules()->getType())
+				if (s == item->getRules()->getType())
 				{
 					keep = true;
 					break;
@@ -1283,9 +1291,9 @@ bool SavedBattleGame::addItem(BattleItem *item, BattleUnit *unit, bool allowSeco
 		}
 		if (leftWeapon)
 		{
-			for (std::vector<std::string>::iterator i = leftWeapon->getRules()->getCompatibleAmmo()->begin(); i != leftWeapon->getRules()->getCompatibleAmmo()->end(); ++i)
+			for (const std::string &s : *leftWeapon->getRules()->getCompatibleAmmo())
 			{
-				if (*i == item->getRules()->getType())
+				if (s == item->getRules()->getType())
 				{
 					keep = true;
 					break;
@@ -2188,6 +2196,7 @@ std::vector< std::vector<std::pair<int, int> > > &SavedBattleGame::getModuleMap(
 {
 	return _baseModules;
 }
+
 /**
  * calculate the number of map modules remaining by counting the map objects
  * on the top floor who have the baseModule flag set. we store this data in the grid
@@ -2253,7 +2262,7 @@ void SavedBattleGame::setPaletteByDepth(State *state)
 	}
 	else
 	{
-		std::stringstream ss;
+		std::ostringstream ss;
 		ss << "PAL_BATTLESCAPE_" << _depth;
 		state->setPalette(ss.str());
 	}

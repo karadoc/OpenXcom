@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cmath>
 #include "Soldier.h"
 #include "../Engine/RNG.h"
 #include "../Engine/Language.h"
@@ -23,12 +24,12 @@
 #include "Craft.h"
 #include "EquipmentLayoutItem.h"
 #include "SoldierDeath.h"
+#include "SoldierDiary.h"
 #include "../Mod/SoldierNamePool.h"
 #include "../Mod/RuleSoldier.h"
 #include "../Mod/Armor.h"
 #include "../Mod/Mod.h"
 #include "../Mod/StatString.h"
-#include "SavedGame.h"
 
 namespace OpenXcom
 {
@@ -42,9 +43,9 @@ namespace OpenXcom
 Soldier::Soldier(RuleSoldier *rules, Armor *armor, int id) :
 	_id(id), _nationality(0),
 	_improvement(0), _psiStrImprovement(0), _rules(rules), _rank(RANK_ROOKIE), _craft(0),
-	_gender(GENDER_MALE), _look(LOOK_BLONDE), _lookVariant(0), _missions(0), _kills(0), _recovery(0),
+	_gender(GENDER_MALE), _look(LOOK_BLONDE), _lookVariant(0), _missions(0), _kills(0), _recovery(0.0f),
 	_recentlyPromoted(false), _psiTraining(false), _training(false),
-	_armor(armor), _replacedArmor(0), _transformedArmor(0), _death(0)
+	_armor(armor), _replacedArmor(0), _transformedArmor(0), _death(0), _diary(new SoldierDiary())
 {
 	if (id != 0)
 	{
@@ -92,6 +93,7 @@ Soldier::~Soldier()
 		delete *i;
 	}
 	delete _death;
+	delete _diary;
 }
 
 /**
@@ -113,7 +115,7 @@ void Soldier::load(const YAML::Node& node, const Mod *mod, SavedGame *save)
 	_lookVariant = node["lookVariant"].as<int>(_lookVariant);
 	_missions = node["missions"].as<int>(_missions);
 	_kills = node["kills"].as<int>(_kills);
-	_recovery = node["recovery"].as<int>(_recovery);
+	_recovery = node["recovery"].as<float>(_recovery);
 	Armor *armor = mod->getArmor(node["armor"].as<std::string>());
 	if (armor == 0)
 	{
@@ -148,6 +150,11 @@ void Soldier::load(const YAML::Node& node, const Mod *mod, SavedGame *save)
 		_death = new SoldierDeath();
 		_death->load(node["death"]);
 	}
+	if (node["diary"])
+	{
+		_diary = new SoldierDiary();
+		_diary->load(node["diary"]);
+	}	
 	calcStatString(mod->getStatStrings(), (Options::psiStrengthEval && save->isResearched(mod->getPsiRequirements())));
 }
 
@@ -174,7 +181,7 @@ YAML::Node Soldier::save() const
 	node["lookVariant"] = _lookVariant;
 	node["missions"] = _missions;
 	node["kills"] = _kills;
-	if (_recovery > 0)
+	if (_recovery > 0.0f)
 		node["recovery"] = _recovery;
 	node["armor"] = _armor->getType();
 	if (_replacedArmor != 0)
@@ -196,6 +203,11 @@ YAML::Node Soldier::save() const
 	{
 		node["death"] = _death->save();
 	}
+	if (!_diary->getMissionIdList().empty() || !_diary->getSoldierCommendations()->empty())
+	{
+	node["diary"] = _diary->save();
+	}
+
 	return node;
 }
 
@@ -276,15 +288,15 @@ void Soldier::setCraft(Craft *craft)
  * @param lang Language to get strings from.
  * @return Full name.
  */
-std::wstring Soldier::getCraftString(Language *lang) const
+std::wstring Soldier::getCraftString(Language *lang, float absBonus, float relBonus) const
 {
 	std::wstring s;
-	if (_recovery > 0)
+	if (isWounded())
 	{
 		std::wostringstream ss;
 		ss << lang->getString("STR_WOUNDED");
 		ss << L">";
-		ss << _recovery;
+		ss << getWoundRecovery(absBonus, relBonus);
 		s = ss.str();
 	}
 	else if (_craft == 0)
@@ -305,6 +317,9 @@ std::wstring Soldier::getCraftString(Language *lang) const
  */
 std::string Soldier::getRankString() const
 {
+	if (!_rules->getAllowPromotion())
+		return "STR_RANK_NONE";
+
 	switch (_rank)
 	{
 	case RANK_ROOKIE:
@@ -350,6 +365,9 @@ SoldierRank Soldier::getRank() const
  */
 void Soldier::promoteRank()
 {
+	if (!_rules->getAllowPromotion())
+		return;
+
 	_rank = (SoldierRank)((int)_rank + 1);
 	if (_rank > RANK_SQUADDIE)
 	{
@@ -564,12 +582,31 @@ void Soldier::setTransformedArmor(Armor *armor)
 }
 
 /**
+* Is the soldier wounded or not?.
+* @return True if wounded.
+*/
+bool Soldier::isWounded() const
+{
+	return _recovery > 0.0f;
+}
+
+/**
+* Is the soldier wounded or not?.
+* @return False if wounded.
+*/
+bool Soldier::hasFullHealth() const
+{
+	return !isWounded();
+}
+
+/**
  * Returns the amount of time until the soldier is healed.
  * @return Number of days.
  */
-int Soldier::getWoundRecovery() const
+int Soldier::getWoundRecovery(float absBonus, float relBonus) const
 {
-	return _recovery;
+	float hpPerDay = 1.0f + absBonus + (relBonus * _currentStats.health * 0.01f);
+	return (int)(std::ceil(_recovery / hpPerDay));
 }
 
 /**
@@ -581,18 +618,33 @@ void Soldier::setWoundRecovery(int recovery)
 	_recovery = recovery;
 
 	// dismiss from craft
-	if (_recovery > 0)
+	if (isWounded())
 	{
 		_craft = 0;
+		// remove from training
+		if (Options::removeWoundedFromTraining)
+		{
+			_training = false;
+		}
 	}
 }
 
 /**
  * Heals soldier wounds.
  */
-void Soldier::heal()
+void Soldier::heal(float absBonus, float relBonus)
 {
-	_recovery--;
+	// 1 hp per day as minimum
+	_recovery -= 1.0f;
+
+	// absolute bonus from sick bay facilities
+	_recovery -= absBonus;
+
+	// relative bonus from sick bay facilities
+	_recovery -= (relBonus * _currentStats.health * 0.01f);
+
+	if (_recovery < 0.0f)
+		_recovery = 0.0f;
 }
 
 /**
@@ -736,7 +788,7 @@ void Soldier::die(SoldierDeath *death)
 	_craft = 0;
 	_psiTraining = false;
 	_recentlyPromoted = false;
-	_recovery = 0;
+	_recovery = 0.0f;
 	for (std::vector<EquipmentLayoutItem*>::iterator i = _equipmentLayout.begin(); i != _equipmentLayout.end(); ++i)
 	{
 		delete *i;
@@ -745,6 +797,25 @@ void Soldier::die(SoldierDeath *death)
 }
 
 /**
+ * Returns the soldier's diary.
+ * @return Diary.
+ */
+SoldierDiary *Soldier::getDiary()
+{
+	return _diary;
+}
+
+/**
+* Resets the soldier's diary.
+*/
+void Soldier::resetDiary()
+{
+	delete _diary;
+	_diary = new SoldierDiary();
+}
+
+/**
+ * Calculates the soldier's statString
  * Calculates the soldier's statString.
  * @param statStrings List of statString rules.
  * @param psiStrengthEval Are psi stats available?
@@ -759,22 +830,24 @@ void Soldier::calcStatString(const std::vector<StatString *> &statStrings, bool 
  */
 void Soldier::trainPhys(int customTrainingFactor)
 {
+	UnitStats caps1 = _rules->getStatCaps();
+	UnitStats caps2 = _rules->getTrainingStatCaps();
 	// no P.T. for the wounded
-	if (_recovery == 0)
+	if (hasFullHealth())
 	{
-		if(_currentStats.firing < _rules->getStatCaps().firing && RNG::generate(0, 100) > _currentStats.firing && RNG::percent(customTrainingFactor))
+		if(_currentStats.firing < caps1.firing && RNG::generate(0, caps2.firing) > _currentStats.firing && RNG::percent(customTrainingFactor))
 			_currentStats.firing++;
-		if(_currentStats.health < _rules->getStatCaps().health && RNG::generate(0, 100) > _currentStats.health && RNG::percent(customTrainingFactor))
+		if(_currentStats.health < caps1.health && RNG::generate(0, caps2.health) > _currentStats.health && RNG::percent(customTrainingFactor))
 			_currentStats.health++;
-		if(_currentStats.melee < _rules->getStatCaps().melee && RNG::generate(0, 100) > _currentStats.melee && RNG::percent(customTrainingFactor))
+		if(_currentStats.melee < caps1.melee && RNG::generate(0, caps2.melee) > _currentStats.melee && RNG::percent(customTrainingFactor))
 			_currentStats.melee++;
-		if(_currentStats.throwing < _rules->getStatCaps().throwing && RNG::generate(0, 100) > _currentStats.throwing && RNG::percent(customTrainingFactor))
+		if(_currentStats.throwing < caps1.throwing && RNG::generate(0, caps2.throwing) > _currentStats.throwing && RNG::percent(customTrainingFactor))
 			_currentStats.throwing++;
-		if(_currentStats.strength < _rules->getStatCaps().strength && RNG::generate(0, 100) > _currentStats.strength && RNG::percent(customTrainingFactor))
+		if(_currentStats.strength < caps1.strength && RNG::generate(0, caps2.strength) > _currentStats.strength && RNG::percent(customTrainingFactor))
 			_currentStats.strength++;
-		if(_currentStats.tu < _rules->getStatCaps().tu && RNG::generate(0, 100) > _currentStats.tu && RNG::percent(customTrainingFactor))
+		if(_currentStats.tu < caps1.tu && RNG::generate(0, caps2.tu) > _currentStats.tu && RNG::percent(customTrainingFactor))
 			_currentStats.tu++;
-		if(_currentStats.stamina < _rules->getStatCaps().stamina && RNG::generate(0, 100) > _currentStats.stamina && RNG::percent(customTrainingFactor))
+		if(_currentStats.stamina < caps1.stamina && RNG::generate(0, caps2.stamina) > _currentStats.stamina && RNG::percent(customTrainingFactor))
 			_currentStats.stamina++;
 	}
 }

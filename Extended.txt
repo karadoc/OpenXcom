@@ -1,5 +1,5 @@
 [b]Extended version of OpenXcom[/b]
-[b]Mod version 2.9[/b]
+[b]Mod version 3.2[/b]
 OpenXcom date:   Nightly [dateOrigin/][br/]
 OpenXcom commit: [commitOrigin/][br/]
 Extended date:   [date/][br/]
@@ -97,15 +97,52 @@ New property `refNode` used to shared values between items/solders/armors etc.[b
 Option for setting numbers of melee hits done by AI.[br/]
 Control space usage of soldiers with 2x2 armors in crafts.[br/]
 [br/]
+3.0:[br/]
+Backported game machanic changes from Meridian OXCE+.[br/]
+Fix stun damage calculation and add random for random option for final stats change by damage.[br/]
+Refactored script handling.[br/]
+Script support in reaction atack chance calculations.[br/]
+Some light handling improvments.[br/]
+New recolr and replace script graphic option for items.[br/]
+Option for global events shared by scripts.[br/]
+Custom tags that have user defined values.[br/]
+[br/]
+3.1:[br/]
+Base building can now prevent building other buildings.[br/]
+New tag type that store other mod id.[br/]
+Option for changing defualt unit light radius.[br/]
+New functions exposed to script.[br/]
+Reaction scripts have now information about runing or strafing of target.[br/]
+[br/]
+3.2:[br/]
+New functions exposed to script.[br/]
+[br/]
 
 [examples]
 [br/][br/]
 [i]New ruleset[/i]
 
 Example of usage:
+
+[code]
+itemCategories:             #from OXCE+
+startingConditions:         #from OXCE+
+tooMuchSmokeThreshold:      #from OXCE+
+customTrainingFactor: 100   #change whow fast solders train.
+chanceToStopRetaliation: 0  #chance to stop retaliation.
+kneelBonusGlobal: 120       #default kneel weapon accuracy bonus in prercent.
+oneHandedPenaltyGlobal: 80  #default two hand weapon accuracy penalty in percent.
+missionRatings:             #from OXCE+
+monthlyRatings:             #from OXCE+
+difficultyBasedRetaliationDelay: #from OXCE+
+[/code]
+
 [code]
 items:
   - type: STR_ITEM_TYPE #default config ...
+    categories: ~           #from OXCE+
+    kneelBonus: -1          #kneel weapon accuracy bonus in prercent.
+    oneHandedPenalty: -1    #two hand weapon accuracy penalty in percent.
     dropoff: 1     #used by Psi-Amp too. Default for Psi-Amp is 1.
     aimRange: 0    #used by Pis-Amp too. Default for Psi-Amp is 0.
     tuLoad: 15     #cost of loading weapon.
@@ -257,6 +294,16 @@ items:
       ToEnergy: 0.0     #how much power is applied to energy loss.
       ToTime: 0.0       #how much power is applied to time units loss.
       ToMorale: 0.0     #how much power is applied to morale loss.
+      RandomHealth: false     #do calucaltion of final health change use random value.
+      RandomArmor: false      #do calculation of final armor change use random value.
+      RandomArmorPre: false   #do calculation of final armor change use random value.
+      RandomWound: false      #for `true` use original radom system giving `1` to `3` wounds, `false` will give linear value based on `ToWound`.
+      RandomItem: false       #do calculation of value that compare with item armor use random value.
+      RandomTile: false       #do calculation of value that compare with tile armor use random value.
+      RandomStun: false       #do calculation of final stun level change use random value.
+      RandomEnergy: false     #do calculation of final energy change use random value.
+      RandomTime: false       #do calculation of final time units change use random value.
+      RandomMorale: false     #do calculation of final moral change use random value.
     meleeType: 2        #work like `damageType` but for range weapon melee hit.
     meleeAlter:         #work like `damageAlter` but for range weapon melee hit.
       #set defaut values based on `meleeType`.
@@ -272,6 +319,9 @@ items:
     painKillerRecovery: 0 #how much missing health convert to morale. Default `1.0`.
     allowSelfHeal: true   #can medikit target user.
     medikitType: 0        #change how medikit wroks, `0` default with UI, `1` fast heal, `2` fast stimulant, `3` fast pain killer.
+    isConsumable: false   #check if medikit is consumable.
+    defaultInventorySlot: ~ #where place fixed weapon.
+    blockBothHands: false #do item require both hands to use?
     fixedWeaponShow: true #if it's true then it will show fixed weapon on unit.
     hitMissSound: 0       #override `hitSound` when any psi attack was unsuccessful.
     meleeMissSound: 12    #override `meleeSound` when melee attack was unsuccessful.
@@ -282,6 +332,12 @@ items:
     psiAnimation: 0       #override `meleeAnimation` when used for MC or Panic attack. Use `HIT.PCK`.
     psiMissAnimation: 0   #override `meleeMissAnimation` when MC or Panic attack was unsuccessful. Use `HIT.PCK`.
     explosionHitSound: 2  #override default big explosion sound.
+    tags:
+      SOME_CUSTOM_TAG: 4  #user defined values used by script.
+    scripts:
+      recolorItemSprite: ~      #script that handle recoloring of each pixel in item sprite.
+      selectItemSprite: ~       #script that handle selecting graphic for item.
+      reactionWeaponAction: ~   #script that handle reacion to shoot, throw or melee from that weapon.
     ai:
       useDelay: 3       #determine on what turn item can be used by aliens.
       meleeHitCount: 25 #number of hits that AI try to do.
@@ -295,7 +351,9 @@ armors:
     painImmune: false    #default true for big units.
     zombiImmune: false   #ignored by big units.
     overKill: 0.8        #when damage drops HPs to negative value greater than `overKill * maxHP` then the corpse is destroyed, default value is 0.50.
+    visibilityAtDay: 20  #default 20 for all.
     visibilityAtDark: 9  #default 20 for aliens, 9 for humans.
+    personalLight: 15    #solder light radius.
     specialWeapon: ALIEN_PSI_WEAPON #alien psi or melee attack.
     builtInWeapons: #same as for units.
       - STR_SOME_WEAPON
@@ -337,22 +395,13 @@ armors:
         #...
         #same stats like `damageBonus` in `items`.
         #...
-    recolorScript: |
-      #recolor script call for each pixel.
-      #`i0` have value of unit pixel color.
-      #more info in "openxcom.log" with debug on.
-      #default imp:
-      unit.getRecolor i0;
-      add_burn_shade i0 burn shade;
-      ret i0;
-    spriteScript: |
-      #sprite select script call for each body part.
-      #`i0` have basic position of graphic in armor sheet.
-      #`i1` have offset to choose direction or leg move phase.
-      #more info in "openxcom.log" with debug on.
-      #default imp:
-      add i0 i1;
-      ret i0;
+    tags:
+      IS_THIS_NINJA: 1        #user defined values used by script.
+    scripts:
+      recolorUnitSprite: ~    #recolor script call for each pixel in unit sprite, used for corpse sprite too.
+      selectUnitSprite: ~     #sprite select script call for each body part.
+      reactionUnitAction: ~   #script used for handling reaction for unit performing action.
+      reactionUnitReaction: ~ #script used for handling reaction for unit reacting.
 [/code]
 
 [code]
@@ -427,6 +476,33 @@ alienRaces:
 [/code]
 
 [code]
+alienDeployments:
+  - id: STR_SOMETHING
+    startingCondition:      #from OXCE+
+[/code]
+
+[code]
+itemCategories:             #from OXCE+
+  - type:
+    replaceBy:
+    hidden:
+    listOrder:
+[/code]
+
+[code]
+startingConditions:         #from OXCE+
+  - type:
+    armorTransformations:
+    defaultArmor:
+    defaultItems:
+    allowedArmors:
+    allowedVehicles:
+    allowedItems:
+    allowedItemCategories:
+    allowedCraft:
+[/code]
+
+[code]
 facilities:
   - type: STR_SOME_FACILITY
     buildCostItems:
@@ -435,7 +511,9 @@ facilities:
         refund: 6           #how many items are returned when facility is dismantled.
     provideBaseFunc: [ A ]  #List of custom IDs that this bulding provide for base.
     requiresBaseFunc: [ ]   #List of custom IDs that are require to build this building in base.
+    forbidenBaseFunc: [ B ] #List of custom IDs that are forbiden by this building.
     trainingRooms: 0        #Number of solder that can be train in that building, require langue strings.
+    refundValue: 0          #how much mony is returned when facility is dismantled.
 [/code]
 
 [code]
@@ -469,6 +547,24 @@ ai:
 [/code]
 
 [code]
+extended:
+  tags:                     #definitions of user defined values used by script.
+    RuleItem:               #used by `items` nodes.
+      SOME_CUSTOM_TAG: int
+      #avaiable types:
+      #`int` - natural number
+      #`RuleList` - name of other mod that is loaded. Accessed as id number in script. Have value -1 if mod with that name do not exists.
+    RuleArmor:              #used by `armors` nodes.
+      IS_THIS_NINJA: int
+  scripts:
+    reactionUnitAction:     #name of script that have enabled global events.
+      - offset: 1.2         #order in witch each global event is run.
+        code: |             #script that will be called by event.
+          #some code
+          return 100;
+[/code]
+
+[code]
 extraStrings:
   - type: en-US
     strings:
@@ -482,6 +578,131 @@ extraStrings:
       STR_NO_USES_LEFT: "You can't use medi-kit"      #required when using `medikitType`.
       STR_NOT_ENOUGH_CRAFT_SPACE: "You can't fit it!" #required when you try change armor with 2x2 size and craft don't have space.
 [/code]
+
+Examples of script usage:
+
+
+[code]
+#special statements
+someScriptCode: |
+  var int temp;     #define variable of type `int` with name `temp`.
+  var int zero 42;  #new variable with begining value of 42.
+
+  if OPERATION A B; #`OPERATION` can be: `lt` - less, `le` - less equal, `gt` - greater, `ge` - greater equal, `eq` - equal, `neq` - not equal
+    #some code 1
+  else OPERATION A B; #`else` can have same condition as first `if`.
+    #some code 2
+  else OPERATION A B; #you can repeat `else` with test multiple times.
+    #some code 3
+  else;
+    #final case, can be skipped.
+  end;
+
+  if or lt A B eq C D;
+    #you can write multiple operation with `or`.
+    #result will be true if any of this operation would return true.
+  end;
+  if and gt A B neq C D le E F;
+    #same for `and` but in this case all operation need be true.
+  end;
+
+  return B; #exit script with value of `B`.
+[/code]
+
+[code]
+extended:
+  tags:
+    RuleArmor:
+      CORPSE_SWITCH_ENABLED: int
+      CORPSE_SWITCH_RESOURCES_MOD: RuleList
+      CORPSE_SWITCH_SPRITE_FLOOR_STUN: int
+      CORPSE_SWITCH_SPRITE_FLOOR_WOUND: int
+      CORPSE_SWITCH_SPRITE_FLOOR_DEAD: int
+      CORPSE_SWITCH_SPRITE_BIG_STUN: int
+      CORPSE_SWITCH_SPRITE_BIG_WOUND: int
+      CORPSE_SWITCH_SPRITE_BIG_DEAD: int
+  scripts:
+    selectItemSprite:
+      - offset: 1
+        code: |
+          #custom corpse graphic based on state of unit.
+          var int curr_hp;
+          var int curr_wounds;
+          var int temp;
+          var ptr BattleUnit unit;
+          var ptr RuleArmor armor;
+          
+          item.getBattleUnit unit;
+          unit.getRuleArmor armor;
+          if neq armor null;
+            unit.getHealth curr_hp;
+            unit.getFatalwoundsTotal curr_wounds;
+            armor.getTag temp Tag.CORPSE_SWITCH_ENABLED;
+            if eq temp 1;
+              armor.getTag temp Tag.CORPSE_SWITCH_RESOURCES_MOD;
+              if eq blit_part blit_item_floor;
+                if le curr_hp 0;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_FLOOR_DEAD;
+                else gt curr_wounds 0;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_FLOOR_WOUND;
+                else;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_FLOOR_STUN;
+                end;
+                rules.getSpriteOffsetFloorob sprite_index temp;
+                return sprite_index;
+              else eq blit_part blit_item_big;
+                if le curr_hp 0;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_BIG_DEAD;
+                else gt curr_wounds 0;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_BIG_WOUND;
+                else;
+                  armor.getTag sprite_index Tag.CORPSE_SWITCH_SPRITE_BIG_STUN;
+                end;
+                rules.getSpriteOffsetBigobs sprite_index temp;
+                return sprite_index;
+              end;
+            end;
+          end;
+          return sprite_index;
+#enabling this functionality for unit
+armors:
+  - type: STR_NONE_UC
+    tags:
+      CORPSE_SWITCH_ENABLED: 1 #1 enable this functionality for this unit, 0 disable
+      CORPSE_SWITCH_RESOURCES_MOD: current #to what mod sprites belongs to, `current` mean this mod.
+      CORPSE_SWITCH_SPRITE_FLOOR_STUN: 32
+      CORPSE_SWITCH_SPRITE_FLOOR_WOUND: 33
+      CORPSE_SWITCH_SPRITE_FLOOR_DEAD: 34
+      CORPSE_SWITCH_SPRITE_BIG_STUN: 42
+      CORPSE_SWITCH_SPRITE_BIG_WOUND: 43
+      CORPSE_SWITCH_SPRITE_BIG_DEAD: 44
+[/code]
+
+[code]
+armors:
+  - type: PARROT_ARMOR
+    drawingRoutine: 4
+    scripts:
+      selectUnitSprite: |
+        #this script will always run move animation of unit.
+        var int temp;
+        var int walking;
+        unit.isWalking walking;
+        if eq walking 0;
+          unit.getId temp;
+          offsetmod temp 11 0 8; #desync animation of different units
+          add temp anim_frame;
+          wavegen_saw temp 8 8 7;
+          mul sprite_offset 8;
+          add sprite_offset 8;
+          add sprite_offset temp;
+          set sprite_index sprite_offset;
+        else;
+          add sprite_index sprite_offset;
+        end;
+        return sprite_index;
+[/code]
+
 [/examples]
 
 [br/][br/]
@@ -503,6 +724,8 @@ http://openxcom.org/forum/index.php?topic=2915.msg31641#msg31641[br/]
 [br/]
 [i]Credits[/i]
 
+Meridian for OXCE+ :)[br/]
+stiansel for FOV speedup.[br/]
 redv & WarBoy1982 for a couple of commits.[br/]
 SolarusScorch for fixing language in readme.[br/]
 SupSuper & WarBoy1982 & Daiky for OpenXcom :)[br/]

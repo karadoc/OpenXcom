@@ -26,7 +26,7 @@
 #include "Unit.h"
 #include "RuleStatBonus.h"
 #include "RuleDamageType.h"
-#include "../Engine/Script.h"
+#include "ModScript.h"
 
 namespace OpenXcom
 {
@@ -44,7 +44,11 @@ class BattleUnit;
 class Armor
 {
 public:
-	using RecolorParser = ScriptParser<BattleUnit, BattleUnit*, int, int, int, int>;
+
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "RuleArmor";
+	/// Register all useful function used by script.
+	static void ScriptRegister(ScriptParserBase* parser);
 
 	static const std::string NONE;
 private:
@@ -53,7 +57,8 @@ private:
 	std::vector<std::string> _builtInWeapons;
 	int _frontArmor, _sideArmor, _rearArmor, _underArmor, _drawingRoutine;
 	MovementType _movementType;
-	int _size, _weight, _visibilityAtDark, _visibilityAtDay, _regeneration;
+	int _size, _weight, _visibilityAtDark, _visibilityAtDay, _personalLight;
+	int _activeCamouflage, _predatorVision, _heatVision, _psiVision;
 	float _damageModifier[DAMAGE_TYPES];
 	std::vector<int> _loftempsSet;
 	UnitStats _stats;
@@ -66,9 +71,12 @@ private:
 	float _overKill, _meleeDodgeBackPenalty;
 	RuleStatBonus _psiDefence, _meleeDodge;
 	RuleStatBonus _timeRecovery, _energyRecovery, _moraleRecovery, _healthRecovery, _stunRecovery;
-	RecolorParser::Container _recolorScript;
-	RecolorParser::Container _spriteScript;
+	ModScript::RecolorUnitParser::Container _recolorScript;
+	ModScript::SelectUnitParser::Container _spriteScript;
+	ModScript::ReactionUnitParser::Container _reacActionScript, _reacReactionScript;
+
 	std::vector<std::string> _units;
+	ScriptValues<Armor> _scriptValues;
 	int _customArmorPreviewIndex;
 public:
 	/// Creates a blank armor ruleset.
@@ -76,7 +84,7 @@ public:
 	/// Cleans up the armor ruleset.
 	~Armor();
 	/// Loads the armor data from YAML.
-	void load(const YAML::Node& node, const RecolorParser& parser);
+	void load(const YAML::Node& node, const ModScript& parsers);
 	/// Gets the armor's type.
 	std::string getType() const;
 	/// Gets the unit's sprite sheet.
@@ -149,6 +157,16 @@ public:
 	int getVisibilityAtDark() const;
 	/// Gets max view distance at day in BattleScape.
 	int getVisibilityAtDay() const;
+	/// Gets info about camouflage effect, if any.
+	int getActiveCamouflage() const;
+	/// Gets info about better vision, if any.
+	int getPredatorVision() const;
+	/// Gets info about heat vision.
+	int getHeatVision() const;
+	/// Gets info about psi vision.
+	int getPsiVision() const;
+	/// Gets personal ligth radius;
+	int getPersonalLight() const;
 	/// Gets how armor react to fear.
 	bool getFearImmune(bool def = false) const;
 	/// Gets how armor react to bleeding.
@@ -178,9 +196,13 @@ public:
 	/// Can we access this unit's inventory?
 	bool hasInventory() const;
 	/// Gets script used to recolor unit sprite.
-	const RecolorParser::Container &getRecolorScript() const;
+	const ModScript::RecolorUnitParser::Container &getRecolorScript() const;
 	/// Gets script used to switch body elements in unit sprite.
-	const RecolorParser::Container &getSpriteScript() const;
+	const ModScript::SelectUnitParser::Container &getSpriteScript() const;
+	/// Gets script used to calculate reaction chance.
+	const ModScript::ReactionUnitParser::Container &getReacActionScript() const;
+	/// Gets script used to calculate reaction chance.
+	const ModScript::ReactionUnitParser::Container &getReacReactionScript() const;
 	/// Gets the armor's units.
 	const std::vector<std::string> &getUnits() const;
 	/// Gets the index of the sprite in the CustomArmorPreview sprite set

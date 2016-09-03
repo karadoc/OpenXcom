@@ -104,10 +104,6 @@ void State::setInterface(const std::string& category, bool alterPal, SavedBattle
 				backPal = color;
 			}
 		}
-		if (!_ruleInterface->getMusic().empty())
-		{
-			_game->getMod()->playMusic(_ruleInterface->getMusic());
-		}
 	}
 	if (battleGame)
 	{
@@ -211,6 +207,7 @@ void State::add(Surface *surface, const std::string &id, const std::string &cate
 
 	_surfaces.push_back(surface);
 }
+
 /**
  * Returns whether this is a full-screen state.
  * This is used to optimize the state machine since full-screen
@@ -262,6 +259,10 @@ void State::init()
 		{
 			window->invalidate(true);
 		}
+	}
+	if (_ruleInterface != 0 && !_ruleInterface->getMusic().empty())
+	{
+		_game->getMod()->playMusic(_ruleInterface->getMusic());
 	}
 }
 
@@ -351,6 +352,25 @@ void State::resetAll()
 const LocalizedText &State::tr(const std::string &id) const
 {
 	return _game->getLanguage()->getString(id);
+}
+
+/**
+* Get the localized text from dictionary.
+* This function forwards the call to Language::getString(const std::string &).
+* @param id The (prefix of) dictionary key to search for.
+* @param alt Used to construct the (suffix of) dictionary key to search for.
+* @return A reference to the localized text.
+*/
+const LocalizedText &State::trAlt(const std::string &id, int alt) const
+{
+	std::ostringstream ss;
+	ss << id;
+	// alt = 0 is the original, alt > 0 are the alternatives
+	if (alt > 0)
+	{
+		ss << "_" << alt;
+	}
+	return _game->getLanguage()->getString(ss.str());
 }
 
 /**

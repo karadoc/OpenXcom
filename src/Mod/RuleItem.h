@@ -25,6 +25,7 @@
 #include "RuleStatBonus.h"
 #include "RuleDamageType.h"
 #include "Unit.h"
+#include "ModScript.h"
 
 namespace OpenXcom
 {
@@ -103,8 +104,8 @@ private:
 	std::vector<std::string> _categories;
 	double _size;
 	int _costBuy, _costSell, _transferTime, _weight;
-	int _bigSprite, _bigSpriteAlt;
-	int _floorSprite, _floorSpriteAlt;
+	int _bigSprite;
+	int _floorSprite;
 	int _handSprite, _bulletSprite;
 	int _fireSound;
 	int _hitSound, _hitAnimation, _hitMissSound, _hitMissAnimation;
@@ -133,17 +134,24 @@ private:
 	int _turretType;
 	int _aiUseDelay, _aiMeleeHitCount;
 	bool _recover, _liveAlien;
+	int _liveAlienPrisonType;
 	int _attraction;
 	RuleItemUseCost _flatUse, _flatMelee, _flatThrow, _flatPrime;
 	bool _arcingShot;
 	ExperienceTrainingMode _experienceTrainingMode;
 	int _listOrder, _maxRange, _aimRange, _snapRange, _autoRange, _minRange, _dropoff, _bulletSpeed, _explosionSpeed, _autoShots, _shotgunPellets;
+	int _shotgunBehaviorType, _shotgunSpread, _shotgunChoke;
 	std::string _zombieUnit;
 	bool _LOSRequired, _underwaterOnly, _psiReqiured;
 	int _meleePower, _specialType, _vaporColor, _vaporDensity, _vaporProbability;
 	int _customItemPreviewIndex;
 	int _kneelBonus, _oneHandedPenalty;
+	int _monthlySalary, _monthlyMaintenance;
 	RuleStatBonus _damageBonus, _meleeBonus, _accuracyMulti, _meleeMulti, _throwMulti;
+	ModScript::RecolorItemParser::Container _recolorScript;
+	ModScript::SelectItemParser::Container _spriteScript;
+	ModScript::ReactionUnitParser::Container _reacActionScript;
+	ScriptValues<RuleItem> _scriptValues;
 
 	/// Get final value of cost.
 	RuleItemUseCost getDefault(const RuleItemUseCost& a, const RuleItemUseCost& b) const;
@@ -156,6 +164,11 @@ private:
 	/// Load RuleItemUseCost as bool from yaml.
 	void loadPercent(RuleItemUseCost& a, const YAML::Node& node, const std::string& name) const;
 public:
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "RuleItem";
+	/// Register all useful function used by script.
+	static void ScriptRegister(ScriptParserBase* parser);
+
 	/// Creates a blank item ruleset.
 	RuleItem(const std::string &type);
 	/// Cleans up the item ruleset.
@@ -163,7 +176,7 @@ public:
 	/// Updates item categories based on replacement rules.
 	void updateCategories(std::map<std::string, std::string> *replacementRules);
 	/// Loads item data from YAML.
-	void load(const YAML::Node& node, Mod *mod, int listIndex);
+	void load(const YAML::Node& node, Mod *mod, int listIndex, const ModScript& parsers);
 	/// Gets the item's type.
 	const std::string &getType() const;
 	/// Gets the item's name.
@@ -188,12 +201,8 @@ public:
 	int getWeight() const;
 	/// Gets the item's reference in BIGOBS.PCK for use in inventory.
 	int getBigSprite() const;
-	/// Gets the item's alternative reference in BIGOBS.PCK for use in inventory.
-	int getBigSpriteAlt() const;
 	/// Gets the item's reference in FLOOROB.PCK for use in battlescape.
 	int getFloorSprite() const;
-	/// Gets the item's alternative reference in FLOOROB.PCK for use in battlescape.
-	int getFloorSpriteAlt() const;
 	/// Gets the item's reference in HANDOB.PCK for use in inventory.
 	int getHandSprite() const;
 	/// Gets if the item is two-handed.
@@ -305,7 +314,7 @@ public:
 	int getTUUnload() const;
 
 	/// Gets list of compatible ammo.
-	std::vector<std::string> *getCompatibleAmmo();
+	const std::vector<std::string> *getCompatibleAmmo() const;
 	/// Gets the item's damage type.
 	const RuleDamageType *getDamageType() const;
 	/// Gets the item's melee damage type for range weapons.
@@ -372,6 +381,8 @@ public:
 	int getAIMeleeHitCount() const;
 	/// Checks if this a live alien.
 	bool isAlien() const;
+	/// Returns to which type of prison does the live alien belong.
+	int getPrisonType() const;
 	/// Should we charge a flat rate?
 	RuleItemUseCost getFlatUse() const;
 	/// Should we charge a flat rate of costMelee?
@@ -414,6 +425,12 @@ public:
 	int getDropoff() const;
 	/// Get the number of projectiles to trace.
 	int getShotgunPellets() const;
+	/// Get the shotgun behavior type.
+	int getShotgunBehaviorType() const;
+	/// Get the spread of shotgun projectiles.
+	int getShotgunSpread() const;
+	/// Get the shotgun choke value.
+	int getShotgunChoke() const;
 	/// Gets the weapon's zombie unit.
 	const std::string &getZombieUnit() const;
 	/// Check if LOS is required to use this item (only applies to psionic type items)
@@ -436,7 +453,16 @@ public:
 	int getKneelBonus(Mod *mod) const;
 	/// Gets the one-handed penalty.
 	int getOneHandedPenalty(Mod *mod) const;
-
+	/// Gets the monthly salary.
+	int getMonthlySalary() const;
+	/// Gets the monthly maintenance.
+	int getMonthlyMaintenance() const;
+	/// Gets script used to recolor item sprite.
+	const ModScript::RecolorItemParser::Container &getRecolorScript() const;
+	/// Gets script used to switch sprite of item.
+	const ModScript::SelectItemParser::Container &getSpriteScript() const;
+	/// Gets script used calculate reaction to item action.
+	const ModScript::ReactionUnitParser::Container &getReacActionScript() const;
 };
 
 }

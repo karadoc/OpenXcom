@@ -53,11 +53,7 @@ Projectile::Projectile(Mod *mod, SavedBattleGame *save, BattleAction action, Pos
 	_speed = Options::battleFireSpeed;
 	if (_action.weapon)
 	{
-		if (_action.type == BA_THROW)
-		{
-			_sprite = _mod->getSurfaceSet("FLOOROB.PCK")->getFrame(getItem()->getFloorSprite());
-		}
-		else
+		if (_action.type != BA_THROW)
 		{
 			// try to get all the required info from the ammo, if present
 			if (ammo)
@@ -118,13 +114,22 @@ int Projectile::calculateTrajectory(double accuracy)
 	return calculateTrajectory(accuracy, originVoxel);
 }
 
-int Projectile::calculateTrajectory(double accuracy, Position originVoxel)
+int Projectile::calculateTrajectory(double accuracy, Position originVoxel, bool excludeUnit)
 {
 	Tile *targetTile = _save->getTile(_action.target);
 	BattleUnit *bu = _action.actor;
 
 	_distance = 0.0f;
-	int test = _save->getTileEngine()->calculateLine(originVoxel, _targetVoxel, false, &_trajectory, bu);
+	int test;
+	if (excludeUnit)
+	{
+		test = _save->getTileEngine()->calculateLine(originVoxel, _targetVoxel, false, &_trajectory, bu);
+	}
+	else
+	{
+		test = _save->getTileEngine()->calculateLine(originVoxel, _targetVoxel, false, &_trajectory, 0);
+	}
+
 	if (test != V_EMPTY &&
 		!_trajectory.empty() &&
 		_action.actor->getFaction() == FACTION_PLAYER &&
@@ -271,7 +276,7 @@ void Projectile::applyAccuracy(const Position& origin, Position *target, double 
 	// maxRange is the maximum range a projectile shall ever travel in voxel space
 	double maxRange = keepRange?realDistance:16*1000; // 1000 tiles
 	maxRange = _action.type == BA_HIT?46:maxRange; // up to 2 tiles diagonally (as in the case of reaper v reaper)
-	RuleItem *weapon = _action.weapon->getRules();
+	const RuleItem *weapon = _action.weapon->getRules();
 
 	if (_action.type != BA_THROW && _action.type != BA_HIT)
 	{
@@ -345,6 +350,7 @@ void Projectile::applyAccuracy(const Position& origin, Position *target, double 
 		target->z = (int)(origin.z + maxRange * sin_fi);
 	}
 }
+
 /**
  * Moves further in the trajectory.
  * @return false if the trajectory is finished - no new position exists in the trajectory.
@@ -411,15 +417,6 @@ BattleItem *Projectile::getItem() const
 		return _action.weapon;
 	else
 		return 0;
-}
-
-/**
- * Gets the bullet sprite.
- * @return Pointer to Surface.
- */
-Surface *Projectile::getSprite() const
-{
-	return _sprite;
 }
 
 /**

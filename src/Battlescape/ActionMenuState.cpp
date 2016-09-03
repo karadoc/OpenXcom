@@ -64,7 +64,7 @@ ActionMenuState::ActionMenuState(BattleAction *action, int x, int y) : _action(a
 
 	// Build up the popup menu
 	int id = 0;
-	RuleItem *weapon = _action->weapon->getRules();
+	const RuleItem *weapon = _action->weapon->getRules();
 
 	// throwing (if not a fixed weapon)
 	if (!weapon->isFixed() && weapon->getCostThrow().Time > 0)
@@ -215,6 +215,18 @@ ActionMenuState::~ActionMenuState()
 }
 
 /**
+ * Init function.
+ */
+void ActionMenuState::init()
+{
+	if (!_actionMenu[0]->getVisible())
+	{
+		// Item don't have any actions, close popup.
+		_game->popState();
+	}
+}
+
+/**
  * Adds a new menu item for an action.
  * @param ba Action type.
  * @param name Action description.
@@ -273,7 +285,7 @@ void ActionMenuState::btnActionMenuItemClick(Action *action)
 	_game->getSavedGame()->getSavedBattle()->getPathfinding()->removePreview();
 
 	int btnID = -1;
-	RuleItem *weapon = _action->weapon->getRules();
+	const RuleItem *weapon = _action->weapon->getRules();
 
 	// got to find out which button was pressed
 	for (size_t i = 0; i < sizeof(_actionMenu)/sizeof(_actionMenu[0]) && btnID == -1; ++i)
@@ -307,8 +319,8 @@ void ActionMenuState::btnActionMenuItemClick(Action *action)
 		else if (_action->type != BA_THROW &&
 			_action->actor->getFaction() == FACTION_PLAYER &&
 			weapon->isBlockingBothHands() &&
-			_action->actor->getItem("STR_LEFT_HAND") != 0 &&
-			_action->actor->getItem("STR_RIGHT_HAND") != 0)
+			_action->actor->getLeftHandWeapon() != 0 &&
+			_action->actor->getRightHandWeapon() != 0)
 		{
 			_action->result = "STR_MUST_USE_BOTH_HANDS";
 			_game->popState();

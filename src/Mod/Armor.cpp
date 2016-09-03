@@ -17,6 +17,8 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Armor.h"
+#include "../Engine/ScriptBind.h"
+#include "Mod.h"
 
 namespace OpenXcom
 {
@@ -30,7 +32,9 @@ const std::string Armor::NONE = "STR_NONE";
  */
 Armor::Armor(const std::string &type) :
 	_type(type), _frontArmor(0), _sideArmor(0), _rearArmor(0), _underArmor(0),
-	_drawingRoutine(0), _movementType(MT_WALK), _size(1), _weight(0), _visibilityAtDark(0), _visibilityAtDay(0), _regeneration(0),
+	_drawingRoutine(0), _movementType(MT_WALK), _size(1), _weight(0),
+	_visibilityAtDark(0), _visibilityAtDay(0), _personalLight(15),
+	_activeCamouflage(0), _predatorVision(0), _heatVision(0), _psiVision(0),
 	_deathFrames(3), _constantAnimation(false), _canHoldWeapon(false), _hasInventory(true), _forcedTorso(TORSO_USE_GENDER),
 	_faceColorGroup(0), _hairColorGroup(0), _utileColorGroup(0), _rankColorGroup(0),
 	_fearImmune(-1), _bleedImmune(-1), _painImmune(-1), _zombiImmune(-1), _overKill(0.5f), _meleeDodgeBackPenalty(0),
@@ -57,11 +61,11 @@ Armor::~Armor()
  * Loads the armor from a YAML file.
  * @param node YAML node.
  */
-void Armor::load(const YAML::Node &node, const RecolorParser& parser)
+void Armor::load(const YAML::Node &node, const ModScript &parsers)
 {
 	if (const YAML::Node &parent = node["refNode"])
 	{
-		load(parent, parser);
+		load(parent, parsers);
 	}
 	_type = node["type"].as<std::string>(_type);
 	_spriteSheet = node["spriteSheet"].as<std::string>(_spriteSheet);
@@ -88,11 +92,14 @@ void Armor::load(const YAML::Node &node, const RecolorParser& parser)
 	_underArmor = node["underArmor"].as<int>(_underArmor);
 	_drawingRoutine = node["drawingRoutine"].as<int>(_drawingRoutine);
 	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
-	_size = node["size"].as<int>(_size);
 	_weight = node["weight"].as<int>(_weight);
 	_visibilityAtDark = node["visibilityAtDark"].as<int>(_visibilityAtDark);
 	_visibilityAtDay = node["visibilityAtDay"].as<int>(_visibilityAtDay);
-	_regeneration = node["regeneration"].as<int>(_regeneration);
+	_personalLight = node["personalLight"].as<int>(_personalLight);
+	_activeCamouflage = node["activeCamouflage"].as<int>(_activeCamouflage);
+	_predatorVision = node["predatorVision"].as<int>(_predatorVision);
+	_heatVision = node["heatVision"].as<int>(_heatVision);
+	_psiVision = node["psiVision"].as<int>(_psiVision);
 	_stats.merge(node["stats"].as<UnitStats>(_stats));
 	if (const YAML::Node &dmg = node["damageModifier"])
 	{
@@ -124,12 +131,16 @@ void Armor::load(const YAML::Node &node, const RecolorParser& parser)
 	{
 		_canHoldWeapon = false;
 	}
-	if (_size != 1)
+	if (const YAML::Node &size = node["size"])
 	{
-		_fearImmune = 1;
-		_bleedImmune = 1;
-		_painImmune = 1;
-		_zombiImmune = 1;
+		_size = size.as<int>(_size);
+		if (_size != 1)
+		{
+			_fearImmune = 1;
+			_bleedImmune = 1;
+			_painImmune = 1;
+			_zombiImmune = 1;
+		}
 	}
 	if (node["fearImmune"])
 	{
@@ -170,15 +181,15 @@ void Armor::load(const YAML::Node &node, const RecolorParser& parser)
 	_rankColor = node["spriteRankColor"].as<std::vector<int> >(_rankColor);
 	_utileColor = node["spriteUtileColor"].as<std::vector<int> >(_utileColor);
 
-	if(const YAML::Node &scr = node["recolorScript"])
-	{
-		_recolorScript = parser.parse(_type, scr.as<std::string>());
-	}
-	if(const YAML::Node &scr = node["spriteScript"])
-	{
-		_spriteScript = parser.parse(_type, scr.as<std::string>());
-	}
+	//small hack, we use script as defualt behavior to simplyfy code.
+	_recolorScript.load(_type, node, parsers.recolorUnitSprite);
+	_spriteScript.load(_type, node, parsers.selectUnitSprite);
+
+	_reacActionScript.load(_type, node, parsers.reactionUnitAction);
+	_reacReactionScript.load(_type, node, parsers.reactionUnitReaction);
+
 	_units = node["units"].as< std::vector<std::string> >(_units);
+	_scriptValues.load(node, parsers.getShared());
 	_customArmorPreviewIndex = node["customArmorPreviewIndex"].as<int>(_customArmorPreviewIndex);
 }
 
@@ -510,6 +521,51 @@ int Armor::getVisibilityAtDay() const
 }
 
 /**
+* Gets info about camouflage effect.
+* @return The vision distance modifier.
+*/
+int Armor::getActiveCamouflage() const
+{
+	return _activeCamouflage;
+}
+
+/**
+* Gets info about better vision.
+* @return The vision distance modifier.
+*/
+int Armor::getPredatorVision() const
+{
+	return _predatorVision;
+}
+
+/**
+* Gets info about heat vision.
+* @return How much smoke is ignored, in percent.
+*/
+int Armor::getHeatVision() const
+{
+	return _heatVision;
+}
+
+/**
+* Gets info about psi vision.
+* @return How many tiles can units be sensed even through solid obstacles (e.g. walls).
+*/
+int Armor::getPsiVision() const
+{
+	return _psiVision;
+}
+
+/**
+* Gets personal light radius created by solders.
+* @return Return light radius.
+*/
+int Armor::getPersonalLight() const
+{
+	return _personalLight;
+}
+
+/**
  * Gets how armor react to fear.
  * @param def Default value.
  * @return Can ignored fear?
@@ -670,7 +726,7 @@ bool Armor::hasInventory() const
  * Get recoloring script.
  * @return Script for recoloring.
  */
-const Armor::RecolorParser::Container &Armor::getRecolorScript() const
+const ModScript::RecolorUnitParser::Container &Armor::getRecolorScript() const
 {
 	return _recolorScript;
 }
@@ -679,11 +735,28 @@ const Armor::RecolorParser::Container &Armor::getRecolorScript() const
  * Get switch sprite script.
  * @return Script for switching.
  */
-const Armor::RecolorParser::Container &Armor::getSpriteScript() const
+const ModScript::SelectUnitParser::Container &Armor::getSpriteScript() const
 {
 	return _spriteScript;
 }
 
+/**
+ * Get script that caclualte reaction based on unit that do action.
+ * @return Script that calculate reaction.
+ */
+const ModScript::ReactionUnitParser::Container &Armor::getReacActionScript() const
+{
+	return _reacActionScript;
+}
+
+/**
+ * Get script that caclualte reaction based on unit that see action.
+ * @return Script that calculate reaction.
+ */
+const ModScript::ReactionUnitParser::Container &Armor::getReacReactionScript() const
+{
+	return _reacReactionScript;
+}
 /**
 * Gets the list of units this armor applies to.
 * @return The list of unit IDs (empty = applies to all).
@@ -691,6 +764,58 @@ const Armor::RecolorParser::Container &Armor::getSpriteScript() const
 const std::vector<std::string> &Armor::getUnits() const
 {
 	return _units;
+}
+
+namespace
+{
+
+void getArmorValueScript(Armor *ar, int &ret, int side)
+{
+	if (ar && 0 <= side && side < SIDE_MAX)
+	{
+		ret = ar->getArmor((UnitSide)side);
+		return;
+	}
+	ret = 0;
+}
+
+}
+
+/**
+ * Register Armor in script parser.
+ * @param parser Script parser.
+ */
+void Armor::ScriptRegister(ScriptParserBase* parser)
+{
+	Bind<Armor> ar = { parser };
+	BindNested<Armor, UnitStats, &Armor::_stats> us = { ar };
+
+	ar.addCustomConst("SIDE_FRONT", SIDE_FRONT);
+	ar.addCustomConst("SIDE_LEFT", SIDE_LEFT);
+	ar.addCustomConst("SIDE_RIGHT", SIDE_RIGHT);
+	ar.addCustomConst("SIDE_REAR", SIDE_REAR);
+	ar.addCustomConst("SIDE_UNDER", SIDE_UNDER);
+
+	ar.add<&Armor::getDrawingRoutine>("getDrawingRoutine");
+	ar.add<&Armor::getVisibilityAtDark>("getVisibilityAtDark");
+	ar.add<&Armor::getVisibilityAtDay>("getVisibilityAtDay");
+	ar.add<&Armor::getPersonalLight>("getPersonalLight");
+	ar.add<&Armor::getSize>("getSize");
+
+	us.addField<&UnitStats::tu>("getTimeUnits");
+	us.addField<&UnitStats::stamina>("getStamina");
+	us.addField<&UnitStats::health>("getHealth");
+	us.addField<&UnitStats::bravery>("getBravery");
+	us.addField<&UnitStats::reactions>("getReactions");
+	us.addField<&UnitStats::firing>("getFiring");
+	us.addField<&UnitStats::throwing>("getThrowing");
+	us.addField<&UnitStats::strength>("getStrength");
+	us.addField<&UnitStats::psiStrength>("getPsiStrength");
+	us.addField<&UnitStats::psiSkill>("getPsiSkill");
+	us.addField<&UnitStats::melee>("getMelee");
+	ar.add<&getArmorValueScript>("getArmor");
+
+	ar.addScriptValue<&Armor::_scriptValues>(false);
 }
 
 /**

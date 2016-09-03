@@ -17,6 +17,8 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "InventoryState.h"
+#include "InventoryLoadState.h"
+#include "InventorySaveState.h"
 #include "Inventory.h"
 #include "../Basescape/SoldierArmorState.h"
 #include "../Basescape/SoldierAvatarState.h"
@@ -64,7 +66,7 @@ static const int _applyTemplateBtnY  = 113;
  * @param tu Does Inventory use up Time Units?
  * @param parent Pointer to parent Battlescape.
  */
-InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : _tu(tu), _parent(parent), _base(base), _reloadUnit(false)
+InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : _tu(tu), _lightUpdated(false), _parent(parent), _base(base), _reloadUnit(false), _globalLayoutIndex(-1)
 {
 	_battleGame = _game->getSavedGame()->getSavedBattle();
 
@@ -172,6 +174,8 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnOk->onKeyboardPress((ActionHandler)&GeoscapeState::btnUfopaediaClick, Options::keyGeoUfopedia);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnArmorClick, Options::keyBattleAbort);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnAvatarClick, Options::keyBattleMap);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnInventoryLoadClick, Options::keyQuickLoad);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnInventorySaveClick, Options::keyQuickSave);
 	_btnOk->setTooltip("STR_OK");
 	_btnOk->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnOk->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
@@ -231,7 +235,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	}
 	else
 	{
-		_updateTemplateButtons(true);
+		updateTemplateButtons(true);
 	}
 
 	_inv->draw();
@@ -317,6 +321,11 @@ static void _clearInventory(Game *game, std::vector<BattleItem*> *unitInv, Tile 
 			i = unitInv->erase(i);
 		}
 	}
+}
+
+void InventoryState::setGlobalLayoutIndex(int index)
+{
+	_globalLayoutIndex = index;
 }
 
 /**
@@ -411,7 +420,6 @@ void InventoryState::init()
 			ss << gender;
 			ss << (int)s->getLook() + (s->getLookVariant() & (15 >> i)) * 4;
 			ss << ".SPK";
-			std::string debug = ss.str();
 			surf = _game->getMod()->getSurface(ss.str());
 			if (surf)
 			{
@@ -444,8 +452,18 @@ void InventoryState::init()
 		}
 	}
 
+	// coming from InventoryLoad window...
+	if (_globalLayoutIndex > -1)
+	{
+		loadGlobalLayout((_globalLayoutIndex));
+		_globalLayoutIndex = -1;
+
+		// refresh ui
+		_inv->arrangeGround(false);
+	}
+
 	updateStats();
-	_refreshMouse();
+	refreshMouse();
 }
 
 /**
@@ -635,6 +653,95 @@ void InventoryState::btnAvatarClick(Action *action)
 	}
 }
 
+void InventoryState::saveGlobalLayout(int index)
+{
+	std::vector<EquipmentLayoutItem*> *tmpl = _game->getSavedGame()->getGlobalEquipmentLayout(index);
+
+	// clear current template
+	_clearInventoryTemplate(*tmpl);
+
+	// create new template
+	_createInventoryTemplate(*tmpl);
+}
+
+void InventoryState::loadGlobalLayout(int index)
+{
+	std::vector<EquipmentLayoutItem*> *tmpl = _game->getSavedGame()->getGlobalEquipmentLayout(index);
+
+	_applyInventoryTemplate(*tmpl);
+}
+
+/**
+* Handles global equipment layout actions.
+* @param action Pointer to an action.
+*/
+void InventoryState::btnGlobalEquipmentLayoutClick(Action *action)
+{
+	if (_tu)
+	{
+		// cannot use this feature during the mission!
+		return;
+	}
+
+	// don't accept clicks when moving items
+	if (_inv->getSelectedItem() != 0)
+	{
+		return;
+	}
+
+	// SDLK_1 = 49, SDLK_9 = 57
+	const int index = action->getDetails()->key.keysym.sym - 49;
+	if (index < 0 || index > 8)
+	{
+		return; // just in case
+	}
+
+	if ((SDL_GetModState() & KMOD_CTRL) != 0)
+	{
+		saveGlobalLayout(index);
+
+		// give audio feedback
+		_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
+		refreshMouse();
+	}
+	else
+	{
+		loadGlobalLayout(index);
+
+		// refresh ui
+		_inv->arrangeGround(false);
+		updateStats();
+		refreshMouse();
+
+		// give audio feedback
+		_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
+	}
+}
+
+/**
+* Opens the InventoryLoad screen.
+* @param action Pointer to an action.
+*/
+void InventoryState::btnInventoryLoadClick(Action *)
+{
+	if (_tu)
+	{
+		// cannot use this feature during the mission!
+		return;
+	}
+
+	_game->pushState(new InventoryLoadState(this));
+}
+
+/**
+* Opens the InventorySave screen.
+* @param action Pointer to an action.
+*/
+void InventoryState::btnInventorySaveClick(Action *)
+{
+	_game->pushState(new InventorySaveState(this));
+}
+
 /**
  * Returns to the previous screen.
  * @param action Pointer to an action.
@@ -669,6 +776,10 @@ void InventoryState::btnOkClick(Action *)
 
 			(*j)->prepareNewTurn();
 		}
+	}
+	if (_battleGame->getTileEngine())
+	{
+		updateLighting();
 	}
 }
 
@@ -827,7 +938,7 @@ void InventoryState::btnCreateTemplateClick(Action *)
 
 	// give audio feedback
 	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
-	_refreshMouse();
+	refreshMouse();
 }
 
 void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &inventoryTemplate)
@@ -962,13 +1073,13 @@ void InventoryState::btnApplyTemplateClick(Action *)
 	// refresh ui
 	_inv->arrangeGround(false);
 	updateStats();
-	_refreshMouse();
+	refreshMouse();
 
 	// give audio feedback
 	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
 }
 
-void InventoryState::_refreshMouse()
+void InventoryState::refreshMouse()
 {
 	// send a mouse motion event to refresh any hover actions
 	int x, y;
@@ -996,7 +1107,7 @@ void InventoryState::onClearInventory(Action *)
 	// refresh ui
 	_inv->arrangeGround(false);
 	updateStats();
-	_refreshMouse();
+	refreshMouse();
 
 	// give audio feedback
 	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
@@ -1006,9 +1117,26 @@ void InventoryState::onClearInventory(Action *)
  * Updates item info.
  * @param action Pointer to an action.
  */
-void InventoryState::invClick(Action *)
+void InventoryState::invClick(Action *act)
 {
 	updateStats();
+	if (_tu && act->isMouseRightClick())
+	{
+		updateLighting();
+	}
+}
+
+/**
+ * Update lighting in case of unit pick torch/electroflare to hands.
+ */
+void InventoryState::updateLighting()
+{
+	if (!_lightUpdated)
+	{
+		_lightUpdated = true;
+		_battleGame->getTileEngine()->calculateUnitLighting();
+		_battleGame->getTileEngine()->calculateTerrainLighting();
+	}
 }
 
 /**
@@ -1076,12 +1204,12 @@ void InventoryState::invMouseOver(Action *)
 			r.h -= 2;
 			_selAmmo->drawRect(&r, Palette::blockOffset(0)+15);
 			item->getAmmoItem()->getRules()->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), _selAmmo);
-			_updateTemplateButtons(false);
+			updateTemplateButtons(false);
 		}
 		else
 		{
 			_selAmmo->clear();
-			_updateTemplateButtons(!_tu);
+			updateTemplateButtons(!_tu);
 		}
 		if (item->getAmmoQuantity() != 0 && item->needsAmmo())
 		{
@@ -1101,7 +1229,7 @@ void InventoryState::invMouseOver(Action *)
 		}
 		_txtAmmo->setText(L"");
 		_selAmmo->clear();
-		_updateTemplateButtons(!_tu);
+		updateTemplateButtons(!_tu);
 	}
 }
 
@@ -1114,7 +1242,7 @@ void InventoryState::invMouseOut(Action *)
 	_txtItem->setText(L"");
 	_txtAmmo->setText(L"");
 	_selAmmo->clear();
-	_updateTemplateButtons(!_tu);
+	updateTemplateButtons(!_tu);
 }
 
 /**
@@ -1125,6 +1253,15 @@ void InventoryState::handle(Action *action)
 {
 	State::handle(action);
 
+	if (action->getDetails()->type == SDL_KEYDOWN)
+	{
+		// "ctrl+1..9" - save equipment
+		// "1..9" - load equipment
+		if (action->getDetails()->key.keysym.sym >= SDLK_1 && action->getDetails()->key.keysym.sym <= SDLK_9)
+		{
+			btnGlobalEquipmentLayoutClick(action);
+		}
+	}
 
 #ifndef __MORPHOS__
 	if (action->getDetails()->type == SDL_MOUSEBUTTONDOWN)
@@ -1170,7 +1307,7 @@ void InventoryState::txtTooltipOut(Action *action)
 	}
 }
 
-void InventoryState::_updateTemplateButtons(bool isVisible)
+void InventoryState::updateTemplateButtons(bool isVisible)
 {
 	if (isVisible)
 	{

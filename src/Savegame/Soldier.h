@@ -39,6 +39,7 @@ class Armor;
 class Language;
 class EquipmentLayoutItem;
 class SoldierDeath;
+class SoldierDiary;
 class SavedGame;
 
 /**
@@ -50,8 +51,7 @@ class Soldier
 {
 private:
 	std::wstring _name;
-	int _nationality;
-	int _id, _improvement, _psiStrImprovement;
+	int _id, _nationality, _improvement, _psiStrImprovement;
 	RuleSoldier *_rules;
 	UnitStats _initialStats, _currentStats;
 	SoldierRank _rank;
@@ -59,13 +59,15 @@ private:
 	SoldierGender _gender;
 	SoldierLook _look;
 	int _lookVariant;
-	int _missions, _kills, _recovery;
+	int _missions, _kills;
+	float _recovery; // amount of HP missing until full recovery... used to calculate recovery time
 	bool _recentlyPromoted, _psiTraining, _training;
 	Armor *_armor;
 	Armor *_replacedArmor;
 	Armor *_transformedArmor;
 	std::vector<EquipmentLayoutItem*> _equipmentLayout;
 	SoldierDeath *_death;
+	SoldierDiary *_diary;
 	std::wstring _statString;
 public:
 	/// Creates a new soldier.
@@ -89,7 +91,7 @@ public:
 	/// Sets the soldier's craft.
 	void setCraft(Craft *craft);
 	/// Gets the soldier's craft string.
-	std::wstring getCraftString(Language *lang) const;
+	std::wstring getCraftString(Language *lang, float absBonus, float relBonus) const;
 	/// Gets a string version of the soldier's rank.
 	std::string getRankString() const;
 	/// Gets a sprite version of the soldier's rank.
@@ -142,12 +144,16 @@ public:
 	Armor *getTransformedArmor() const;
 	/// Backs up the soldier's original armor (before transformation).
 	void setTransformedArmor(Armor *armor);
+	/// Is the soldier wounded or not?.
+	bool isWounded() const;
+	/// Is the soldier wounded or not?.
+	bool hasFullHealth() const;
 	/// Gets the soldier's wound recovery time.
-	int getWoundRecovery() const;
+	int getWoundRecovery(float absBonus, float relBonus) const;
 	/// Sets the soldier's wound recovery time.
 	void setWoundRecovery(int recovery);
 	/// Heals wound recoveries.
-	void heal();
+	void heal(float absBonus, float relBonus);
 	/// Gets the soldier's equipment-layout.
 	std::vector<EquipmentLayoutItem*> *getEquipmentLayout();
 	/// Trains a soldier's psychic stats
@@ -166,6 +172,10 @@ public:
 	SoldierDeath *getDeath() const;
 	/// Kills the soldier.
 	void die(SoldierDeath *death);
+	/// Gets the soldier's diary.
+	SoldierDiary *getDiary();
+	/// Resets the soldier's diary.
+	void resetDiary();
 	/// Calculate statString.
 	void calcStatString(const std::vector<StatString *> &statStrings, bool psiStrengthEval);
 	/// Trains a soldier's physical stats

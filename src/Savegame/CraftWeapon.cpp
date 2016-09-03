@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <algorithm>
+#include <cmath>
 #include "CraftWeapon.h"
 #include "../Mod/RuleCraftWeapon.h"
 #include "../Mod/Mod.h"
@@ -168,12 +169,12 @@ CraftWeaponProjectile* CraftWeapon::fire() const
  */
 int CraftWeapon::getClipsLoaded(Mod *mod)
 {
-	int retVal = (int)floor((double)_ammo / _rules->getRearmRate());
+	int retVal = (int)std::floor((double)_ammo / _rules->getRearmRate());
 	RuleItem *clip = mod->getItem(_rules->getClipItem());
 
 	if (clip && clip->getClipSize() > 0)
 	{
-		retVal = (int)floor((double)_ammo / clip->getClipSize());
+		retVal = (int)std::floor((double)_ammo / clip->getClipSize());
 	}
 
 	return retVal;

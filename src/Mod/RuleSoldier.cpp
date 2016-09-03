@@ -29,7 +29,7 @@ namespace OpenXcom
  * type of soldier.
  * @param type String defining the type.
  */
-RuleSoldier::RuleSoldier(const std::string &type) : _type(type), _costBuy(0), _costSalary(0), _standHeight(0), _kneelHeight(0), _floatHeight(0), _femaleFrequency(50), _avatarOffsetX(66), _avatarOffsetY(42)
+RuleSoldier::RuleSoldier(const std::string &type) : _type(type), _costBuy(0), _costSalary(0), _standHeight(0), _kneelHeight(0), _floatHeight(0), _femaleFrequency(50), _avatarOffsetX(66), _avatarOffsetY(42), _allowPromotion(true), _allowPiloting(true)
 {
 }
 
@@ -63,10 +63,21 @@ void RuleSoldier::load(const YAML::Node &node, Mod *mod)
 	_minStats.merge(node["minStats"].as<UnitStats>(_minStats));
 	_maxStats.merge(node["maxStats"].as<UnitStats>(_maxStats));
 	_statCaps.merge(node["statCaps"].as<UnitStats>(_statCaps));
+	if (node["trainingStatCaps"])
+	{
+		_trainingStatCaps.merge(node["trainingStatCaps"].as<UnitStats>(_trainingStatCaps));
+	}
+	else
+	{
+		_trainingStatCaps.merge(node["statCaps"].as<UnitStats>(_trainingStatCaps));
+	}
+	_dogfightExperience.merge(node["dogfightExperience"].as<UnitStats>(_dogfightExperience));
 	_armor = node["armor"].as<std::string>(_armor);
 	_armorForAvatar = node["armorForAvatar"].as<std::string>(_armorForAvatar);
 	_avatarOffsetX = node["avatarOffsetX"].as<int>(_avatarOffsetX);
 	_avatarOffsetY = node["avatarOffsetY"].as<int>(_avatarOffsetY);
+	_allowPromotion = node["allowPromotion"].as<bool>(_allowPromotion);
+	_allowPiloting = node["allowPiloting"].as<bool>(_allowPiloting);
 	_costBuy = node["costBuy"].as<int>(_costBuy);
 	_costSalary = node["costSalary"].as<int>(_costSalary);
 	_standHeight = node["standHeight"].as<int>(_standHeight);
@@ -191,6 +202,24 @@ UnitStats RuleSoldier::getStatCaps() const
 }
 
 /**
+* Gets the training stat caps.
+* @return The training stat caps.
+*/
+UnitStats RuleSoldier::getTrainingStatCaps() const
+{
+	return _trainingStatCaps;
+}
+
+/**
+* Gets the improvement chances for pilots (after dogfight).
+* @return The improvement changes.
+*/
+UnitStats RuleSoldier::getDogfightExperience() const
+{
+	return _dogfightExperience;
+}
+
+/**
  * Gets the cost of hiring this soldier.
  * @return The cost.
  */
@@ -269,6 +298,24 @@ int RuleSoldier::getAvatarOffsetX() const
 int RuleSoldier::getAvatarOffsetY() const
 {
 	return _avatarOffsetY;
+}
+
+/**
+* Gets the allow promotion flag.
+* @return True if promotion is allowed.
+*/
+bool RuleSoldier::getAllowPromotion() const
+{
+	return _allowPromotion;
+}
+
+/**
+* Gets the allow piloting flag.
+* @return True if piloting is allowed.
+*/
+bool RuleSoldier::getAllowPiloting() const
+{
+	return _allowPiloting;
 }
 
 /**

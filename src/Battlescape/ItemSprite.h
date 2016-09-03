@@ -41,15 +41,16 @@ private:
 	Mod *_mod;
 	int _animationFrame;
 	Surface *_dest;
-	ScriptWorker _scriptWorkRef;
 
 public:
 	/// Creates a new ItemSprite at the specified position and size.
 	ItemSprite(Surface* dest, Mod* mod, int frame);
 	/// Cleans up the ItemSprite.
 	~ItemSprite();
-	/// Draws the unit.
+	/// Draws the item.
 	void draw(BattleItem* item, int x, int y, int shade, bool half = false);
+	/// Draws the item shadow.
+	void drawShadow(BattleItem* item, int x, int y, bool half = false);
 };
 
 } //namespace OpenXcom

@@ -37,6 +37,7 @@
 #include "Camera.h"
 #include "Explosion.h"
 #include "BattlescapeState.h"
+#include "../Savegame/BattleUnitStatistics.h"
 
 namespace OpenXcom
 {
@@ -288,6 +289,9 @@ bool ProjectileFlyBState::createNewProjectile()
 {
 	++_action.autoShotCounter;
 
+	if (_action.type != BA_THROW && _action.type != BA_LAUNCH)
+		_unit->getStatistics()->shotsFiredCounter++;
+
 	// create a new projectile
 	Projectile *projectile = new Projectile(_parent->getMod(), _parent->getSave(), _action, _origin, _targetVoxel, _ammo);
 	// hit log - new bullet
@@ -319,6 +323,11 @@ bool ProjectileFlyBState::createNewProjectile()
 				_projectileItem->setFuseTimer(_projectileItem->getRules()->getFuseTimerDefault());
 			}
 			_projectileItem->moveToOwner(0);
+			if (_projectileItem->getGlow())
+			{
+				_parent->getTileEngine()->calculateUnitLighting();
+				_parent->getTileEngine()->calculateFOV(_unit->getPosition(), _projectileItem->getGlowRange(), false);
+			}
 			_parent->getMod()->getSoundByDepth(_parent->getDepth(), Mod::ITEM_THROW)->play(-1, _parent->getMap()->getSoundAngle(_unit->getPosition()));
 		}
 		else
@@ -372,7 +381,7 @@ bool ProjectileFlyBState::createNewProjectile()
 	{
 		if (_originVoxel != Position(-1,-1,-1))
 		{
-			_projectileImpact = projectile->calculateTrajectory(_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) / accuracyDivider, _originVoxel);
+			_projectileImpact = projectile->calculateTrajectory(_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) / accuracyDivider, _originVoxel, false);
 		}
 		else
 		{
@@ -452,7 +461,7 @@ void ProjectileFlyBState::think()
 			}
 			if (!_parent->getSave()->getUnitsFalling() && _parent->getPanicHandled())
 			{
-				_parent->getTileEngine()->checkReactionFire(_unit);
+				_parent->getTileEngine()->checkReactionFire(_unit, _action);
 			}
 			if (!_unit->isOut())
 			{
@@ -521,6 +530,11 @@ void ProjectileFlyBState::think()
 			}
 			else
 			{
+				if (_parent->getSave()->getTile(_action.target)->getUnit())
+				{
+					_parent->getSave()->getTile(_action.target)->getUnit()->getStatistics()->shotAtCounter++; // Only counts for guns, not throws or launches
+				}
+
 				_parent->getMap()->resetCameraSmoothing();
 				if (!_parent->getSave()->getDebugMode() && _ammo && _action.type == BA_LAUNCH && _ammo->spendBullet() == false)
 				{
@@ -549,13 +563,35 @@ void ProjectileFlyBState::think()
 					// special shotgun behaviour: trace extra projectile paths, and add bullet hits at their termination points.
 					if (shotgun)
 					{
+						int behaviorType = _ammo->getRules()->getShotgunBehaviorType();
+						int spread = _ammo->getRules()->getShotgunSpread();
+						int choke = _action.weapon->getRules()->getShotgunChoke();
+						Position firstPelletImpact = _parent->getMap()->getProjectile()->getPosition(-2);
+
 						int i = 1;
 						while (i != _ammo->getRules()->getShotgunPellets())
 						{
-							// create a projectile
+							if (behaviorType == 1)
+							{
+								// use impact location to determine spread (instead of originally targeted voxel)
+								_targetVoxel = firstPelletImpact;
+							}
+
 							Projectile *proj = new Projectile(_parent->getMod(), _parent->getSave(), _action, _origin, _targetVoxel, _ammo);
+
 							// let it trace to the point where it hits
-							_projectileImpact = proj->calculateTrajectory(std::max(0.0, (_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) / 100.0) - i * 5.0));
+							if (behaviorType == 1)
+							{
+								// pellet spread based on spread and choke values
+								_projectileImpact = proj->calculateTrajectory(std::max(0.0, (1.0 - spread / 100.0) * choke / 100.0));
+							}
+							else
+							{
+								// pellet spread based on spread and firing accuracy with diminishing formula
+								// identical with vanilla formula when spread = 100 (default)
+								_projectileImpact = proj->calculateTrajectory(std::max(0.0, (_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) / 100.0) - i * 5.0 * spread / 100.0));
+							}
+
 							if (_projectileImpact != V_EMPTY)
 							{
 								// as above: skip the shot to the end of it's path
@@ -577,14 +613,43 @@ void ProjectileFlyBState::think()
 					if (_projectileImpact == V_UNIT)
 					{
 						BattleUnit *victim = _parent->getSave()->getTile(_parent->getMap()->getProjectile()->getPosition(offset) / Position(16,16,24))->getUnit();
-						if (victim && !victim->isOut() && victim->getFaction() == FACTION_HOSTILE)
+						BattleUnit *targetVictim = _parent->getSave()->getTile(_action.target)->getUnit(); // Who we were aiming at (not necessarily who we hit)
+						if (victim && !victim->isOut())
 						{
-							AlienBAIState *aggro = dynamic_cast<AlienBAIState*>(victim->getCurrentAIState());
-							if (aggro != 0)
+							victim->getStatistics()->hitCounter++;
+							if (_unit->getOriginalFaction() == FACTION_PLAYER && victim->getOriginalFaction() == FACTION_PLAYER)
 							{
-								aggro->setWasHitBy(_unit);
-								_unit->setTurnsSinceSpotted(0);
+								victim->getStatistics()->shotByFriendlyCounter++;
+								_unit->getStatistics()->shotFriendlyCounter++;
 							}
+							if (victim == targetVictim) // Hit our target
+							{
+								_unit->getStatistics()->shotsLandedCounter++;
+								if (_parent->getTileEngine()->distance(_action.actor->getPosition(), victim->getPosition()) > 30)
+								{
+									_unit->getStatistics()->longDistanceHitCounter++;
+								}
+								if (_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) < _parent->getTileEngine()->distance(_action.actor->getPosition(), victim->getPosition()))
+								{
+									_unit->getStatistics()->lowAccuracyHitCounter++;
+								}
+							}
+							if (victim->getFaction() == FACTION_HOSTILE)
+							{
+								AlienBAIState *aggro = dynamic_cast<AlienBAIState*>(victim->getCurrentAIState());
+								if (aggro != 0)
+								{
+									aggro->setWasHitBy(_unit);
+									_unit->setTurnsSinceSpotted(0);
+								}
+							}
+							// Record the last unit to hit our victim. If a victim dies without warning*, this unit gets the credit.
+							// *Because the unit died in a fire or bled out.
+							victim->setMurdererId(_unit->getId());
+							if (_action.weapon != 0)
+								victim->setMurdererWeapon(_action.weapon->getRules()->getName());
+							if (_ammo != 0)
+								victim->setMurdererWeaponAmmo(_ammo->getRules()->getName());
 						}
 					}
 				}

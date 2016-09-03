@@ -20,14 +20,17 @@
 #define OPENXCOM_CRAFT_H
 
 #include "MovingTarget.h"
+#include <utility>
 #include <vector>
 #include <string>
-#include "CraftId.h"
 #include "../Mod/RuleCraft.h"
 
 namespace OpenXcom
 {
 
+typedef std::pair<std::string, int> CraftId;
+
+class RuleCraft;
 class Base;
 class Soldier;
 class CraftWeapon;
@@ -57,6 +60,7 @@ private:
 	RuleCraftStats _stats;
 	bool _isAutoPatrolling;
 	double _lonAuto, _latAuto;
+	std::vector<int> _pilots;
 public:
 	/// Creates a craft of the specified type.
 	Craft(RuleCraft *rules, Base *base, int id = 0);
@@ -190,6 +194,24 @@ public:
 	int getSpaceAvailable() const;
 	/// Gets the amount of space used inside a craft.
 	int getSpaceUsed() const;
+	/// Checks if there are enough pilots onboard.
+	bool arePilotsOnboard();
+	/// Checks if a pilot is already on the list.
+	bool isPilot(int pilotId);
+	/// Adds a pilot to the list.
+	void addPilot(int pilotId);
+	/// Removes all pilots from the list.
+	void removeAllPilots();
+	/// Checks if entire crew is made of pilots.
+	bool isCrewPilotsOnly() const;
+	/// Gets the list of craft pilots.
+	const std::vector<Soldier*> getPilotList();
+	/// Calculates the accuracy bonus based on pilot skills.
+	int getPilotAccuracyBonus(const std::vector<Soldier*> &pilots) const;
+	/// Calculates the dodge bonus based on pilot skills.
+	int getPilotDodgeBonus(const std::vector<Soldier*> &pilots) const;
+	/// Calculates the approach speed modifier based on pilot skills.
+	int getPilotApproachSpeedModifier(const std::vector<Soldier*> &pilots) const;
 	/// Gets the craft's vehicles of a certain type.
 	int getVehicleCount(const std::string &vehicle) const;
 	/// Sets the craft's dogfight status.

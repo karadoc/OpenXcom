@@ -406,14 +406,14 @@ BattlescapeState::BattlescapeState() : _reserve(0), _xBeforeMouseScrolling(0), _
 	_btnStats->onMouseOut((ActionHandler)&BattlescapeState::txtTooltipOut);
 
 	_btnLeftHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnLeftHandItemClick);
-	_btnLeftHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnLeftHandItemClick, SDL_BUTTON_RIGHT);
+	_btnLeftHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnLeftHandItemClick, SDL_BUTTON_MIDDLE);
 	_btnLeftHandItem->onKeyboardPress((ActionHandler)&BattlescapeState::btnLeftHandItemClick, Options::keyBattleUseLeftHand);
 	_btnLeftHandItem->setTooltip("STR_USE_LEFT_HAND");
 	_btnLeftHandItem->onMouseIn((ActionHandler)&BattlescapeState::txtTooltipInExtraLeftHand);
 	_btnLeftHandItem->onMouseOut((ActionHandler)&BattlescapeState::txtTooltipOut);
 
 	_btnRightHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnRightHandItemClick);
-	_btnRightHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnRightHandItemClick, SDL_BUTTON_RIGHT);
+	_btnRightHandItem->onMouseClick((ActionHandler)&BattlescapeState::btnRightHandItemClick, SDL_BUTTON_MIDDLE);
 	_btnRightHandItem->onKeyboardPress((ActionHandler)&BattlescapeState::btnRightHandItemClick, Options::keyBattleUseRightHand);
 	_btnRightHandItem->setTooltip("STR_USE_RIGHT_HAND");
 	_btnRightHandItem->onMouseIn((ActionHandler)&BattlescapeState::txtTooltipInExtraRightHand);
@@ -460,6 +460,8 @@ BattlescapeState::BattlescapeState() : _reserve(0), _xBeforeMouseScrolling(0), _
 	// shortcuts without a specific button
 	_btnStats->onKeyboardPress((ActionHandler)&BattlescapeState::btnReloadClick, Options::keyBattleReload);
 	_btnStats->onKeyboardPress((ActionHandler)&BattlescapeState::btnPersonalLightingClick, Options::keyBattlePersonalLighting);
+
+	_btnStats->onKeyboardPress((ActionHandler)&BattlescapeState::btnNightVisionClick, Options::keyNightVisionToggle);
 
 	SDLKey buttons[] = {Options::keyBattleCenterEnemy1,
 						Options::keyBattleCenterEnemy2,
@@ -1065,6 +1067,7 @@ void BattlescapeState::selectPreviousPlayerUnit(bool checkReselect, bool setRese
 		_battleGame->setupCursor();
 	}
 }
+
 /**
  * Shows/hides all map layers.
  * @param action Pointer to an action.
@@ -1097,6 +1100,7 @@ void BattlescapeState::btnEndTurnClick(Action *)
 		_battleGame->requestEndTurn(false);
 	}
 }
+
 /**
  * Aborts the game.
  * @param action Pointer to an action.
@@ -1164,9 +1168,9 @@ void BattlescapeState::btnLeftHandItemClick(Action *action)
 
 		_save->getSelectedUnit()->setActiveHand("STR_LEFT_HAND");
 		_map->draw();
-		BattleItem *leftHandItem = _save->getSelectedUnit()->getItem("STR_LEFT_HAND");
-		bool rightClick = action->getDetails()->button.button == SDL_BUTTON_RIGHT;
-		handleItemClick(leftHandItem, rightClick);
+		BattleItem *leftHandItem = _save->getSelectedUnit()->getLeftHandWeapon();
+		bool middleClick = action->getDetails()->button.button == SDL_BUTTON_MIDDLE;
+		handleItemClick(leftHandItem, middleClick);
 	}
 }
 
@@ -1191,9 +1195,9 @@ void BattlescapeState::btnRightHandItemClick(Action *action)
 
 		_save->getSelectedUnit()->setActiveHand("STR_RIGHT_HAND");
 		_map->draw();
-		BattleItem *rightHandItem = _save->getSelectedUnit()->getItem("STR_RIGHT_HAND");
-		bool rightClick = action->getDetails()->button.button == SDL_BUTTON_RIGHT;
-		handleItemClick(rightHandItem, rightClick);
+		BattleItem *rightHandItem = _save->getSelectedUnit()->getRightHandWeapon();
+		bool middleClick = action->getDetails()->button.button == SDL_BUTTON_MIDDLE;
+		handleItemClick(rightHandItem, middleClick);
 	}
 }
 
@@ -1298,6 +1302,15 @@ void BattlescapeState::btnPersonalLightingClick(Action *)
 }
 
 /**
+ * Toggles map-wide night vision (purely cosmetic).
+ * @param action Pointer to an action.
+ */
+void BattlescapeState::btnNightVisionClick(Action *action)
+{
+	_map->toggleNightVision();
+}
+
+/**
  * Determines whether a playable unit is selected. Normally only player side units can be selected, but in debug mode one can play with aliens too :)
  * Is used to see if stats can be displayed and action buttons will work.
  * @return Whether a playable unit is selected.
@@ -1313,7 +1326,7 @@ void BattlescapeState::drawItem(BattleItem* item, Surface* hand, NumberText* amm
 	ammo->setVisible(false);
 	if (item)
 	{
-		RuleItem *rule = item->getRules();
+		const RuleItem *rule = item->getRules();
 		rule->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), hand, item);
 		if (item->getRules()->getBattleType() == BT_FIREARM && (item->needsAmmo() || item->getRules()->getClipSize() > 0))
 		{
@@ -1469,8 +1482,8 @@ void BattlescapeState::updateSoldierInfo()
 	toggleKneelButton(battleUnit);
 
 	//FIXME: Meridian: extract into function later like Yankes did (merge conflict)
-	//drawItem(battleUnit->getItem("STR_LEFT_HAND"), _btnLeftHandItem, _numAmmoLeft);
-	//drawItem(battleUnit->getItem("STR_RIGHT_HAND"), _btnRightHandItem, _numAmmoRight);
+	//drawItem(battleUnit->getLeftHandWeapon(), _btnLeftHandItem, _numAmmoLeft);
+	//drawItem(battleUnit->getRightHandWeapon(), _btnRightHandItem, _numAmmoRight);
 
 	BattleItem *leftHandItem = battleUnit->getItem("STR_LEFT_HAND");
 	_btnLeftHandItem->clear();
@@ -1647,7 +1660,7 @@ void BattlescapeState::blinkHealthBar()
 {
 	static Uint8 color = _barHealth->getColor(), maxcolor = color + 3, step = 0;
 
-	step ^= 1; // 1, 0, 1, 0, ...
+	step ^= 1;	// 1, 0, 1, 0, ...
 	BattleUnit *bu = _save->getSelectedUnit();
 	if (step == 0 || bu == 0 || !_barHealth->getVisible()) return;
 
@@ -1715,14 +1728,14 @@ void BattlescapeState::drawPrimers()
  * Popups a context sensitive list of actions the user can choose from.
  * Some actions result in a change of gamestate.
  * @param item Item the user clicked on (righthand/lefthand)
- * @param rightClick was it a right click?
+ * @param middleClick was it a middle click?
  */
-void BattlescapeState::handleItemClick(BattleItem *item, bool rightClick)
+void BattlescapeState::handleItemClick(BattleItem *item, bool middleClick)
 {
 	// make sure there is an item, and the battlescape is in an idle state
 	if (item && !_battleGame->isBusy())
 	{
-		if (rightClick)
+		if (middleClick)
 		{
 			std::string articleId = item->getRules()->getType();
 			Ufopaedia::openArticle(_game, articleId);
@@ -1880,7 +1893,7 @@ inline void BattlescapeState::handle(Action *action)
 							{
 								(*i)->damage(Position(0,0,0), 1000, _game->getMod()->getDamageType(DT_AP));
 							}
-							_save->getBattleGame()->checkForCasualties(0, 0, true, false);
+							_save->getBattleGame()->checkForCasualties(nullptr, nullptr, nullptr, true, false);
 							_save->getBattleGame()->handleState();
 						}
 					}
@@ -1895,7 +1908,7 @@ inline void BattlescapeState::handle(Action *action)
 								(*i)->damage(Position(0,0,0), 1000, _game->getMod()->getDamageType(DT_STUN));
 							}
 						}
-						_save->getBattleGame()->checkForCasualties(0, 0, true, false);
+						_save->getBattleGame()->checkForCasualties(nullptr, nullptr, nullptr, true, false);
 						_save->getBattleGame()->handleState();
 					}
 					// f11 - voxel map dump
@@ -1910,8 +1923,7 @@ inline void BattlescapeState::handle(Action *action)
 					}
 				}
 				// quick save and quick load
-				// not works in debug mode to prevent conflict in hotkeys by default
-				else if (!_game->getSavedGame()->isIronman())
+				if (!_game->getSavedGame()->isIronman())
 				{
 					if (action->getDetails()->key.keysym.sym == Options::keyQuickSave)
 					{

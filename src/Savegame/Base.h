@@ -27,8 +27,6 @@
 namespace OpenXcom
 {
 
-class Mod;
-class BaseFacility;
 class Soldier;
 class Craft;
 class ItemContainer;
@@ -36,6 +34,7 @@ class Transfer;
 class Language;
 class Mod;
 class SavedGame;
+class RuleBaseFacility;
 class BaseFacility;
 class ResearchProject;
 class Production;
@@ -116,6 +115,10 @@ public:
 	int getAvailableEngineers() const;
 	/// Gets the base's total engineers.
 	int getTotalEngineers() const;
+	/// Gets the base's total other employees.
+	int getTotalOtherEmployees() const;
+	/// Gets the base's total cost of other employees.
+	int getTotalOtherEmployeeCost() const;
 	/// Gets the base's used living quarters.
 	int getUsedQuarters() const;
 	/// Gets the base's available living quarters.
@@ -160,6 +163,8 @@ public:
 	int getSoldierCount(const std::string &soldier) const;
 	/// Gets the base's personnel maintenance.
 	int getPersonnelMaintenance() const;
+	/// Gets the base's item maintenance.
+	int getItemMaintenance() const;
 	/// Gets the base's facility maintenance.
 	int getFacilityMaintenance() const;
 	/// Gets the base's total monthly maintenance.
@@ -190,11 +195,11 @@ public:
 	int getAvailableTraining() const;
 	/// Gets the total amount of Containment Space
 	/// Gets the amount of free Containment space.
-	int getFreeContainment() const;
+	int getFreeContainment(int prisonType) const;
 	/// Gets the total amount of Containment space.
-	int getAvailableContainment() const;
+	int getAvailableContainment(int prisonType) const;
 	/// Gets the total amount of used Containment space.
-	int getUsedContainment() const;
+	int getUsedContainment(int prisonType) const;
 	/// Sets the craft's battlescape status.
 	void setInBattlescape(bool inbattle);
 	/// Gets if the craft is in battlescape.
@@ -222,9 +227,19 @@ public:
 	/// Cleans up the defenses vector and optionally reclaims the tanks and their ammo.
 	void cleanupDefenses(bool reclaimItems);
 	/// Gets available base functionality.
-	std::set<std::string> getProvidedBaseFunc(const BaseFacility *skip = 0) const;
+	std::vector<std::string> getProvidedBaseFunc(const BaseFacility *skip = 0) const;
 	/// Gets used base functionality.
-	std::set<std::string> getRequireBaseFunc(const BaseFacility *skip = 0) const;
+	std::vector<std::string> getRequireBaseFunc(const BaseFacility *skip = 0) const;
+	/// Gets forbiden base functionality.
+	std::vector<std::string> getForbiddenBaseFunc() const;
+	/// Gets future base functionality.
+	std::vector<std::string> getFutureBaseFunc() const;
+	/// Checks if it is possible to build another facility of a given type.
+	bool isMaxAllowedLimitReached(RuleBaseFacility *rule) const;
+	/// Gets the amount of additional HP healed in this base due to sick bay facilities (in absolute number).
+	float getSickBayAbsoluteBonus() const;
+	/// Gets the amount of additional HP healed in this base due to sick bay facilities (as percentage of max HP per soldier).
+	float getSickBayRelativeBonus() const;
 };
 
 }
