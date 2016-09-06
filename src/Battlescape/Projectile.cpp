@@ -244,6 +244,11 @@ int Projectile::calculateThrow(double accuracy)
 			deltas -= targetVoxel;
 			_trajectory.clear();
 			test = _save->getTileEngine()->calculateParabola(originVoxel, targetVoxel, true, &_trajectory, _action.actor, curvature, deltas);
+			// Adjust final voxel of throw to land on top of the collision point, rather than inside it.
+			if (_action.type == BA_THROW)
+			{
+				_trajectory.back().z++;
+			}
 
 			Tile *endTile = _save->getTile(_trajectory.back().toTile());
 			// check if the item would land on a tile with a blocking object

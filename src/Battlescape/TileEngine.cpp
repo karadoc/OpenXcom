@@ -3491,6 +3491,9 @@ bool TileEngine::validateThrow(BattleAction &action, Position originVoxel, Posit
 	{
 		std::vector<Position> trajectory;
 		test = calculateParabola(originVoxel, targetVoxel, false, &trajectory, action.actor, curvature, Position(0,0,0));
+		// Adjust final voxel of throw to land on top of the collision point, rather than inside it.
+		trajectory.back().z++; // Note: this adjustment should be matched in Projectile::calculateThrow
+
 		if (test != V_OUTOFBOUNDS && (trajectory.at(0) / Position(16, 16, 24)) == (targetVoxel / Position(16, 16, 24)))
 		{
 			if (voxelType)
