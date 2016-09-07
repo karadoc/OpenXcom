@@ -21,6 +21,7 @@
 #include "../Engine/Options.h"
 #include "../Engine/RNG.h"
 #include "Mod.h"
+#include <cmath>
 
 namespace OpenXcom
 {

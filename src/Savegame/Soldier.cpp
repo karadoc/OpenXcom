@@ -31,6 +31,8 @@
 #include "../Mod/Mod.h"
 #include "../Mod/StatString.h"
 
+#include <cmath>
+
 namespace OpenXcom
 {
 
