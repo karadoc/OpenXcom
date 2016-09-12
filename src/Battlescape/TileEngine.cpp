@@ -2507,7 +2507,7 @@ int TileEngine::unitOpensDoor(BattleUnit *unit, bool rClick, int dir)
 		}
 	}
 
-	if (TUCost != 0)
+	if (door == 0 || door == 1)
 	{
 		if (_save->getBattleGame()->checkReservedTU(unit, TUCost, 0))
 		{
@@ -2515,6 +2515,8 @@ int TileEngine::unitOpensDoor(BattleUnit *unit, bool rClick, int dir)
 			{
 				// Update FOV through the doorway.
 				calculateFOV(doorCentre, doorsOpened, true, true);
+				calculateTerrainLighting();
+				calculateUnitLighting();
 			}
 			else return 4;
 		}
@@ -2809,7 +2811,7 @@ int TileEngine::calculateParabola(const Position& origin, const Position& target
 		y = (int)((double)origin.y + (double)i * sin(te) * sin(fi));
 		z = (int)((double)origin.z + (double)i * cos(fi) - zK * ((double)i - ro / 2.0) * ((double)i - ro / 2.0) + zA);
 		//passes through this point?
-		Position nextPosition = Position(x,y,z);
+		Position nextPosition = Position(x, y, z);
 		std::vector<Position> contactPoint;
 		int result = calculateLine(lastPosition, nextPosition, false, &contactPoint, excludeUnit);
 		if (result != V_EMPTY)
@@ -3109,7 +3111,7 @@ bool TileEngine::psiAttack(BattleAction *action)
 				{
 					_save->setSelectedUnit(0);
 					_save->getBattleGame()->cancelCurrentAction(true);
-					_save->getBattleGame()->requestEndTurn(true);
+					_save->getBattleGame()->requestEndTurn(liveAliens == 0);
 				}
 			}
 		}
@@ -3491,10 +3493,10 @@ bool TileEngine::validateThrow(BattleAction &action, Position originVoxel, Posit
 	{
 		std::vector<Position> trajectory;
 		test = calculateParabola(originVoxel, targetVoxel, false, &trajectory, action.actor, curvature, Position(0,0,0));
-		// Adjust final voxel of throw to land on top of the collision point, rather than inside it.
-		trajectory.back().z++; // Note: this adjustment should be matched in Projectile::calculateThrow
-
-		if (test != V_OUTOFBOUNDS && (trajectory.at(0) / Position(16, 16, 24)) == (targetVoxel / Position(16, 16, 24)))
+		Position impactTile = trajectory.at(0) / Position(16, 16, 24);
+		Position targetTile = targetVoxel / Position(16, 16, 24);
+		Position belowTargetTile = targetTile - Position(0, 0, 1);
+		if (test != V_OUTOFBOUNDS && (impactTile == targetTile || impactTile == belowTargetTile))
 		{
 			if (voxelType)
 			{
