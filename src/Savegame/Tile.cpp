@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -57,10 +57,9 @@ Tile::Tile(const Position& pos): _smoke(0), _fire(0), _explosive(0), _explosiveT
 		_mapDataSetID[i] = -1;
 		_currentFrame[i] = 0;
 	}
-	for (int layer = 0; layer < LIGHTLAYERS; layer++)
+	for (int layer = 0; layer < LL_MAX; layer++)
 	{
 		_light[layer] = 0;
-		_lastLight[layer] = -1;
 	}
 	for (int i = 0; i < 3; ++i)
 	{
@@ -135,7 +134,7 @@ void Tile::loadBinary(Uint8 *buffer, Tile::SerializationKey& serKey)
 	_smoke = unserializeInt(&buffer, serKey._smoke);
 	_fire = unserializeInt(&buffer, serKey._fire);
 
-    Uint8 boolFields = unserializeInt(&buffer, serKey.boolFields);
+	Uint8 boolFields = unserializeInt(&buffer, serKey.boolFields);
 	_discovered[0] = (boolFields & 1) ? true : false;
 	_discovered[1] = (boolFields & 2) ? true : false;
 	_discovered[2] = (boolFields & 4) ? true : false;
@@ -421,10 +420,21 @@ bool Tile::isDiscovered(int part) const
  * Reset the light amount on the tile. This is done before a light level recalculation.
  * @param layer Light is separated in 3 layers: Ambient, Static and Dynamic.
  */
-void Tile::resetLight(int layer)
+void Tile::resetLight(LightLayers layer)
 {
 	_light[layer] = 0;
-	_lastLight[layer] = _light[layer];
+}
+
+/**
+ * Reset multiple layers of light from defined one.
+ * @param layer From with layer start reset.
+ */
+void Tile::resetLightMulti(LightLayers layer)
+{
+	for (int l = layer; l < LL_MAX; l++)
+	{
+		_light[l] = 0;
+	}
 }
 
 /**
@@ -432,11 +442,35 @@ void Tile::resetLight(int layer)
  * @param light Amount of light to add.
  * @param layer Light is separated in 3 layers: Ambient, Static and Dynamic.
  */
-void Tile::addLight(int light, int layer)
+void Tile::addLight(int light, LightLayers layer)
 {
 	if (_light[layer] < light)
 		_light[layer] = light;
 }
+
+/**
+ * Get current light amount of the tile.
+ * @param layer Light is separated in 3 layers: Ambient, Static and Dynamic.
+ * @return Max light value of selected layer.
+ */
+int Tile::getLight(LightLayers layer) const
+{
+	return _light[layer];
+}
+
+int Tile::getLightMulti(LightLayers layer) const
+{
+	int light = 0;
+
+	for (int l = layer; l >= 0; --l)
+	{
+		if (_light[l] > light)
+			light = _light[l];
+	}
+
+	return light;
+}
+
 
 /**
  * Gets the tile's shade amount 0-15. It returns the brightest of all light layers.
@@ -447,28 +481,8 @@ int Tile::getShade() const
 {
 	int light = 0;
 
-	for (int layer = 0; layer < LIGHTLAYERS; layer++)
+	for (int layer = 0; layer < LL_MAX; layer++)
 	{
-		if (_light[layer] > light)
-			light = _light[layer];
-	}
-
-	return std::max(0, 15 - light);
-}
-
-/**
- * Gets the tile's shade amount 0-15. It returns the brightest of all light layers except 2th (dynamic) layer.
- * Shade level is the inverse of light level. So a maximum amount of light (15) returns shade level 0.
- * @return shade
- */
-int Tile::getExternalShade() const
-{
-	int light = 0;
-	// 2th layer (dynamic) not taken into account
-	for (int layer = 0; layer < LIGHTLAYERS; layer++)
-	{
-		if (layer == 2) continue;
-
 		if (_light[layer] > light)
 			light = _light[layer];
 	}
@@ -903,7 +917,7 @@ void Tile::setMarkerColor(int color)
  * Get the marker color on this tile.
  * @return color
  */
-int Tile::getMarkerColor()
+int Tile::getMarkerColor() const
 {
 	return _markerColor;
 }
@@ -921,7 +935,7 @@ void Tile::setVisible(int visibility)
  * Get the tile visible flag.
  * @return visibility
  */
-int Tile::getVisible()
+int Tile::getVisible() const
 {
 	return _visible;
 }
@@ -991,7 +1005,7 @@ void Tile::setDangerous()
  * get the danger flag on this tile.
  * @return the danger flag for this tile.
  */
-bool Tile::getDangerous()
+bool Tile::getDangerous() const
 {
 	return _danger;
 }

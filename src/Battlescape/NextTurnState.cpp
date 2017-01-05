@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -24,15 +24,14 @@
 #include "../Engine/Screen.h"
 #include "../Mod/Mod.h"
 #include "../Mod/RuleStartingCondition.h"
+#include "../Mod/RuleInterface.h"
 #include "../Engine/LocalizedText.h"
 #include "../Engine/Palette.h"
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
 #include "../Engine/Action.h"
 #include "../Savegame/SavedBattleGame.h"
-#include "../Savegame/SavedGame.h"
 #include "BattlescapeState.h"
-#include "../Menu/SaveGameState.h"
 #include "Map.h"
 
 namespace OpenXcom
@@ -104,7 +103,18 @@ NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *stat
 	_txtTurn->setBig();
 	_txtTurn->setAlign(ALIGN_CENTER);
 	_txtTurn->setHighContrast(true);
-	_txtTurn->setText(tr("STR_TURN").arg(_battleGame->getTurn()));
+	std::wstringstream ss;
+	ss << tr("STR_TURN").arg(_battleGame->getTurn());
+	if (battleGame->getTurnLimit() > 0)
+	{
+		ss << L"/" << battleGame->getTurnLimit();
+		if (battleGame->getTurnLimit() - _battleGame->getTurn() <= 3)
+		{
+			// gonna borrow the inventory's "over weight" colour when we're down to the last three turns
+			_txtTurn->setColor(_game->getMod()->getInterface("inventory")->getElement("weight")->color2);
+		}
+	}
+	_txtTurn->setText(ss.str());
 
 
 	_txtSide->setBig();
@@ -202,6 +212,12 @@ NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *stat
 	}
 	_battleGame->hitLog.clear();
 
+	if (_battleGame->getSide() == FACTION_PLAYER)
+	{
+		checkBugHuntMode();
+		_state->bugHuntMessage();
+	}
+
 	if (Options::skipNextTurnScreen && message.empty())
 	{
 		_timer = new Timer(NEXT_TURN_DELAY);
@@ -216,6 +232,52 @@ NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *stat
 NextTurnState::~NextTurnState()
 {
 	delete _timer;
+}
+
+/**
+* Checks if bug hunt mode should be activated or not.
+*/
+void NextTurnState::checkBugHuntMode()
+{
+	// too early for bug hunt
+	if (_battleGame->getTurn() < _battleGame->getBughuntMinTurn()) return;
+
+	// bug hunt is already activated
+	if (_battleGame->getBughuntMode()) return;
+
+	int count = 0;
+	for (std::vector<BattleUnit*>::iterator j = _battleGame->getUnits()->begin(); j != _battleGame->getUnits()->end(); ++j)
+	{
+		if (!(*j)->isOut())
+		{
+			if ((*j)->getOriginalFaction() == FACTION_HOSTILE)
+			{
+				// we can see them, duh!
+				if ((*j)->getVisible()) return;
+
+				// VIPs are still in the game
+				if ((*j)->getRankInt() <= _game->getMod()->getBughuntRank()) return; // AR_COMMANDER = 0, AR_LEADER = 1, ...
+
+				count++;
+				// too many enemies are still in the game
+				if (count > _game->getMod()->getBughuntMaxEnemies()) return;
+
+				bool hasWeapon = (*j)->getLeftHandWeapon() || (*j)->getRightHandWeapon();
+				bool hasLowMorale = (*j)->getMorale() < _game->getMod()->getBughuntLowMorale();
+				bool hasTooManyTUsLeft = (*j)->getTimeUnits() > ((*j)->getUnitRules()->getStats()->tu * _game->getMod()->getBughuntTimeUnitsLeft() / 100);
+				if (!hasWeapon || hasLowMorale || hasTooManyTUsLeft)
+				{
+					continue; // this unit is powerless, check next unit...
+				}
+				else
+				{
+					return; // this unit is OK, no bug hunt yet!
+				}
+			}
+		}
+	}
+
+	_battleGame->setBughuntMode(true); // if we made it this far, turn on the bug hunt!
 }
 
 /**
@@ -332,14 +394,7 @@ void NextTurnState::close()
 		// Autosave every set amount of turns
 		if ((_battleGame->getTurn() == 1 || _battleGame->getTurn() % Options::autosaveFrequency == 0) && _battleGame->getSide() == FACTION_PLAYER)
 		{
-			if (_game->getSavedGame()->isIronman())
-			{
-				_game->pushState(new SaveGameState(OPT_BATTLESCAPE, SAVE_IRONMAN, _palette));
-			}
-			else if (Options::autosave)
-			{
-				_game->pushState(new SaveGameState(OPT_BATTLESCAPE, SAVE_AUTO_BATTLESCAPE, _palette));
-			}
+			_state->autosave();
 		}
 	}
 }
@@ -350,4 +405,5 @@ void NextTurnState::resize(int &dX, int &dY)
 	_bg->setX(0);
 	_bg->setY(0);
 }
+
 }

@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_RULEUFO_H
-#define OPENXCOM_RULEUFO_H
-
 #include <string>
 #include <map>
 #include <yaml-cpp/yaml.h>
@@ -62,7 +60,8 @@ class RuleUfo
 private:
 	std::string _type, _size;
 	int _sprite, _marker;
-	int _power, _range, _score, _reload, _breakOffTime;
+	int _power, _range, _score, _reload, _breakOffTime, _missionScore;
+	int _fireSound;
 	RuleTerrain *_battlescapeTerrainData;
 	RuleUfoStats _stats;
 	std::map<std::string, RuleUfoStats> _statsRaceBonus;
@@ -96,6 +95,8 @@ public:
 	int getWeaponReload() const;
 	/// Gets the UFO's escape time.
 	int getBreakOffTime() const;
+	/// Gets the UFO's fire sound.
+	int getFireSound() const;
 	/// Gets the name of the surface that represents this UFO.
 	const std::string &getModSprite() const;
 	/// Get basic statistic of UFO.
@@ -104,8 +105,8 @@ public:
 	const RuleUfoStats& getRaceBonus(const std::string& s) const;
 	/// Gets the UFO's radar range.
 	int getSightRange() const;
+	/// Gets the UFO's mission score.
+	int getMissionScore() const;
 };
 
 }
-
-#endif

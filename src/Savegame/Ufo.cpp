@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,8 +18,6 @@
  */
 #include "Ufo.h"
 #include <assert.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
 #include <algorithm>
 #include "../fmath.h"
 #include "Craft.h"
@@ -45,7 +43,7 @@ Ufo::Ufo(const RuleUfo *rules) : MovingTarget(),
 	_altitude("STR_HIGH_UC"), _status(FLYING), _secondsRemaining(0),
 	_inBattlescape(false), _mission(0), _trajectory(0),
 	_trajectoryPoint(0), _detected(false), _hyperDetected(false), _processedIntercept(false),
-	_shootingAt(0), _hitFrame(0), _fireCountdown(0), _escapeCountdown(0), _stats()
+	_shootingAt(0), _hitFrame(0), _fireCountdown(0), _escapeCountdown(0), _stats(), _shield(-1), _shieldRechargeHandle(0)
 {
 	_stats = rules->getStats();
 }
@@ -111,6 +109,8 @@ void Ufo::load(const YAML::Node &node, const Mod &mod, SavedGame &game)
 	_crashId = node["crashId"].as<int>(_crashId);
 	_landId = node["landId"].as<int>(_landId);
 	_damage = node["damage"].as<int>(_damage);
+	_shield = node["shield"].as<int>(_shield);
+	_shieldRechargeHandle = node["shieldRechargeHandle"].as<int>(_shieldRechargeHandle);
 	_altitude = node["altitude"].as<std::string>(_altitude);
 	_direction = node["direction"].as<std::string>(_direction);
 	_detected = node["detected"].as<bool>(_detected);
@@ -157,13 +157,18 @@ void Ufo::load(const YAML::Node &node, const Mod &mod, SavedGame &game)
 		if (found == game.getAlienMissions().end())
 		{
 			// Corrupt save file.
-			throw Exception("Unknown mission, save file is corrupt.");
+			throw Exception("Unknown UFO mission, save file is corrupt.");
 		}
 		_mission = *found;
 		_stats += _rules->getRaceBonus(_mission->getRace());
 
 		std::string tid = node["trajectory"].as<std::string>();
 		_trajectory = mod.getUfoTrajectory(tid);
+		if (_trajectory == 0)
+		{
+			// Corrupt save file.
+			throw Exception("Unknown UFO trajectory, save file is corrupt.");
+		}
 		_trajectoryPoint = node["trajectoryPoint"].as<size_t>(_trajectoryPoint);
 	}
 	_fireCountdown = node["fireCountdown"].as<int>(_fireCountdown);
@@ -190,6 +195,8 @@ YAML::Node Ufo::save(bool newBattle) const
 		node["landId"] = _landId;
 	}
 	node["damage"] = _damage;
+	node["shield"] = _shield;
+	node["shieldRechargeHandle"] = _shieldRechargeHandle;
 	node["altitude"] = _altitude;
 	node["direction"] = _direction;
 	node["status"] = (int)_status;
@@ -264,11 +271,11 @@ void Ufo::setId(int id)
 }
 
 /**
- * Returns the UFO's unique identifying name.
+ * Returns the UFO's unique default name.
  * @param lang Language to get strings from.
  * @return Full name.
  */
-std::wstring Ufo::getName(Language *lang) const
+std::wstring Ufo::getDefaultName(Language *lang) const
 {
 	switch (_status)
 	{
@@ -742,8 +749,7 @@ void Ufo::setHitFrame(int frame)
  * Gets the UFO's hit frame.
  * @return the hit frame.
  */
-///
-int Ufo::getHitFrame()
+int Ufo::getHitFrame() const
 {
 	return _hitFrame;
 }
@@ -767,7 +773,7 @@ void Ufo::setEscapeCountdown(int time)
  * Gets the escape timer for dogfights.
  * @return how many ticks until the ship tries to leave.
  */
-int Ufo::getEscapeCountdown()
+int Ufo::getEscapeCountdown() const
 {
 	return _escapeCountdown;
 }
@@ -785,7 +791,7 @@ void Ufo::setFireCountdown(int time)
  * Gets the number of ticks until the ufo is ready to fire.
  * @return ticks until weapon is ready.
  */
-int Ufo::getFireCountdown()
+int Ufo::getFireCountdown() const
 {
 	return _fireCountdown;
 }
@@ -805,9 +811,45 @@ void Ufo::setInterceptionProcessed(bool processed)
  * Gets if the ufo has had its timers decremented on this cycle of interception updates.
  * @return if this ufo has already been processed.
  */
-bool Ufo::getInterceptionProcessed()
+bool Ufo::getInterceptionProcessed() const
 {
 	return _processedIntercept;
+}
+
+/**
+ * Gets the UFO's shield level
+ * @return the points of shield remaining
+ */
+int Ufo::getShield() const
+{
+	return _shield;
+}
+
+/**
+ * Sets the UFO's shield level
+ * @param the shield point value to set
+ */
+void Ufo::setShield(int shield)
+{
+	_shield = std::max(0, std::min(_stats.shieldCapacity, shield));
+}
+
+/**
+ * Sets which _interceptionNumber handles the UFO's shield recharge in a dogfight
+ * @param the _interceptionNumber to set
+ */
+void Ufo::setShieldRechargeHandle(int shieldRechargeHandle)
+{
+	_shieldRechargeHandle = shieldRechargeHandle;
+}
+
+/**
+ * Gets which _interceptionNumber handles the UFO's shield recharge in a dogfight
+ * @return the _interceptionNumber to handle shield recharge
+ */
+int Ufo::getShieldRechargeHandle() const
+{
+	return _shieldRechargeHandle;
 }
 
 }

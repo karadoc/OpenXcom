@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -34,13 +34,20 @@ namespace OpenXcom
 
 	ArticleStateCraft::ArticleStateCraft(ArticleDefinitionCraft *defs) : ArticleState(defs->id)
 	{
-		RuleCraft *craft = _game->getMod()->getCraft(defs->id);
+		RuleCraft *craft = _game->getMod()->getCraft(defs->id, true);
 
 		// add screen elements
 		_txtTitle = new Text(210, 32, 5, 24);
 
 		// Set palette
-		setPalette("PAL_UFOPAEDIA");
+		if (defs->customPalette)
+		{
+			setCustomPalette(_game->getMod()->getSurface(defs->image_id)->getPalette(), Mod::UFOPAEDIA_CURSOR);
+		}
+		else
+		{
+			setPalette("PAL_UFOPAEDIA");
+		}
 
 		ArticleState::initLayout();
 

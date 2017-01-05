@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_INVENTORY_H
-#define OPENXCOM_INVENTORY_H
-
 #include "../Engine/InteractiveSurface.h"
 #include <map>
 #include <string>
@@ -50,7 +48,8 @@ private:
 	BattleItem *_mouseOverItem;
 	int _groundOffset, _animFrame;
 	std::map<int, std::map<int, int> > _stackLevel;
-	std::vector<std::pair<int, int> > _grenadeIndicators;
+	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator;
+	std::vector<std::pair<int, int> > _grenadeIndicators, _stunnedIndicators, _woundedIndicators, _burningIndicators;
 	NumberText *_stackNumber;
 	std::wstring _searchString;
 	Timer *_animTimer;
@@ -117,5 +116,3 @@ public:
 };
 
 }
-
-#endif

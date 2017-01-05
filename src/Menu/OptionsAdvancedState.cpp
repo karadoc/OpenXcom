@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -252,6 +252,11 @@ void OptionsAdvancedState::lstOptionsClick(Action *action)
 		{
 			min = 1;
 			max = 5;
+		}
+		else if (i == &Options::nightVisionColor)
+		{
+			min = 1;
+			max = 15;
 		}
 
 		if (*i < min)

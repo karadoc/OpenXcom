@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_INVENTORYSTATE_H
-#define OPENXCOM_INVENTORYSTATE_H
-
 #include "../Engine/State.h"
 #include "../Interface/TextButton.h"
 #include "../Savegame/EquipmentLayoutItem.h"
@@ -48,13 +46,13 @@ private:
 	Text *_txtItem, *_txtAmmo, *_txtWeight, *_txtTus, *_txtFiringAcc, *_txtThrowingAcc, *_txtMeleeAcc, *_txtPsi;
 	TextEdit *_txtName;
 	TextEdit *_btnQuickSearch;
-	BattlescapeButton *_btnOk, *_btnPrev, *_btnNext, *_btnUnload, *_btnGround, *_btnRank;
+	BattlescapeButton *_btnOk, *_btnPrev, *_btnNext, *_btnUnload, *_btnGround, *_btnRank, *_btnArmor;
 	BattlescapeButton *_btnCreateTemplate, *_btnApplyTemplate;
 	Surface *_selAmmo;
 	Inventory *_inv;
 	std::vector<EquipmentLayoutItem*> _curInventoryTemplate, _tempInventoryTemplate;
 	SavedBattleGame *_battleGame;
-	const bool _tu;
+	const bool _tu, _noCraft;
 	bool _lightUpdated;
 	BattlescapeState *_parent;
 	Base *_base;
@@ -67,7 +65,7 @@ private:
 	void _applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &inventoryTemplate);
 public:
 	/// Creates the Inventory state.
-	InventoryState(bool tu, BattlescapeState *parent, Base *base);
+	InventoryState(bool tu, BattlescapeState *parent, Base *base, bool noCraft = false);
 	/// Cleans up the Inventory state.
 	~InventoryState();
 	/// Updates all soldier info.
@@ -83,8 +81,8 @@ public:
 	void saveEquipmentLayout();
 	/// Handler for clicking the Armor button.
 	void btnArmorClick(Action *action);
-	/// Handler for clicking the Avatar button.
-	void btnAvatarClick(Action *action);
+	void btnArmorClickRight(Action *action);
+	void btnArmorClickMiddle(Action *action);
 	/// Methods for handling the global equipment layout save/load hotkeys.
 	void saveGlobalLayout(int index);
 	void loadGlobalLayout(int index);
@@ -114,28 +112,32 @@ public:
 	void btnApplyTemplateClick(Action *action);
 	/// Handler for hitting the Clear Inventory hotkey.
 	void onClearInventory(Action *action);
+	/// Handler for hitting the Autoequip hotkey.
+	void onAutoequip(Action *action);
 	/// Handler for clicking on the inventory.
 	void invClick(Action *action);
 	/// Handler for showing item info.
 	void invMouseOver(Action *action);
 	/// Handler for hiding item info.
 	void invMouseOut(Action *action);
+	/// Handler for hitting the [Move Ground Inventory To Base] hotkey.
+	void onMoveGroundInventoryToBase(Action *action);
 	/// Handles keypresses.
 	void handle(Action *action);
 	/// Handler for showing tooltip.
 	void txtTooltipIn(Action *action);
 	/// Handler for hiding tooltip.
 	void txtTooltipOut(Action *action);
+	/// Handler for showing armor tooltip.
+	void txtArmorTooltipIn(Action *action);
+	/// Handler for hiding armor tooltip.
+	void txtArmorTooltipOut(Action *action);
 
 private:
 	/// Update the visibility and icons for the template buttons.
 	void updateTemplateButtons(bool isVisible);
 	/// Refresh the hover status of the mouse.
 	void refreshMouse();
-	/// Update lighting.
-	void updateLighting();
 };
 
 }
-
-#endif

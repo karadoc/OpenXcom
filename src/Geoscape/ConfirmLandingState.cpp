@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -100,7 +100,7 @@ ConfirmLandingState::ConfirmLandingState(Craft *craft, Texture *texture, int sha
 	ss << L'\x01' << tr("STR_BEGIN_MISSION");
 	_txtBegin->setText(ss.str());
 
-	SurfaceSet *sprites = _game->getMod()->getSurfaceSet("DayNightIndicator");
+	SurfaceSet *sprites = _game->getMod()->getSurfaceSet("DayNightIndicator", false);
 	if (sprites != 0)
 	{
 		if (_shade <= 0)
@@ -225,7 +225,7 @@ void ConfirmLandingState::btnYesClick(Action *)
 	else if (b != 0)
 	{
 		AlienRace *race = _game->getMod()->getAlienRace(b->getAlienRace());
-		bgame->setMissionType("STR_ALIEN_BASE_ASSAULT");
+		bgame->setMissionType(b->getDeployment()->getType());
 		bgen.setAlienBase(b);
 		bgen.setAlienRace(b->getAlienRace());
 		bgen.setAlienCustomDeploy(_game->getMod()->getDeployment(race->getBaseCustomDeploy()), _game->getMod()->getDeployment(race->getBaseCustomMission()));

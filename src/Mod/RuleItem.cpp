@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -25,6 +25,7 @@
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Surface.h"
 #include "../Engine/ScriptBind.h"
+#include "../Engine/RNG.h"
 #include "Mod.h"
 #include <algorithm>
 
@@ -41,19 +42,17 @@ const float TilesToVexels = 16.0f;
 RuleItem::RuleItem(const std::string &type) :
 	_type(type), _name(type), _size(0.0), _costBuy(0), _costSell(0), _transferTime(24), _weight(3),
 	_bigSprite(-1), _floorSprite(-1), _handSprite(120), _bulletSprite(-1),
-	_fireSound(-1),
-	_hitSound(-1), _hitAnimation(0), _hitMissSound(-1), _hitMissAnimation(-1),
-	_meleeSound(39), _meleeAnimation(0), _meleeMissSound(-1), _meleeMissAnimation(-1),
-	_meleeHitSound(-1), _explosionHitSound(-1),
-	_psiSound(-1), _psiAnimation(-1), _psiMissSound(-1), _psiMissAnimation(-1),
+	_hitAnimation(0), _hitMissAnimation(-1),
+	_meleeAnimation(0), _meleeMissAnimation(-1),
+	_psiAnimation(-1), _psiMissAnimation(-1),
 	_power(0), _powerRangeReduction(0), _powerRangeThreshold(0),
 	_accuracyAimed(0), _accuracyAuto(0), _accuracySnap(0), _accuracyMelee(0), _accuracyUse(0), _accuracyMind(0), _accuracyPanic(20), _accuracyThrow(100),
 	_costAimed(0), _costAuto(0, -1), _costSnap(0, -1), _costMelee(0), _costUse(25), _costMind(-1, -1), _costPanic(-1, -1), _costThrow(25), _costPrime(50),
 	_clipSize(0), _specialChance(100), _tuLoad(15), _tuUnload(8),
-	_battleType(BT_NONE), _fuseType(BFT_NONE), _twoHanded(false), _blockBothHands(false), _waypoint(false), _fixedWeapon(false), _fixedWeaponShow(false), _allowSelfHeal(false), _isConsumable(false), _isFireExtinguisher(false), _invWidth(1), _invHeight(1),
+	_battleType(BT_NONE), _fuseType(BFT_NONE), _twoHanded(false), _blockBothHands(false), _fixedWeapon(false), _fixedWeaponShow(false), _allowSelfHeal(false), _isConsumable(false), _isFireExtinguisher(false), _waypoints(0), _invWidth(1), _invHeight(1),
 	_painKiller(0), _heal(0), _stimulant(0), _medikitType(BMT_NORMAL), _woundRecovery(0), _healthRecovery(0), _stunRecovery(0), _energyRecovery(0), _moraleRecovery(0), _painKillerRecovery(1.0f), _recoveryPoints(0), _armor(20), _turretType(-1),
 	_aiUseDelay(-1), _aiMeleeHitCount(25),
-	_recover(true), _liveAlien(false), _liveAlienPrisonType(0), _attraction(0), _flatUse(0, 1), _flatMelee(-1, -1), _flatThrow(0, 1), _flatPrime(0, 1), _arcingShot(false), _experienceTrainingMode(ETM_DEFAULT), _listOrder(0),
+	_recover(true), _ignoreInBaseDefense(false), _liveAlien(false), _liveAlienPrisonType(0), _attraction(0), _flatUse(0, 1), _flatMelee(-1, -1), _flatThrow(0, 1), _flatPrime(0, 1), _arcingShot(false), _experienceTrainingMode(ETM_DEFAULT), _listOrder(0),
 	_maxRange(200), _aimRange(200), _snapRange(15), _autoRange(7), _minRange(0), _dropoff(2), _bulletSpeed(0), _explosionSpeed(0), _autoShots(3), _shotgunPellets(0), _shotgunBehaviorType(0), _shotgunSpread(100), _shotgunChoke(100),
 	_LOSRequired(false), _underwaterOnly(false), _psiReqiured(false),
 	_meleePower(0), _specialType(-1), _vaporColor(-1), _vaporDensity(0), _vaporProbability(15),
@@ -187,6 +186,31 @@ void RuleItem::updateCategories(std::map<std::string, std::string> *replacementR
 }
 
 /**
+ * Loads a sound vector for a given attribute/node.
+ * @param node YAML node.
+ * @param mod Mod for the item.
+ * @param vector Sound vector to load into.
+ */
+void RuleItem::loadSoundVector(const YAML::Node &node, Mod *mod, std::vector<int> &vector)
+{
+	if (node)
+	{
+		vector.clear();
+		if (node.IsSequence())
+		{
+			for (YAML::const_iterator i = node.begin(); i != node.end(); ++i)
+			{
+				vector.push_back(mod->getSoundOffset(i->as<int>(), "BATTLE.CAT"));
+			}
+		}
+		else
+		{
+			vector.push_back(mod->getSoundOffset(node.as<int>(), "BATTLE.CAT"));
+		}
+	}
+}
+
+/**
  * Loads the item from a YAML file.
  * @param node YAML node.
  * @param mod Mod for the item.
@@ -227,34 +251,13 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 		if (_bulletSprite >= 385)
 			_bulletSprite += mod->getModOffset();
 	}
-	if (node["fireSound"])
-	{
-		_fireSound = mod->getSoundOffset(node["fireSound"].as<int>(_fireSound), "BATTLE.CAT");
-	}
-	if (node["hitSound"])
-	{
-		_hitSound = mod->getSoundOffset(node["hitSound"].as<int>(_hitSound), "BATTLE.CAT");
-	}
-	if (node["hitMissSound"])
-	{
-		_hitMissSound = mod->getSoundOffset(node["hitMissSound"].as<int>(_hitMissSound), "BATTLE.CAT");
-	}
-	if (node["meleeSound"])
-	{
-		_meleeSound = mod->getSoundOffset(node["meleeSound"].as<int>(_meleeSound), "BATTLE.CAT");
-	}
-	if (node["meleeMissSound"])
-	{
-		_meleeMissSound = mod->getSoundOffset(node["meleeMissSound"].as<int>(_meleeMissSound), "BATTLE.CAT");
-	}
-	if (node["psiSound"])
-	{
-		_psiSound = mod->getSoundOffset(node["psiSound"].as<int>(_psiSound), "BATTLE.CAT");
-	}
-	if (node["psiMissSound"])
-	{
-		_psiMissSound = mod->getSoundOffset(node["psiMissSound"].as<int>(_psiMissSound), "BATTLE.CAT");
-	}
+	loadSoundVector(node["fireSound"], mod, _fireSound);
+	loadSoundVector(node["hitSound"], mod, _hitSound);
+	loadSoundVector(node["hitMissSound"], mod, _hitMissSound);
+	loadSoundVector(node["meleeSound"], mod, _meleeSound);
+	loadSoundVector(node["meleeMissSound"], mod, _meleeMissSound);
+	loadSoundVector(node["psiSound"], mod, _psiSound);
+	loadSoundVector(node["psiMissSound"], mod, _psiMissSound);
 	if (node["hitAnimation"])
 	{
 		_hitAnimation = mod->getSpriteOffset(node["hitAnimation"].as<int>(_hitAnimation), "SMOKE.PCK");
@@ -279,14 +282,8 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	{
 		_psiMissAnimation = mod->getSpriteOffset(node["psiMissAnimation"].as<int>(_psiMissAnimation), "HIT.PCK");
 	}
-	if (node["meleeHitSound"])
-	{
-		_meleeHitSound = mod->getSoundOffset(node["meleeHitSound"].as<int>(_meleeHitSound), "BATTLE.CAT");
-	}
-	if (node["explosionHitSound"])
-	{
-		_explosionHitSound = mod->getSoundOffset(node["explosionHitSound"].as<int>(_explosionHitSound), "BATTLE.CAT");
-	}
+	loadSoundVector(node["meleeHitSound"], mod, _meleeHitSound);
+	loadSoundVector(node["explosionHitSound"], mod, _explosionHitSound);
 
 	if (node["battleType"])
 	{
@@ -396,10 +393,11 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	_tuUnload = node["tuUnload"].as<int>(_tuUnload);
 	_twoHanded = node["twoHanded"].as<bool>(_twoHanded);
 	_blockBothHands = node["blockBothHands"].as<bool>(_blockBothHands);
-	_waypoint = node["waypoint"].as<bool>(_waypoint);
+	_waypoints = node["waypoints"].as<int>(_waypoints);
 	_fixedWeapon = node["fixedWeapon"].as<bool>(_fixedWeapon);
 	_fixedWeaponShow = node["fixedWeaponShow"].as<bool>(_fixedWeaponShow);
 	_defaultInventorySlot = node["defaultInventorySlot"].as<std::string>(_defaultInventorySlot);
+	_supportedInventorySections = node["supportedInventorySections"].as< std::vector<std::string> >(_supportedInventorySections);
 	_allowSelfHeal = node["allowSelfHeal"].as<bool>(_allowSelfHeal);
 	_isConsumable = node["isConsumable"].as<bool>(_isConsumable);
 	_isFireExtinguisher = node["isFireExtinguisher"].as<bool>(_isFireExtinguisher);
@@ -426,6 +424,7 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 		_aiMeleeHitCount = nodeAI["meleeHitCount"].as<int>(_aiMeleeHitCount);
 	}
 	_recover = node["recover"].as<bool>(_recover);
+	_ignoreInBaseDefense = node["ignoreInBaseDefense"].as<bool>(_ignoreInBaseDefense);
 	_liveAlien = node["liveAlien"].as<bool>(_liveAlien);
 	_liveAlienPrisonType = node["prisonType"].as<int>(_liveAlienPrisonType);
 	_attraction = node["attraction"].as<int>(_attraction);
@@ -639,9 +638,9 @@ bool RuleItem::isBlockingBothHands() const
  * Returns whether this item uses waypoints.
  * @return True if it uses waypoints.
  */
-bool RuleItem::isWaypoint() const
+int RuleItem::getWaypoints() const
 {
-	return _waypoint;
+	return _waypoints;
 }
 
 /**
@@ -673,6 +672,34 @@ const std::string &RuleItem::getDefaultInventorySlot() const
 }
 
 /**
+ * Gets the item's supported inventory sections.
+ * @return The list of inventory sections.
+ */
+const std::vector<std::string> &RuleItem::getSupportedInventorySections() const
+{
+	return _supportedInventorySections;
+}
+
+/**
+ * Checks if the item can be placed into a given inventory section.
+ * @param inventorySection Name of the inventory section (RuleInventory->id).
+ * @return True if the item can be placed into a given inventory section.
+ */
+bool RuleItem::canBePlacedIntoInventorySection(const std::string &inventorySection) const
+{
+	// backwards-compatibility
+	if (_supportedInventorySections.empty())
+		return true;
+
+	// always possible to put an item on the ground
+	if (inventorySection == "STR_GROUND")
+		return true;
+
+	// otherwise check allowed inventory sections
+	return std::find(_supportedInventorySections.begin(), _supportedInventorySections.end(), inventorySection) != _supportedInventorySections.end();
+}
+
+/**
  * Gets the item's bullet sprite reference.
  * @return The sprite reference.
  */
@@ -682,12 +709,27 @@ int RuleItem::getBulletSprite() const
 }
 
 /**
+ * Gets a random sound id from a given sound vector.
+ * @param vector The source vector.
+ * @param defaultValue Default value (in case nothing is specified = vector is empty).
+ * @return The sound id.
+ */
+int RuleItem::getRandomSound(const std::vector<int> &vector, int defaultValue) const
+{
+	if (!vector.empty())
+	{
+		return vector[RNG::generate(0, vector.size() - 1)];
+	}
+	return defaultValue;
+}
+
+/**
  * Gets the item's fire sound.
  * @return The fire sound id.
  */
 int RuleItem::getFireSound() const
 {
-	return _fireSound;
+	return getRandomSound(_fireSound);
 }
 
 /**
@@ -696,7 +738,7 @@ int RuleItem::getFireSound() const
  */
 int RuleItem::getHitSound() const
 {
-	return _hitSound;
+	return getRandomSound(_hitSound);
 }
 
 /**
@@ -714,7 +756,7 @@ int RuleItem::getHitAnimation() const
  */
 int RuleItem::getHitMissSound() const
 {
-	return _hitMissSound;
+	return getRandomSound(_hitMissSound);
 }
 
 /**
@@ -733,7 +775,7 @@ int RuleItem::getHitMissAnimation() const
  */
 int RuleItem::getMeleeSound() const
 {
-	return _meleeSound;
+	return getRandomSound(_meleeSound, 39);
 }
 
 /**
@@ -751,7 +793,7 @@ int RuleItem::getMeleeAnimation() const
  */
 int RuleItem::getMeleeMissSound() const
 {
-	return _meleeMissSound;
+	return getRandomSound(_meleeMissSound);
 }
 
 /**
@@ -769,7 +811,7 @@ int RuleItem::getMeleeMissAnimation() const
  */
 int RuleItem::getMeleeHitSound() const
 {
-	return _meleeHitSound;
+	return getRandomSound(_meleeHitSound);
 }
 
 /**
@@ -778,7 +820,7 @@ int RuleItem::getMeleeHitSound() const
  */
 int RuleItem::getExplosionHitSound() const
 {
-	return _explosionHitSound;
+	return getRandomSound(_explosionHitSound);
 }
 
 /**
@@ -787,7 +829,7 @@ int RuleItem::getExplosionHitSound() const
  */
 int RuleItem::getPsiSound() const
 {
-	return _psiSound;
+	return getRandomSound(_psiSound);
 }
 
 /**
@@ -805,7 +847,7 @@ int RuleItem::getPsiAnimation() const
  */
 int RuleItem::getPsiMissSound() const
 {
-	return _psiMissSound;
+	return getRandomSound(_psiMissSound);
 }
 
 /**
@@ -1352,6 +1394,16 @@ bool RuleItem::isRecoverable() const
 
 
 /**
+* Checks if the item can be equipped in base defense mission.
+* @return True if it can be equipped.
+*/
+bool RuleItem::canBeEquippedBeforeBaseDefense() const
+{
+	return !_ignoreInBaseDefense;
+}
+
+
+/**
  * Returns the item's Turret Type.
  * @return The turret index (-1 for no turret).
  */
@@ -1375,7 +1427,7 @@ int RuleItem::getAIUseDelay(const Mod *mod) const
 	switch (getBattleType())
 	{
 	case BT_FIREARM:
-		if (isWaypoint())
+		if (getWaypoints())
 		{
 			return mod->getAIUseDelayBlaster();
 		}
@@ -1853,7 +1905,7 @@ void RuleItem::ScriptRegister(ScriptParserBase* parser)
 	ri.add<&RuleItem::getArmor>("getArmorValue");
 	ri.add<&RuleItem::getWeight>("getWeight");
 	ri.add<&getBattleTypeScript>("getBattleType");
-	ri.add<&RuleItem::isWaypoint>("isWaypoint");
+	ri.add<&RuleItem::getWaypoints>("getWaypoints");
 	ri.add<&RuleItem::isWaterOnly>("isWaterOnly");
 	ri.add<&RuleItem::isTwoHanded>("isTwoHanded");
 	ri.add<&RuleItem::isBlockingBothHands>("isBlockingBothHands");

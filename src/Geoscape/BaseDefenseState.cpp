@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -203,7 +203,14 @@ void BaseDefenseState::nextStep()
 				_lstDefenses->setCellText(_row, 2, tr("STR_HIT"));
 				_game->getMod()->getSound("GEO.CAT", (def)->getRules()->getHitSound())->play();
 				int dmg = (def)->getRules()->getDefenseValue();
-				_ufo->setDamage(_ufo->getDamage() + (dmg / 2 + RNG::generate(0, dmg)));
+				dmg = dmg / 2 + RNG::generate(0, dmg);
+				if (_ufo->getShield() > 0)
+				{
+					int shieldDamage = dmg;
+					dmg = std::max(0, dmg - _ufo->getShield());
+					_ufo->setShield(_ufo->getShield() - shieldDamage);
+				}
+				_ufo->setDamage(_ufo->getDamage() + dmg);
 			}
 			if (_ufo->getStatus() == Ufo::DESTROYED)
 				_action = BDA_DESTROY;
@@ -277,4 +284,5 @@ void BaseDefenseState::btnOkClick(Action *)
 		}
 	}
 }
+
 }

@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_SELLSTATE_H
-#define OPENXCOM_SELLSTATE_H
-
 #include "../Engine/State.h"
 #include "../Savegame/Transfer.h"
 #include "../Menu/OptionsBaseState.h"
@@ -48,7 +46,8 @@ class SellState : public State
 private:
 	Base *_base;
 	DebriefingState *_debriefingState;
-	TextButton *_btnOk, *_btnCancel;
+	bool _reset;
+	TextButton *_btnOk, *_btnCancel, *_btnTransfer;
 	TextEdit *_btnQuickSearch;
 	Window *_window;
 	Text *_txtTitle, *_txtSales, *_txtFunds, *_txtQuantity, *_txtSell, *_txtValue, *_txtSpaceUsed;
@@ -73,6 +72,8 @@ public:
 	SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin origin = OPT_GEOSCAPE);
 	/// Cleans up the Sell state.
 	~SellState();
+	/// Resets state.
+	void init();
 	/// Runs the timers.
 	void think();
 	/// Updates the item list.
@@ -81,6 +82,8 @@ public:
 	void btnOkClick(Action *action);
 	/// Handler for clicking the Cancel button.
 	void btnCancelClick(Action *action);
+	/// Handler for clicking the Transfer button.
+	void btnTransferClick(Action *action);
 	/// Handlers for Quick Search.
 	void btnQuickSearchToggle(Action *action);
 	void btnQuickSearchApply(Action *action);
@@ -113,5 +116,3 @@ public:
 };
 
 }
-
-#endif

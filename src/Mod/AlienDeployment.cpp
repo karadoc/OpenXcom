@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -113,8 +113,9 @@ namespace OpenXcom
  * type of deployment data.
  * @param type String defining the type.
  */
-AlienDeployment::AlienDeployment(const std::string &type) : _type(type), _width(0), _length(0), _height(0), _civilians(0), _shade(-1), _finalDestination(false), _alert("STR_ALIENS_TERRORISE"), _alertBackground("BACK03.SCR"), _markerName("STR_TERROR_SITE"), _markerIcon(-1), _durationMin(0), _durationMax(0),
-	_minDepth(0), _maxDepth(0), _minSiteDepth(0), _maxSiteDepth(0), _objectiveType(-1), _objectivesRequired(0), _objectiveCompleteScore(0), _objectiveFailedScore(0), _despawnPenalty(0), _points(0)
+AlienDeployment::AlienDeployment(const std::string &type) : _type(type), _bughuntMinTurn(0), _width(0), _length(0), _height(0), _civilians(0), _shade(-1), _minShade(-1), _maxShade(-1), _finalDestination(false), _isAlienBase(false), _alert("STR_ALIENS_TERRORISE"),
+	_alertBackground("BACK03.SCR"), _markerName("STR_TERROR_SITE"), _markerIcon(-1), _durationMin(0), _durationMax(0), _minDepth(0), _maxDepth(0), _minSiteDepth(0), _maxSiteDepth(0), _genMissionFrequency(0),
+	_objectiveType(-1), _objectivesRequired(0), _objectiveCompleteScore(0), _objectiveFailedScore(0), _despawnPenalty(0), _points(0), _turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE)
 {
 }
 
@@ -129,14 +130,15 @@ AlienDeployment::~AlienDeployment()
  * Loads the Deployment from a YAML file.
  * @param node YAML node.
  */
-void AlienDeployment::load(const YAML::Node &node)
+void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 {
 	if (const YAML::Node &parent = node["refNode"])
 	{
-		load(parent);
+		load(parent, mod);
 	}
 	_type = node["type"].as<std::string>(_type);
 	_startingCondition = node["startingCondition"].as<std::string>(_startingCondition);
+	_bughuntMinTurn = node["bughuntMinTurn"].as<int>(_bughuntMinTurn);
 	_data = node["data"].as< std::vector<DeploymentData> >(_data);
 	_width = node["width"].as<int>(_width);
 	_length = node["length"].as<int>(_length);
@@ -144,6 +146,8 @@ void AlienDeployment::load(const YAML::Node &node)
 	_civilians = node["civilians"].as<int>(_civilians);
 	_terrains = node["terrains"].as<std::vector<std::string> >(_terrains);
 	_shade = node["shade"].as<int>(_shade);
+	_minShade = node["minShade"].as<int>(_minShade);
+	_maxShade = node["maxShade"].as<int>(_maxShade);
 	_nextStage = node["nextStage"].as<std::string>(_nextStage);
 	_race = node["race"].as<std::string>(_race);
 	_finalDestination = node["finalDestination"].as<bool>(_finalDestination);
@@ -154,7 +158,12 @@ void AlienDeployment::load(const YAML::Node &node)
 	_alertBackground = node["alertBackground"].as<std::string>(_alertBackground);
 	_briefingData = node["briefing"].as<BriefingData>(_briefingData);
 	_markerName = node["markerName"].as<std::string>(_markerName);
-	_markerIcon = node["markerIcon"].as<int>(_markerIcon);
+	if (node["markerIcon"])
+	{
+		_markerIcon = node["markerIcon"].as<int>(_markerIcon);
+		if (_markerIcon > 8)
+			_markerIcon += mod->getModOffset();
+	}
 	if (node["depth"])
 	{
 		_minDepth = node["depth"][0].as<int>(_minDepth);
@@ -170,10 +179,7 @@ void AlienDeployment::load(const YAML::Node &node)
 		_durationMin = node["duration"][0].as<int>(_durationMin);
 		_durationMax = node["duration"][1].as<int>(_durationMax);
 	}
-	for (YAML::const_iterator i = node["music"].begin(); i != node["music"].end(); ++i)
-	{
-		_music.push_back((*i).as<std::string>(""));
-	}
+	_music = node["music"].as< std::vector<std::string> >(_music);
 	_objectiveType = node["objectiveType"].as<int>(_objectiveType);
 	_objectivesRequired = node["objectivesRequired"].as<int>(_objectivesRequired);
 	_objectivePopup = node["objectivePopup"].as<std::string>(_objectivePopup);
@@ -190,6 +196,15 @@ void AlienDeployment::load(const YAML::Node &node)
 	}
 	_despawnPenalty = node["despawnPenalty"].as<int>(_despawnPenalty);
 	_points = node["points"].as<int>(_points);
+	_cheatTurn = node["cheatTurn"].as<int>(_cheatTurn);
+	_turnLimit = node["turnLimit"].as<int>(_turnLimit);
+	_chronoTrigger = ChronoTrigger(node["chronoTrigger"].as<int>(_chronoTrigger));
+	_isAlienBase = node["alienBase"].as<bool>(_isAlienBase);
+	if (node["genMission"])
+	{
+		_genMission.load(node["genMission"]);
+	}
+	_genMissionFrequency = node["genMissionFreq"].as<int>(_genMissionFrequency);
 }
 
 /**
@@ -209,6 +224,15 @@ std::string AlienDeployment::getType() const
 std::string AlienDeployment::getStartingCondition() const
 {
 	return _startingCondition;
+}
+
+/**
+* Gets the bug hunt mode minimum turn requirement (default = 0 = not used).
+* @return Bug hunt min turn number.
+*/
+int AlienDeployment::getBughuntMinTurn() const
+{
+	return _bughuntMinTurn;
 }
 
 /**
@@ -258,6 +282,24 @@ std::vector<std::string> AlienDeployment::getTerrains() const
 int AlienDeployment::getShade() const
 {
 	return _shade;
+}
+
+/**
+* Gets the min shade level for battlescape generation.
+* @return The min shade level.
+*/
+int AlienDeployment::getMinShade() const
+{
+	return _minShade;
+}
+
+/**
+* Gets the max shade level for battlescape generation.
+* @return The max shade level.
+*/
+int AlienDeployment::getMaxShade() const
+{
+	return _maxShade;
 }
 
 /**
@@ -455,11 +497,11 @@ const std::string &AlienDeployment::getObjectivePopup() const
  * @param &score a reference to the score we wish to alter.
  * @return if there is anything worthwhile processing.
  */
-bool AlienDeployment::getObjectiveCompleteInfo(std::string &text, int &score)
+bool AlienDeployment::getObjectiveCompleteInfo(std::string &text, int &score) const
 {
 	text = _objectiveCompleteText;
 	score = _objectiveCompleteScore;
-	return text != "";
+	return !text.empty();
 }
 
 /**
@@ -468,11 +510,11 @@ bool AlienDeployment::getObjectiveCompleteInfo(std::string &text, int &score)
  * @param &score a reference to the score we wish to alter.
  * @return if there is anything worthwhile processing.
  */
-bool AlienDeployment::getObjectiveFailedInfo(std::string &text, int &score)
+bool AlienDeployment::getObjectiveFailedInfo(std::string &text, int &score) const
 {
 	text = _objectiveFailedText;
 	score = _objectiveFailedScore;
-	return text != "";
+	return !text.empty();
 }
 
 /**
@@ -485,11 +527,55 @@ int AlienDeployment::getDespawnPenalty() const
 }
 
 /**
- * Gets the (half hourly) score penalty against XCom for this site existing.
+ * Gets the score penalty against XCom for this site existing.
+ * This penalty is applied half-hourly for sites and daily for bases.
  * @return the number of points the aliens get per half hour.
  */
 int AlienDeployment::getPoints() const
 {
 	return _points;
 }
+
+/**
+ * Gets the maximum number of turns we have before this mission ends.
+ * @return the turn limit.
+ */
+int AlienDeployment::getTurnLimit() const
+{
+	return _turnLimit;
+}
+
+/**
+ * Gets the action type to perform when the timer expires.
+ * @return the action type to perform.
+ */
+ChronoTrigger AlienDeployment::getChronoTrigger() const
+{
+	return _chronoTrigger;
+}
+
+/**
+ * Gets the turn at which the players become exposed to the AI.
+ * @return the turn to start cheating.
+ */
+int AlienDeployment::getCheatTurn() const
+{
+	return _cheatTurn;
+}
+
+bool AlienDeployment::isAlienBase() const
+{
+	return _isAlienBase;
+}
+
+std::string AlienDeployment::getGenMissionType() const
+{
+	return _genMission.choose();
+}
+
+int AlienDeployment::getGenMissionFrequency() const
+{
+	return _genMissionFrequency;
+}
+
 }

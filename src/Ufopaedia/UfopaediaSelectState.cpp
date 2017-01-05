@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -83,7 +83,7 @@ namespace OpenXcom
 
 		_btnQuickSearch->setText(L""); // redraw
 		_btnQuickSearch->onEnter((ActionHandler)&UfopaediaSelectState::btnQuickSearchApply);
-		_btnQuickSearch->setVisible(Options::showQuickSearch);
+		_btnQuickSearch->setVisible(false);
 
 		_btnOk->onKeyboardRelease((ActionHandler)&UfopaediaSelectState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 	}

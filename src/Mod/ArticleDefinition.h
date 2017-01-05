@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,10 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef OPENXCOM_ARTICLEDEFINITION_H
-#define OPENXCOM_ARTICLEDEFINITION_H
-
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
@@ -74,6 +71,7 @@ namespace OpenXcom
 		std::string title;
 		std::string section;
 		std::vector<std::string> requires;
+		bool customPalette;
 
 	protected:
 		UfopaediaTypeId _type_id;
@@ -161,6 +159,7 @@ namespace OpenXcom
 		std::string image_id;
 		std::string text;
 		int text_width;
+		ArticleDefinitionRect rect_text;
 	};
 
 	/**
@@ -264,5 +263,3 @@ namespace OpenXcom
 	};
 
 }
-
-#endif

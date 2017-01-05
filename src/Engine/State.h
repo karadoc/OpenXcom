@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,10 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef OPENXCOM_STATE_H
-#define OPENXCOM_STATE_H
-
 #include <vector>
 #include <string>
 #include <SDL.h>
@@ -108,6 +105,8 @@ public:
 	void setPalette(SDL_Color *colors, int firstcolor = 0, int ncolors = 256, bool immediately = true);
 	/// Changes the state's 8bpp palette with certain resources.
 	void setPalette(const std::string &palette, int backpals = -1);
+	/// Changes the state's 8bpp palette with certain resources.
+	void setCustomPalette(SDL_Color *colors, int cursorColor);
 	/// Gets the state's 8bpp palette.
 	SDL_Color *getPalette();
 	/// Let the state know the window has been resized.
@@ -117,5 +116,3 @@ public:
 };
 
 }
-
-#endif

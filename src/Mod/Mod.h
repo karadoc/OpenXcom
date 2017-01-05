@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_MOD_H
-#define OPENXCOM_MOD_H
-
 #include <map>
 #include <vector>
 #include <string>
@@ -111,7 +109,7 @@ private:
 	std::vector<Uint16> _voxelData;
 	std::vector<std::vector<Uint8> > _transparencyLUTs;
 
-	std::map<std::string, RuleCountry*> _countries;
+	std::map<std::string, RuleCountry*> _countries, _extraGlobeLabels;
 	std::map<std::string, RuleRegion*> _regions;
 	std::map<std::string, RuleBaseFacility*> _facilities;
 	std::map<std::string, RuleCraft*> _crafts;
@@ -141,7 +139,7 @@ private:
 	std::map<std::string, RuleCommendations *> _commendations;
 	std::map<std::string, RuleMissionScript*> _missionScripts;
 	std::vector<std::pair<std::string, ExtraSprites *> > _extraSprites;
-	std::vector<std::pair<std::string, CustomPalettes *> > _customPalettes;
+	std::map<std::string, CustomPalettes *> _customPalettes;
 	std::vector<std::pair<std::string, ExtraSounds *> > _extraSounds;
 	std::map<std::string, ExtraStrings *> _extraStrings;
 	std::vector<StatString*> _statStrings;
@@ -154,9 +152,13 @@ private:
 	int _maxViewDistance, _maxDarknessToSeeUnits;
 	int _costEngineer, _costScientist, _timePersonnel, _initialFunding;
 	int _aiUseDelayBlaster, _aiUseDelayFirearm, _aiUseDelayGrenade, _aiUseDelayMelee, _aiUseDelayPsionic;
-	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor;
+	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor, _minReactionAccuracy;
 	int _chanceToStopRetaliation;
 	int _kneelBonusGlobal, _oneHandedPenaltyGlobal;
+	int _surrenderMode;
+	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
+	int _ufoGlancingHitThreshold, _ufoBeamWidthParameter;
+	int _defeatScore, _defeatFunds;
 	std::pair<std::string, int> _alienFuel;
 	std::string _fontName, _finalResearch;
 	YAML::Node _startingBase;
@@ -164,7 +166,7 @@ private:
 	std::map<int, std::string> _missionRatings, _monthlyRatings;
 	StatAdjustment _statAdjustment[5];
 
-	std::vector<std::string> _countriesIndex, _regionsIndex, _facilitiesIndex, _craftsIndex, _craftWeaponsIndex, _itemCategoriesIndex, _itemsIndex, _invsIndex, _ufosIndex;
+	std::vector<std::string> _countriesIndex, _extraGlobeLabelsIndex, _regionsIndex, _facilitiesIndex, _craftsIndex, _craftWeaponsIndex, _itemCategoriesIndex, _itemsIndex, _invsIndex, _ufosIndex;
 	std::vector<std::string> _soldiersIndex, _aliensIndex, _startingConditionsIndex, _deploymentsIndex, _armorsIndex, _ufopaediaIndex, _ufopaediaCatIndex, _researchIndex, _manufactureIndex, _MCDPatchesIndex;
 	std::vector<std::string> _alienMissionsIndex, _terrainIndex, _extraSpritesIndex, _customPalettesIndex, _extraSoundsIndex, _extraStringsIndex, _missionScriptIndex;
 	std::vector<std::vector<int> > _alienItemLevels;
@@ -187,11 +189,11 @@ private:
 	T *loadRule(const YAML::Node &node, std::map<std::string, T*> *map, std::vector<std::string> *index = 0, const std::string &key = "type") const;
 	/// Gets a ruleset element.
 	template <typename T>
-	T *getRule(const std::string &id, const std::string &name, const std::map<std::string, T*> &map) const;
+	T *getRule(const std::string &id, const std::string &name, const std::map<std::string, T*> &map, bool error) const;
 	/// Gets a random music. This is private to prevent access, use playMusic(name, true) instead.
 	Music *getRandomMusic(const std::string &name) const;
 	/// Gets a particular sound set. This is private to prevent access, use getSound(name, id) instead.
-	SoundSet *getSoundSet(const std::string &name) const;
+	SoundSet *getSoundSet(const std::string &name, bool error = true) const;
 	/// Loads battlescape specific resources.
 	void loadBattlescapeResources();
 	/// Checks if an extension is a valid image file.
@@ -258,25 +260,25 @@ public:
 	~Mod();
 
 	/// Gets a particular font.
-	Font *getFont(const std::string &name) const;
+	Font *getFont(const std::string &name, bool error = true) const;
 	/// Gets a particular surface.
-	Surface *getSurface(const std::string &name) const;
+	Surface *getSurface(const std::string &name, bool error = true) const;
 	/// Gets a particular surface set.
-	SurfaceSet *getSurfaceSet(const std::string &name) const;
+	SurfaceSet *getSurfaceSet(const std::string &name, bool error = true) const;
 	/// Gets a particular music.
-	Music *getMusic(const std::string &name) const;
+	Music *getMusic(const std::string &name, bool error = true) const;
 	/// Plays a particular music.
 	void playMusic(const std::string &name, int id = 0);
 	/// Gets a particular sound.
-	Sound *getSound(const std::string &set, unsigned int sound) const;
+	Sound *getSound(const std::string &set, unsigned int sound, bool error = true) const;
 	/// Gets a particular palette.
-	Palette *getPalette(const std::string &name) const;
+	Palette *getPalette(const std::string &name, bool error = true) const;
 	/// Sets a new palette.
 	void setPalette(SDL_Color *colors, int firstcolor = 0, int ncolors = 256);
 	/// Gets list of voxel data.
 	std::vector<Uint16> *getVoxelData();
 	/// Returns a specific sound from either the land or underwater sound set.
-	Sound *getSoundByDepth(unsigned int depth, unsigned int sound) const;
+	Sound *getSoundByDepth(unsigned int depth, unsigned int sound, bool error = true) const;
 	/// Gets list of LUT data.
 	const std::vector<std::vector<Uint8> > *getLUTs() const;
 	/// Gets the mod offset.
@@ -291,53 +293,57 @@ public:
 	/// Generates the starting saved game.
 	SavedGame *newSave() const;
 	/// Gets the ruleset for a country type.
-	RuleCountry *getCountry(const std::string &id) const;
+	RuleCountry *getCountry(const std::string &id, bool error = false) const;
 	/// Gets the available countries.
 	const std::vector<std::string> &getCountriesList() const;
+	/// Gets the ruleset for an extra globe label type.
+	RuleCountry *getExtraGlobeLabel(const std::string &id, bool error = false) const;
+	/// Gets the available extra globe labels.
+	const std::vector<std::string> &getExtraGlobeLabelsList() const;
 	/// Gets the ruleset for a region type.
-	RuleRegion *getRegion(const std::string &id) const;
+	RuleRegion *getRegion(const std::string &id, bool error = false) const;
 	/// Gets the available regions.
 	const std::vector<std::string> &getRegionsList() const;
 	/// Gets the ruleset for a facility type.
-	RuleBaseFacility *getBaseFacility(const std::string &id) const;
+	RuleBaseFacility *getBaseFacility(const std::string &id, bool error = false) const;
 	/// Gets the available facilities.
 	const std::vector<std::string> &getBaseFacilitiesList() const;
 	/// Gets the ruleset for a craft type.
-	RuleCraft *getCraft(const std::string &id) const;
+	RuleCraft *getCraft(const std::string &id, bool error = false) const;
 	/// Gets the available crafts.
 	const std::vector<std::string> &getCraftsList() const;
 	/// Gets the ruleset for a craft weapon type.
-	RuleCraftWeapon *getCraftWeapon(const std::string &id) const;
+	RuleCraftWeapon *getCraftWeapon(const std::string &id, bool error = false) const;
 	/// Gets the available craft weapons.
 	const std::vector<std::string> &getCraftWeaponsList() const;
 	/// Gets the ruleset for an item category type.
-	RuleItemCategory *getItemCategory(const std::string &id) const;
+	RuleItemCategory *getItemCategory(const std::string &id, bool error = false) const;
 	/// Gets the available item categories.
 	const std::vector<std::string> &getItemCategoriesList() const;
 	/// Gets the ruleset for an item type.
-	RuleItem *getItem(const std::string &id) const;
+	RuleItem *getItem(const std::string &id, bool error = false) const;
 	/// Gets the available items.
 	const std::vector<std::string> &getItemsList() const;
 	/// Gets the ruleset for a UFO type.
-	RuleUfo *getUfo(const std::string &id) const;
+	RuleUfo *getUfo(const std::string &id, bool error = false) const;
 	/// Gets the available UFOs.
 	const std::vector<std::string> &getUfosList() const;
 	/// Gets terrains for battlescape games.
-	RuleTerrain *getTerrain(const std::string &name) const;
+	RuleTerrain *getTerrain(const std::string &name, bool error = false) const;
 	/// Gets the available terrains.
 	const std::vector<std::string> &getTerrainList() const;
 	/// Gets mapdatafile for battlescape games.
 	MapDataSet *getMapDataSet(const std::string &name);
 	/// Gets soldier unit rules.
-	RuleSoldier *getSoldier(const std::string &name) const;
+	RuleSoldier *getSoldier(const std::string &name, bool error = false) const;
 	/// Gets the available soldiers.
 	const std::vector<std::string> &getSoldiersList() const;
 	/// Gets commendation rules.
 	std::map<std::string, RuleCommendations *> getCommendation() const;
 	/// Gets generated unit rules.
-	Unit *getUnit(const std::string &name) const;
+	Unit *getUnit(const std::string &name, bool error = false) const;
 	/// Gets alien race rules.
-	AlienRace *getAlienRace(const std::string &name) const;
+	AlienRace *getAlienRace(const std::string &name, bool error = false) const;
 	/// Gets the available alien races.
 	const std::vector<std::string> &getAlienRacesList() const;
 	/// Gets a starting condition.
@@ -345,15 +351,15 @@ public:
 	/// Gets the available starting conditions.
 	const std::vector<std::string> &getStartingConditionsList() const;
 	/// Gets deployment rules.
-	AlienDeployment *getDeployment(const std::string &name) const;
+	AlienDeployment *getDeployment(const std::string &name, bool error = false) const;
 	/// Gets the available alien deployments.
 	const std::vector<std::string> &getDeploymentsList() const;
 	/// Gets armor rules.
-	Armor *getArmor(const std::string &name) const;
+	Armor *getArmor(const std::string &name, bool error = false) const;
 	/// Gets the available armors.
 	const std::vector<std::string> &getArmorsList() const;
 	/// Gets Ufopaedia article definition.
-	ArticleDefinition *getUfopaediaArticle(const std::string &name) const;
+	ArticleDefinition *getUfopaediaArticle(const std::string &name, bool error = false) const;
 	/// Gets the available articles.
 	const std::vector<std::string> &getUfopaediaList() const;
 	/// Gets the available article categories.
@@ -361,7 +367,7 @@ public:
 	/// Gets the inventory list.
 	std::map<std::string, RuleInventory*> *getInventories();
 	/// Gets the ruleset for a specific inventory.
-	RuleInventory *getInventory(const std::string &id) const;
+	RuleInventory *getInventory(const std::string &id, bool error = false) const;
 	/// Gets max view distance in BattleScape.
 	inline int getMaxViewDistance() const {return _maxViewDistance;}
 	/// Gets threshold of darkness for LoS calculation.
@@ -392,26 +398,44 @@ public:
 	int getTooMuchSmokeThreshold() const  {return _tooMuchSmokeThreshold;}
 	/// Gets the custom physical training factor in percent (default = 100).
 	int getCustomTrainingFactor() const { return _customTrainingFactor; }
+	/// Gets the minimum firing accuracy for reaction fire (default = 0).
+	int getMinReactionAccuracy() const { return _minReactionAccuracy; }
 	/// Gets the chance to stop retaliation after unsuccessful xcom base attack (default = 0).
 	int getChanceToStopRetaliation() const { return _chanceToStopRetaliation; }
 	/// Gets the global kneel bonus (default = 115).
 	int getKneelBonusGlobal() const { return _kneelBonusGlobal; }
 	/// Gets the global one-handed penalty (default = 80).
 	int getOneHandedPenaltyGlobal() const { return _oneHandedPenaltyGlobal; }
+	/// Gets the surrender mode (default = 0).
+	int getSurrenderMode() const { return _surrenderMode; }
+	/// Gets the bug hunt mode minimum turn requirement (default = 20).
+	int getBughuntMinTurn() const { return _bughuntMinTurn; }
+	/// Gets the bug hunt mode maximum remaining enemies requirement (default = 2).
+	int getBughuntMaxEnemies() const { return _bughuntMaxEnemies; }
+	/// Gets the bug hunt mode "VIP rank" parameter (default = 0).
+	int getBughuntRank() const { return _bughuntRank; }
+	/// Gets the bug hunt mode low morale threshold parameter (default = 40).
+	int getBughuntLowMorale() const { return _bughuntLowMorale; }
+	/// Gets the bug hunt mode time units % parameter (default = 60).
+	int getBughuntTimeUnitsLeft() const { return _bughuntTimeUnitsLeft; }
+	/// Gets the threshold for defining a glancing hit on a ufo during interception
+	int getUfoGlancingHitThreshold() const { return _ufoGlancingHitThreshold; }
+	/// Gets the parameter for drawing the width of a ufo's beam weapon based on power
+	int getUfoBeamWidthParameter() const { return _ufoBeamWidthParameter; }
 	/// Gets the ruleset for a specific research project.
-	RuleResearch *getResearch (const std::string &id) const;
+	RuleResearch *getResearch (const std::string &id, bool error = false) const;
 	/// Gets the list of all research projects.
 	const std::vector<std::string> &getResearchList() const;
 	/// Gets the ruleset for a specific manufacture project.
-	RuleManufacture *getManufacture (const std::string &id) const;
+	RuleManufacture *getManufacture (const std::string &id, bool error = false) const;
 	/// Gets the list of all manufacture projects.
 	const std::vector<std::string> &getManufactureList() const;
 	/// Gets facilities for custom bases.
-	std::vector<OpenXcom::RuleBaseFacility*> getCustomBaseFacilities() const;
+	std::vector<RuleBaseFacility*> getCustomBaseFacilities() const;
 	/// Gets a specific UfoTrajectory.
-	const UfoTrajectory *getUfoTrajectory(const std::string &id) const;
+	const UfoTrajectory *getUfoTrajectory(const std::string &id, bool error = false) const;
 	/// Gets the ruleset for a specific alien mission.
-	const RuleAlienMission *getAlienMission(const std::string &id) const;
+	const RuleAlienMission *getAlienMission(const std::string &id, bool error = false) const;
 	/// Gets the ruleset for a random alien mission.
 	const RuleAlienMission *getRandomMission(MissionObjective objective, size_t monthsPassed) const;
 	/// Gets the list of all alien missions.
@@ -427,7 +451,7 @@ public:
 	/// Gets the list of external Sprites.
 	std::vector<std::pair<std::string, ExtraSprites *> > getExtraSprites() const;
 	/// Gets the list of custom palettes.
-	std::vector<std::pair<std::string, CustomPalettes *> > getCustomPalettes() const;
+	const std::vector<std::string> &getCustomPalettes() const;
 	/// Gets the list of external Sounds.
 	std::vector<std::pair<std::string, ExtraSounds *> > getExtraSounds() const;
 	/// Gets the list of external Strings.
@@ -449,7 +473,7 @@ public:
 	/// Gets the minimum radar's range.
 	int getMinRadarRange() const;
 	/// Gets information on an interface element.
-	RuleInterface *getInterface(const std::string &id) const;
+	RuleInterface *getInterface(const std::string &id, bool error = true) const;
 	/// Gets the ruleset for the globe.
 	RuleGlobe *getGlobe() const;
 	/// Gets the ruleset for the converter.
@@ -459,17 +483,17 @@ public:
 	/// Gets the list of transparency colors,
 	const std::vector<SDL_Color> *getTransparencies() const;
 	const std::vector<MapScript*> *getMapScript(std::string id) const;
-	/// Gets the list videos for intro/outro etc.
-	const std::map<std::string, RuleVideo *> *getVideos() const;
+	/// Gets a video for intro/outro etc.
+	RuleVideo *getVideo(const std::string &id, bool error = false) const;
 	const std::map<std::string, RuleMusic *> *getMusic() const;
 	const std::vector<std::string> *getMissionScriptList() const;
-	RuleMissionScript *getMissionScript(const std::string &name) const;
+	RuleMissionScript *getMissionScript(const std::string &name, bool error = false) const;
 	std::string getFinalResearch() const;
 	const std::map<int, std::string> *getMissionRatings() const;
 	const std::map<int, std::string> *getMonthlyRatings() const;
 	StatAdjustment *getStatAdjustment(int difficulty);
+	int getDefeatScore() const;
+	int getDefeatFunds() const;
 };
 
 }
-
-#endif

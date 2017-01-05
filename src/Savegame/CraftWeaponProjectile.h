@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_WEAPONPROJECTILE_H
-#define OPENXCOM_WEAPONPROJECTILE_H
-
 namespace OpenXcom {
 
 class Surface;
@@ -48,6 +46,7 @@ private:
 	bool _missed;
 
 	int _distanceCovered;
+	int _shieldDamageModifier;
 	
 public:
 	CraftWeaponProjectile();
@@ -97,8 +96,10 @@ public:
 	int getRange() const;
 	/// Sets the speed of a missile type projectile.
 	void setSpeed(const int speed);
+	/// Sets how effective this projectile is against shields
+	void setShieldDamageModifier(const int &shieldDamageModifier);
+	/// Gets how effective this projectile is against shields
+	int getShieldDamageModifier() const;
 };
 
 }
-
-#endif

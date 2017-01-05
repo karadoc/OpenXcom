@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -74,6 +74,21 @@ namespace OpenXcom
 		ArticleDefinitionList articles = getAvailableArticles(save, mod);
 		for (size_t it=0; it<articles.size(); ++it)
 		{
+			if (articles[it]->id == article_id)
+			{
+				return it;
+			}
+		}
+		for (size_t it = 0; it<articles.size(); ++it)
+		{
+			if (articles[it]->id == UC_ID)
+			{
+				article_id = UC_ID;
+				return it;
+			}
+		}
+		for (size_t it = 0; it<articles.size(); ++it)
+		{
 			for (std::vector<std::string>::iterator j = articles[it]->requires.begin(); j != articles[it]->requires.end(); ++j)
 			{
 				if (article_id == *j)
@@ -81,15 +96,6 @@ namespace OpenXcom
 					article_id = articles[it]->id;
 					return it;
 				}
-			}
-			if (articles[it]->id == article_id)
-			{
-				return it;
-			}
-			if (articles[it]->id == UC_ID)
-			{
-				article_id = UC_ID;
-				return it;
 			}
 		}
 		return -1;
@@ -160,7 +166,6 @@ namespace OpenXcom
 
 	/**
 	 * Checks if selected article_id is available -> if yes, open it.
-	 * Otherwise, open start state!
 	 * @param game Pointer to actual game.
 	 * @param article_id Article id to find.
 	 */
@@ -210,7 +215,7 @@ namespace OpenXcom
 	void Ufopaedia::prev(Game *game)
 	{
 		ArticleDefinitionList articles = getAvailableArticles(game->getSavedGame(), game->getMod());
-		if (_current_index == 0)
+		if (_current_index == 0 || _current_index > articles.size() - 1)
 		{
 			// goto last
 			_current_index = articles.size() - 1;
@@ -281,6 +286,18 @@ namespace OpenXcom
 						{
 							return false;
 						}
+					}
+				}
+			}
+
+			// 4. memento mori
+			for (std::vector<Soldier*>::reverse_iterator j = save->getDeadSoldiers()->rbegin(); j != save->getDeadSoldiers()->rend(); ++j)
+			{
+				for (std::vector<SoldierCommendations*>::iterator k = (*j)->getDiary()->getSoldierCommendations()->begin(); k != (*j)->getDiary()->getSoldierCommendations()->end(); ++k)
+				{
+					if ((*k)->getType() == article->title)
+					{
+						return false;
 					}
 				}
 			}

@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_GEOSCAPECRAFTSTATE_H
-#define OPENXCOM_GEOSCAPECRAFTSTATE_H
-
 #include "../Engine/State.h"
 #include "../Mod/RuleCraft.h"
 
@@ -45,7 +43,7 @@ private:
 
 	TextButton *_btnBase, *_btnTarget, *_btnPatrol, *_btnCancel;
 	Window *_window;
-	Text *_txtTitle, *_txtStatus, *_txtBase, *_txtSpeed, *_txtMaxSpeed, *_txtAltitude, *_txtFuel, *_txtDamage, *_txtWeaponName[RuleCraft::WeaponMax], *_txtWeaponAmmo[RuleCraft::WeaponMax], *_txtRedirect, *_txtSoldier, *_txtHWP;
+	Text *_txtTitle, *_txtStatus, *_txtBase, *_txtSpeed, *_txtMaxSpeed, *_txtAltitude, *_txtFuel, *_txtDamage, *_txtShield, *_txtWeaponName[RuleCraft::WeaponMax], *_txtWeaponAmmo[RuleCraft::WeaponMax], *_txtRedirect, *_txtSoldier, *_txtHWP;
 
 	int _weaponNum;
 public:
@@ -64,5 +62,3 @@ public:
 };
 
 }
-
-#endif

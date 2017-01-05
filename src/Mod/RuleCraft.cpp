@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -30,10 +30,11 @@ namespace OpenXcom
  * @param type String defining the type.
  */
 RuleCraft::RuleCraft(const std::string &type) :
-    _type(type), _sprite(-1), _marker(-1), _weapons(0), _soldiers(0), _pilots(0), _vehicles(0),
-    _costBuy(0), _costRent(0), _costSell(0), _repairRate(1), _refuelRate(1),
+	_type(type), _sprite(-1), _marker(-1), _weapons(0), _soldiers(0), _pilots(0), _vehicles(0),
+	_costBuy(0), _costRent(0), _costSell(0), _repairRate(1), _refuelRate(1),
 	_transferTime(0), _score(0), _battlescapeTerrainData(0),
-	_spacecraft(false), _notifyWhenRefueled(false), _autoPatrol(false), _listOrder(0), _maxItems(0), _maxDepth(0), _stats()
+	_spacecraft(false), _notifyWhenRefueled(false), _autoPatrol(false), _listOrder(0), _maxItems(0), _maxDepth(0), _stats(),
+	_shieldRechargeAtBase(1000)
 {
 	for (int i = 0; i < WeaponMax; ++ i)
 	{
@@ -96,17 +97,12 @@ void RuleCraft::load(const YAML::Node &node, Mod *mod, int listOrder)
 		RuleTerrain *rule = new RuleTerrain(terrain["name"].as<std::string>());
 		rule->load(terrain, mod);
 		_battlescapeTerrainData = rule;
-
-		if (const YAML::Node &deployment = node["deployment"])
-		{
-			_deployment = deployment.as<std::vector<std::vector<int> > >(_deployment);
-		}
-
 		if (const YAML::Node &craftInventoryTile = node["craftInventoryTile"])
 		{
 			_craftInventoryTile = craftInventoryTile.as<std::vector<int> >(_craftInventoryTile);
 		}
 	}
+	_deployment = node["deployment"].as< std::vector< std::vector<int> > >(_deployment);
 	_spacecraft = node["spacecraft"].as<bool>(_spacecraft);
 	_notifyWhenRefueled = node["notifyWhenRefueled"].as<bool>(_notifyWhenRefueled);
 	_autoPatrol = node["autoPatrol"].as<bool>(_autoPatrol);
@@ -146,6 +142,7 @@ void RuleCraft::load(const YAML::Node &node, Mod *mod, int listOrder)
 		for (int i = 0; (size_t)i < str.size() &&  i < WeaponMax; ++i)
 			_weaponStrings[i] = str[i].as<std::string>();
 	}
+	_shieldRechargeAtBase = node["shieldRechargedAtBase"].as<int>(_shieldRechargeAtBase);
 }
 
 /**
@@ -487,6 +484,15 @@ const RuleCraftStats& RuleCraft::getStats() const
 int RuleCraft::getMaxDepth() const
 {
 	return _maxDepth;
+}
+
+/**
+ * Gets how many shield points are recharged when landed at base per hour
+ * @return shield recharged per hour
+ */
+int RuleCraft::getShieldRechargeAtBase() const
+{
+	return _shieldRechargeAtBase;
 }
 
 }

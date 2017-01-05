@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,30 +17,12 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef OPENXCOM_SHADERDRAW_H
-#define	OPENXCOM_SHADERDRAW_H
-
 #include "ShaderDrawHelper.h"
+#include "HelperMeta.h"
 #include <tuple>
-#include <iostream>
 
 namespace OpenXcom
 {
-
-namespace helper
-{
-
-/**
- * Dummy object used to exploit argument order evaluation in std::initializer_list.
- * @param Ignored
- */
-struct DummySeq
-{
-	DummySeq(std::initializer_list<int>) { };
-};
-
-}//namespace helper
 
 /**
  * Universal blit function implementation.
@@ -47,13 +30,13 @@ struct DummySeq
  * @param src source surfaces control objects.
  */
 template<typename Func, typename... SrcType>
-static inline void ShaderDrawImpl(Func& f, helper::controler<SrcType>... src)
+static inline void ShaderDrawImpl(Func&& f, helper::controler<SrcType>... src)
 {
 	//get basic draw range in 2d space
 	GraphSubset end_temp = std::get<0>(std::tie(src...)).get_range();
 
 	//intersections with src ranges
-	helper::DummySeq
+	(void)helper::DummySeq
 	{
 		(src.mod_range(end_temp), 0)...
 	};
@@ -62,7 +45,7 @@ static inline void ShaderDrawImpl(Func& f, helper::controler<SrcType>... src)
 	if (end.size_x() == 0 || end.size_y() == 0)
 		return;
 	//set final draw range in 2d space
-	helper::DummySeq
+	(void)helper::DummySeq
 	{
 		(src.set_range(end), 0)...
 	};
@@ -70,37 +53,37 @@ static inline void ShaderDrawImpl(Func& f, helper::controler<SrcType>... src)
 
 	int begin_y = 0, end_y = end.size_y();
 	//determining iteration range in y-axis
-	helper::DummySeq
+	(void)helper::DummySeq
 	{
 		(src.mod_y(begin_y, end_y), 0)...
 	};
 	if(begin_y>=end_y)
 		return;
 	//set final iteration range
-	helper::DummySeq
+	(void)helper::DummySeq
 	{
 		(src.set_y(begin_y, end_y), 0)...
 	};
 
 	//iteration on y-axis
-	for (int y = end_y-begin_y; y>0; --y, helper::DummySeq{ (src.inc_y(), 0)... })
+	for (int y = end_y-begin_y; y>0; --y, (void)helper::DummySeq{ (src.inc_y(), 0)... })
 	{
 		int begin_x = 0, end_x = end.size_x();
 		//determining iteration range in x-axis
-		helper::DummySeq
+		(void)helper::DummySeq
 		{
 			(src.mod_x(begin_x, end_x), 0)...
 		};
 		if (begin_x>=end_x)
 			continue;
 		//set final iteration range
-		helper::DummySeq
+		(void)helper::DummySeq
 		{
 			(src.set_x(begin_x, end_x), 0)...
 		};
 
 		//iteration on x-axis
-		for (int x = end_x-begin_x; x>0; --x, helper::DummySeq{ (src.inc_x(), 0)... })
+		for (int x = end_x-begin_x; x>0; --x, (void)helper::DummySeq{ (src.inc_x(), 0)... })
 		{
 			f(src.get_ref()...);
 		}
@@ -126,9 +109,9 @@ static inline void ShaderDraw(const SrcType&... src_frame)
  * @param src_frame destination and source surfaces modified by function.
  */
 template<typename Func, typename... SrcType>
-static inline void ShaderDrawFunc(Func& f, const SrcType&... src_frame)
+static inline void ShaderDrawFunc(Func&& f, const SrcType&... src_frame)
 {
-	ShaderDrawImpl(f, helper::controler<SrcType>(src_frame)...);
+	ShaderDrawImpl(std::forward<Func>(f), helper::controler<SrcType>(src_frame)...);
 }
 
 namespace helper
@@ -262,7 +245,3 @@ inline helper::ShaderBase<Pixel> ShaderSurface(Pixel(&s)[Size], int max_x, int m
 }
 
 }//namespace OpenXcom
-
-
-#endif	/* OPENXCOM_SHADERDRAW_H */
-

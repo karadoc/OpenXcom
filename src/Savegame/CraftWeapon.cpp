@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <cmath>
 #include <algorithm>
 #include <cmath>
 #include "CraftWeapon.h"
@@ -159,6 +160,7 @@ CraftWeaponProjectile* CraftWeapon::fire() const
 	p->setAccuracy(this->getRules()->getAccuracy());
 	p->setDamage(this->getRules()->getDamage());
 	p->setRange(this->getRules()->getRange());
+	p->setShieldDamageModifier(this->getRules()->getShieldDamageModifier());
 	return p;
 }
 
@@ -167,14 +169,14 @@ CraftWeaponProjectile* CraftWeapon::fire() const
  * @param mod a pointer to the core mod.
  * @return number of clips loaded.
  */
-int CraftWeapon::getClipsLoaded(Mod *mod)
+int CraftWeapon::getClipsLoaded(const Mod *mod) const
 {
-	int retVal = (int)std::floor((double)_ammo / _rules->getRearmRate());
+	int retVal = (int)floor((double)_ammo / _rules->getRearmRate());
 	RuleItem *clip = mod->getItem(_rules->getClipItem());
 
 	if (clip && clip->getClipSize() > 0)
 	{
-		retVal = (int)std::floor((double)_ammo / clip->getClipSize());
+		retVal = (int)floor((double)_ammo / clip->getClipSize());
 	}
 
 	return retVal;

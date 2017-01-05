@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_CRAFTINFOSTATE_H
-#define OPENXCOM_CRAFTINFOSTATE_H
-
 #include "../Engine/State.h"
 #include "../Mod/RuleCraft.h"
 
@@ -43,13 +41,12 @@ private:
 	Base *_base;
 	size_t _craftId;
 	Craft *_craft;
-	std::wstring _defaultName;
 	int _weaponNum;
 
 	TextButton *_btnOk, *_btnW[RuleCraft::WeaponMax], *_btnCrew, *_btnEquip, *_btnArmor, *_btnPilots;
 	Window *_window;
 	TextEdit *_edtCraft;
-	Text *_txtDamage, *_txtFuel;
+	Text *_txtDamage, *_txtShield, *_txtFuel;
 	Text *_txtWName[RuleCraft::WeaponMax], *_txtWAmmo[RuleCraft::WeaponMax];
 	Surface *_sprite, *_weapon[RuleCraft::WeaponMax], *_crew, *_equip;
 	/// Formats an amount of time.
@@ -78,5 +75,3 @@ public:
 };
 
 }
-
-#endif

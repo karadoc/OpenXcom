@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -17,10 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "PurchaseState.h"
+#include <algorithm>
 #include <sstream>
 #include <climits>
 #include <cfloat>
-#include <cmath>
 #include <iomanip>
 #include <algorithm>
 #include "../fmath.h"
@@ -45,9 +45,9 @@
 #include "../Menu/ErrorMessageState.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleSoldier.h"
-#include "../Savegame/Soldier.h"
 #include "../Mod/RuleCraftWeapon.h"
 #include "../Mod/Armor.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -219,7 +219,7 @@ PurchaseState::PurchaseState(Base *base) : _base(base), _sel(0), _total(0), _pQt
 
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&PurchaseState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	_btnOk->onKeyboardRelease((ActionHandler)&PurchaseState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 
@@ -545,6 +545,27 @@ void PurchaseState::lstItemsMousePress(Action *action)
 			decreaseByValue(Options::changeValueByMouseWheel);
 		}
 	}
+	else if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
+	{
+		if (getRow().type == TRANSFER_ITEM)
+		{
+			RuleItem *rule = (RuleItem*)getRow().rule;
+			if (rule != 0)
+			{
+				std::string articleId = rule->getType();
+				Ufopaedia::openArticle(_game, articleId);
+			}
+		}
+		else if (getRow().type == TRANSFER_CRAFT)
+		{
+			RuleCraft *rule = (RuleCraft*)getRow().rule;
+			if (rule != 0)
+			{
+				std::string articleId = rule->getType();
+				Ufopaedia::openArticle(_game, articleId);
+			}
+		}
+	}
 }
 
 /**
@@ -601,7 +622,8 @@ void PurchaseState::increaseByValue(int change)
 	if (errorMessage.empty())
 	{
 		int maxByMoney = (_game->getSavedGame()->getFunds() - _total) / getRow().cost;
-		change = std::min(maxByMoney, change);
+		if (maxByMoney >= 0)
+			change = std::min(maxByMoney, change);
 		switch (getRow().type)
 		{
 		case TRANSFER_SOLDIER:

@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_MAPDATA_H
-#define OPENXCOM_MAPDATA_H
-
 #include "RuleItem.h"
 
 namespace OpenXcom
@@ -42,9 +40,9 @@ enum SpecialTileType{TILE=0,
 					END_POINT,
 					MUST_DESTROY};
 
-enum MovementType{ MT_WALK, MT_FLY, MT_SLIDE, MT_FLOAT, MT_SINK};
-enum VoxelType{ V_EMPTY = -1, V_FLOOR, V_WESTWALL, V_NORTHWALL, V_OBJECT, V_UNIT, V_OUTOFBOUNDS };
-enum MapDataType { O_FLOOR, O_WESTWALL, O_NORTHWALL, O_OBJECT };
+enum MovementType : int { MT_WALK, MT_FLY, MT_SLIDE, MT_FLOAT, MT_SINK};
+enum VoxelType : int { V_EMPTY = -1, V_FLOOR, V_WESTWALL, V_NORTHWALL, V_OBJECT, V_UNIT, V_OUTOFBOUNDS };
+enum MapDataType : int { O_FLOOR, O_WESTWALL, O_NORTHWALL, O_OBJECT };
 
 /**
  * MapData is the smallest piece of a Battlescape terrain, holding info about a certain object, wall, floor, ...
@@ -162,7 +160,7 @@ public:
 	/// Sets the TUSlide value.
 	void setTUSlide(const int TUSlide);
 	/// Check if this is an xcom base object.
-	bool isBaseModule();
+	bool isBaseModule() const;
 	/// Sets this tile as not a floor (water, etc.)
 	void setNoFloor(bool isNoFloor);
 	/// Sets this tile as not stopping LOS.
@@ -170,5 +168,3 @@ public:
 };
 
 }
-
-#endif

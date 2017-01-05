@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,11 +18,11 @@
  */
 #include "SellState.h"
 #include "ManufactureDependenciesTreeState.h"
+#include <algorithm>
 #include <sstream>
 #include <climits>
 #include <cmath>
 #include <iomanip>
-#include <algorithm>
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -49,6 +49,8 @@
 #include "../Engine/Options.h"
 #include "../Mod/RuleInterface.h"
 #include "../Battlescape/DebriefingState.h"
+#include "TransferBaseState.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -59,15 +61,17 @@ namespace OpenXcom
  * @param base Pointer to the base to get info from.
  * @param origin Game section that originated this state.
  */
-SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin origin) : _base(base), _debriefingState(debriefingState),_sel(0), _total(0), _spaceChange(0), _origin(origin)
+SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin origin) : _base(base), _debriefingState(debriefingState),_sel(0), _total(0), _spaceChange(0), _origin(origin), _reset(false)
 {
 	bool overfull = _debriefingState == 0 && Options::storageLimitsEnforced && _base->storesOverfull();
 
 	// Create objects
 	_window = new Window(this, 320, 200, 0, 0);
 	_btnQuickSearch = new TextEdit(this, 48, 9, 10, 13);
-	_btnOk = new TextButton(overfull? 288:148, 16, overfull? 16:8, 176);
+	//_btnOk = new TextButton(overfull? 288:148, 16, overfull? 16:8, 176);
+	_btnOk = new TextButton(148, 16, 8, 176);
 	_btnCancel = new TextButton(148, 16, 164, 176);
+	_btnTransfer = new TextButton(148, 16, 164, 176);
 	_txtTitle = new Text(310, 17, 5, 8);
 	_txtSales = new Text(150, 9, 10, 24);
 	_txtFunds = new Text(150, 9, 160, 24);
@@ -87,6 +91,7 @@ SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin
 	add(_btnQuickSearch, "button", "sellMenu");
 	add(_btnOk, "button", "sellMenu");
 	add(_btnCancel, "button", "sellMenu");
+	add(_btnTransfer, "button", "sellMenu");
 	add(_txtTitle, "text", "sellMenu");
 	add(_txtSales, "text", "sellMenu");
 	add(_txtFunds, "text", "sellMenu");
@@ -110,17 +115,16 @@ SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin
 	_btnCancel->onMouseClick((ActionHandler)&SellState::btnCancelClick);
 	_btnCancel->onKeyboardPress((ActionHandler)&SellState::btnCancelClick, Options::keyCancel);
 
-	if (overfull)
-	{
-		_btnCancel->setVisible(false);
-		_btnOk->setVisible(false);
-	}
+	_btnTransfer->setText(tr("STR_GO_TO_TRANSFERS"));
+	_btnTransfer->onMouseClick((ActionHandler)&SellState::btnTransferClick);
+
+	_btnCancel->setVisible(!overfull);
+	_btnOk->setVisible(!overfull);
+	_btnTransfer->setVisible(overfull);
 
 	_txtTitle->setBig();
 	_txtTitle->setAlign(ALIGN_CENTER);
 	_txtTitle->setText(tr("STR_SELL_ITEMS_SACK_PERSONNEL"));
-
-	_txtSales->setText(tr("STR_VALUE_OF_SALES").arg(Text::formatFunding(_total)));
 
 	_txtFunds->setText(tr("STR_FUNDS").arg(Text::formatFunding(_game->getSavedGame()->getFunds())));
 
@@ -230,7 +234,7 @@ SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin
 				qty += (*j)->getItems()->getItem(*i);
 			}
 		}
-		RuleItem *rule = _game->getMod()->getItem(*i);
+		RuleItem *rule = _game->getMod()->getItem(*i, true);
 		if (_debriefingState != 0)
 		{
 			qty = _debriefingState->getRecoveredItemCount(rule);
@@ -238,6 +242,12 @@ SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin
 		if (qty > 0 && (Options::canSellLiveAliens || !rule->isAlien()))
 		{
 			TransferRow row = { TRANSFER_ITEM, rule, tr(*i), rule->getSellCost(), qty, 0, 0 };
+			if ((_debriefingState != 0) && (_game->getSavedGame()->getAutosell(rule)))
+			{
+				row.amount = qty;
+				_total += row.cost * qty;
+				_spaceChange -= qty * rule->getSize();
+			}
 			_items.push_back(row);
 			std::string cat = getCategory(_items.size() - 1);
 			if (std::find(_cats.begin(), _cats.end(), cat) == _cats.end())
@@ -247,13 +257,15 @@ SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin
 		}
 	}
 
+	_txtSales->setText(tr("STR_VALUE_OF_SALES").arg(Text::formatFunding(_total)));
+
 	_cbxCategory->setOptions(_cats);
 	_cbxCategory->onChange((ActionHandler)&SellState::cbxCategoryChange);
 	_cbxCategory->onKeyboardPress((ActionHandler)&SellState::btnSellAllClick, Options::keyInvClear);
 
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&SellState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	// OK button is not always visible, so bind it here
 	_cbxCategory->onKeyboardRelease((ActionHandler)&SellState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
@@ -273,6 +285,20 @@ SellState::~SellState()
 {
 	delete _timerInc;
 	delete _timerDec;
+}
+
+/**
+* Resets stuff when coming back from other screens.
+*/
+void SellState::init()
+{
+	State::init();
+
+	if (_reset)
+	{
+		_game->popState();
+		_game->pushState(new SellState(_base, _debriefingState, _origin));
+	}
 }
 
 /**
@@ -444,42 +470,10 @@ void SellState::btnOkClick(Action *)
 			case TRANSFER_CRAFT:
 				craft = (Craft*)i->rule;
 
-				// Remove weapons from craft
-				for (std::vector<CraftWeapon*>::iterator w = craft->getWeapons()->begin(); w != craft->getWeapons()->end(); ++w)
-				{
-					if ((*w) != 0)
-					{
-						_base->getStorageItems()->addItem((*w)->getRules()->getLauncherItem());
-						_base->getStorageItems()->addItem((*w)->getRules()->getClipItem(), (*w)->getClipsLoaded(_game->getMod()));
-					}
-				}
+				// Unload craft
+				craft->unload(_game->getMod());
 
-				// Remove items from craft
-				for (std::map<std::string, int>::iterator it = craft->getItems()->getContents()->begin(); it != craft->getItems()->getContents()->end(); ++it)
-				{
-					_base->getStorageItems()->addItem(it->first, it->second);
-				}
-
-				// Remove vehicles from craft
-				for (std::vector<Vehicle*>::iterator v = craft->getVehicles()->begin(); v != craft->getVehicles()->end(); ++v)
-				{
-					_base->getStorageItems()->addItem((*v)->getRules()->getType());
-					if (!(*v)->getRules()->getCompatibleAmmo()->empty())
-					{
-						_base->getStorageItems()->addItem((*v)->getRules()->getCompatibleAmmo()->front(), (*v)->getAmmo());
-					}
-				}
-
-				// Remove soldiers from craft
-				for (std::vector<Soldier*>::iterator s = _base->getSoldiers()->begin(); s != _base->getSoldiers()->end(); ++s)
-				{
-					if ((*s)->getCraft() == craft)
-					{
-						(*s)->setCraft(0);
-					}
-				}
-
-				// Clear Hangar
+				// Clear hangar
 				for (std::vector<BaseFacility*>::iterator f = _base->getFacilities()->begin(); f != _base->getFacilities()->end(); ++f)
 				{
 					if ((*f)->getCraft() == craft)
@@ -557,8 +551,19 @@ void SellState::btnOkClick(Action *)
 				{
 					_base->getStorageItems()->removeItem(item->getType(), i->amount);
 				}
+				// set autosell status if we sold all of the item
+				if (_debriefingState != 0)
+				{
+					_game->getSavedGame()->setAutosell(item, (i->qtySrc == i->amount));
+				}
+
 				break;
 			}
+		}
+		else
+		{
+			// disable autosell since we haven't sold any of the item.
+			_game->getSavedGame()->setAutosell((RuleItem*)i->rule, false);
 		}
 	}
 	if (_debriefingState != 0)
@@ -575,6 +580,17 @@ void SellState::btnOkClick(Action *)
 void SellState::btnCancelClick(Action *)
 {
 	_game->popState();
+}
+
+/**
+* Opens the Transfer UI and gives the player an option to transfer stuff instead of selling it.
+* Returns back to this screen when finished.
+* @param action Pointer to an action.
+*/
+void SellState::btnTransferClick(Action *)
+{
+	_reset = true;
+	_game->pushState(new TransferBaseState(_base));
 }
 
 /**
@@ -695,6 +711,22 @@ void SellState::lstItemsMousePress(Action *action)
 			changeByValue(Options::changeValueByMouseWheel, -1);
 		}
 	}
+	else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+	{
+		if (action->getAbsoluteXMouse() >= _lstItems->getArrowsLeftEdge() &&
+			action->getAbsoluteXMouse() <= _lstItems->getArrowsRightEdge())
+		{
+			return;
+		}
+		if (getRow().type == TRANSFER_ITEM)
+		{
+			RuleItem *rule = (RuleItem*)getRow().rule;
+			if (rule != 0)
+			{
+				_game->pushState(new ManufactureDependenciesTreeState(rule->getType()));
+			}
+		}
+	}
 	else if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
 	{
 		if (getRow().type == TRANSFER_ITEM)
@@ -702,7 +734,17 @@ void SellState::lstItemsMousePress(Action *action)
 			RuleItem *rule = (RuleItem*)getRow().rule;
 			if (rule != 0)
 			{
-				_game->pushState(new ManufactureDependenciesTreeState(rule->getType()));
+				std::string articleId = rule->getType();
+				Ufopaedia::openArticle(_game, articleId);
+			}
+		}
+		else if (getRow().type == TRANSFER_CRAFT)
+		{
+			Craft *rule = (Craft*)getRow().rule;
+			if (rule != 0)
+			{
+				std::string articleId = rule->getRules()->getType();
+				Ufopaedia::openArticle(_game, articleId);
 			}
 		}
 	}
@@ -749,7 +791,7 @@ void SellState::changeByValue(int change, int dir)
 		soldier = (Soldier*)getRow().rule;
 		if (soldier->getArmor()->getStoreItem() != Armor::NONE)
 		{
-			armor = _game->getMod()->getItem(soldier->getArmor()->getStoreItem());
+			armor = _game->getMod()->getItem(soldier->getArmor()->getStoreItem(), true);
 			_spaceChange += dir * armor->getSize();
 		}
 		break;
@@ -759,7 +801,7 @@ void SellState::changeByValue(int change, int dir)
 		{
 			if (*w)
 			{
-				weapon = _game->getMod()->getItem((*w)->getRules()->getLauncherItem());
+				weapon = _game->getMod()->getItem((*w)->getRules()->getLauncherItem(), true);
 				total += weapon->getSize();
 				ammo = _game->getMod()->getItem((*w)->getRules()->getClipItem());
 				if (ammo)

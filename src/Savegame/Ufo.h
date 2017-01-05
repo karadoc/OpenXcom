@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,8 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_UFO_H
-#define OPENXCOM_UFO_H
 
 #include <string>
 #include <yaml-cpp/yaml.h>
@@ -59,6 +58,7 @@ private:
 	RuleUfoStats _stats;
 	/// Calculates a new speed vector to the destination.
 	void calculateSpeed();
+	int _shield, _shieldRechargeHandle;
 public:
 	/// Creates a UFO of the specified type.
 	Ufo(const RuleUfo *rules);
@@ -78,8 +78,8 @@ public:
 	int getId() const;
 	/// Sets the UFO's ID.
 	void setId(int id);
-	/// Gets the UFO's name.
-	std::wstring getName(Language *lang) const;
+	/// Gets the UFO's default name.
+	std::wstring getDefaultName(Language *lang) const;
 	/// Gets the UFO's marker.
 	int getMarker() const;
 	/// Gets the UFO's amount of damage.
@@ -155,17 +155,23 @@ public:
 	/// Sets the UFO's hit frame.
 	void setHitFrame(int frame);
 	/// Gets the UFO's hit frame.
-	int getHitFrame();
+	int getHitFrame() const;
 	/// Gets the UFO's stats.
 	const RuleUfoStats& getCraftStats() const;
 	void setFireCountdown(int time);
-	int getFireCountdown();
+	int getFireCountdown() const;
 	void setEscapeCountdown(int time);
-	int getEscapeCountdown();
+	int getEscapeCountdown() const;
 	void setInterceptionProcessed(bool processed);
-	bool getInterceptionProcessed();
+	bool getInterceptionProcessed() const;
+	/// Sets the UFO's shield
+	void setShield(int shield);
+	/// Gets the UFO's shield value
+	int getShield() const;
+	/// Sets which _interceptionNumber in a dogfight handles the UFO shield recharge
+	void setShieldRechargeHandle(int shieldRechargeHandle);
+	/// Gets which _interceptionNumber in a dogfight handles the UFO shield recharge
+	int getShieldRechargeHandle() const;
 };
 
 }
-
-#endif

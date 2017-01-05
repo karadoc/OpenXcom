@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_UFODETECTEDSTATE_H
-#define OPENXCOM_UFODETECTEDSTATE_H
-
 #include "../Engine/State.h"
 
 namespace OpenXcom
@@ -46,7 +44,7 @@ private:
 	TextList *_lstInfo, *_lstInfo2;
 public:
 	/// Creates the Ufo Detected state.
-	UfoDetectedState(Ufo *ufo, GeoscapeState *state, bool detected, bool hyper);
+	UfoDetectedState(Ufo *ufo, GeoscapeState *state, bool detected, bool hyperwave);
 	/// Cleans up the Ufo Detected state.
 	~UfoDetectedState();
 	/// Handler for clicking the Intercept button.
@@ -58,5 +56,3 @@ public:
 };
 
 }
-
-#endif

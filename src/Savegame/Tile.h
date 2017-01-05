@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_TILE_H
-#define OPENXCOM_TILE_H
-
 #include <list>
 #include <vector>
 #include "../Battlescape/Position.h"
@@ -38,6 +36,8 @@ class BattleItem;
 class RuleInventory;
 class Particle;
 
+enum LightLayers : Uint8 { LL_AMBIENT, LL_FIRE, LL_ITEMS, LL_UNITS, LL_MAX };
+
 /**
  * Basic element of which a battle map is build.
  * @sa http://www.ufopaedia.org/index.php?title=MAPS
@@ -45,7 +45,7 @@ class Particle;
 class Tile
 {
 public:
-	static struct SerializationKey 
+	static struct SerializationKey
 	{
 		// how many bytes to store for each variable or each member of array of the same name
 		Uint8 index; // for indexing the actual tile array
@@ -53,20 +53,19 @@ public:
 		Uint8 _mapDataID;
 		Uint8 _smoke;
 		Uint8 _fire;
-        Uint8 boolFields;
+		Uint8 boolFields;
 		Uint32 totalBytes; // per structure, including any data not mentioned here and accounting for all array members!
 	} serializationKey;
-	
+
 	static const int NOT_CALCULATED = -1;
 
 protected:
-	static const int LIGHTLAYERS = 3;
 	MapData *_objects[4];
 	int _mapDataID[4];
 	int _mapDataSetID[4];
 	int _currentFrame[4];
 	bool _discovered[3];
-	int _light[LIGHTLAYERS], _lastLight[LIGHTLAYERS];
+	int _light[LL_MAX];
 	int _smoke;
 	int _fire;
 	int _explosive;
@@ -153,13 +152,17 @@ public:
 	/// Gets the black fog of war status of this tile.
 	bool isDiscovered(int part) const;
 	/// Reset light to zero for this tile.
-	void resetLight(int layer);
+	void resetLight(LightLayers layer);
+	/// Reset light to zero for this tile and multiple layers.
+	void resetLightMulti(LightLayers layer);
 	/// Add light to this tile.
-	void addLight(int light, int layer);
+	void addLight(int light, LightLayers layer);
+	/// Get max light to this tile.
+	int getLight(LightLayers layer) const;
+	/// Get max light to this tile and multiple layers.
+	int getLightMulti(LightLayers layer) const;
 	/// Get the shade amount.
 	int getShade() const;
-	/// Get the shade amount except 2th (dynamic) layer.
-	int getExternalShade() const;
 	/// Destroy a tile part.
 	bool destroy(int part, SpecialTileType type);
 	/// Damage a tile part.
@@ -219,11 +222,11 @@ public:
 	/// Set the tile marker color.
 	void setMarkerColor(int color);
 	/// Get the tile marker color.
-	int getMarkerColor();
+	int getMarkerColor() const;
 	/// Set the tile visible flag.
 	void setVisible(int visibility);
 	/// Get the tile visible flag.
-	int getVisible();
+	int getVisible() const;
 	/// set the direction (used for path previewing)
 	void setPreview(int dir);
 	/// retrieve the direction stored by the pathfinding.
@@ -239,7 +242,7 @@ public:
 	/// set the danger flag on this tile (so the AI will avoid it).
 	void setDangerous();
 	/// check the danger flag on this tile.
-	bool getDangerous();
+	bool getDangerous() const;
 	/// adds a particle to this tile's array.
 	void addParticle(Particle *particle);
 	/// gets a pointer to this tile's particle array.
@@ -248,5 +251,3 @@ public:
 };
 
 }
-
-#endif

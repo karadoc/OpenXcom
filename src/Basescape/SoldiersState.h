@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_SOLDIERSSTATE_H
-#define OPENXCOM_SOLDIERSSTATE_H
-
 #include "../Engine/State.h"
 #include <vector>
 #include "SoldierSortUtil.h"
@@ -77,10 +75,10 @@ public:
 	void btnTrainingClick(Action *action);
 	/// Handler for clicking the Memorial button.
 	void btnMemorialClick(Action *action);
+	/// Handler for clicking the Inventory button.
+	void btnInventoryClick(Action *action);
 	/// Handler for clicking the Soldiers list.
 	void lstSoldiersClick(Action *action);
 };
 
 }
-
-#endif

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -27,7 +27,7 @@ namespace OpenXcom
  * Creates a certain type of unit.
  * @param type String defining the type.
  */
-Unit::Unit(const std::string &type) : _type(type), _standHeight(0), _kneelHeight(0), _floatHeight(0), _value(0), _aggroSound(-1), _moveSound(-1), _intelligence(0), _aggression(0), _energyRecovery(30), _specab(SPECAB_NONE), _livingWeapon(false)
+Unit::Unit(const std::string &type) : _type(type), _standHeight(0), _kneelHeight(0), _floatHeight(0), _value(0), _aggroSound(-1), _moveSound(-1), _intelligence(0), _aggression(0), _energyRecovery(30), _specab(SPECAB_NONE), _livingWeapon(false), _psiWeapon("ALIEN_PSI_WEAPON"), _canSurrender(false), _autoSurrender(false)
 {
 }
 
@@ -69,8 +69,15 @@ void Unit::load(const YAML::Node &node, Mod *mod)
 	_specab = (SpecialAbility)node["specab"].as<int>(_specab);
 	_spawnUnit = node["spawnUnit"].as<std::string>(_spawnUnit);
 	_livingWeapon = node["livingWeapon"].as<bool>(_livingWeapon);
+	_canSurrender = node["canSurrender"].as<bool>(_canSurrender);
+	_autoSurrender = node["autoSurrender"].as<bool>(_autoSurrender);
 	_meleeWeapon = node["meleeWeapon"].as<std::string>(_meleeWeapon);
-	_builtInWeapons = node["builtInWeapons"].as<std::vector<std::string> >(_builtInWeapons);
+	_psiWeapon = node["psiWeapon"].as<std::string>(_psiWeapon);
+	_builtInWeapons = node["builtInWeaponSets"].as<std::vector<std::vector<std::string> > >(_builtInWeapons);
+	if (node["builtInWeapons"])
+	{
+		_builtInWeapons.push_back(node["builtInWeapons"].as<std::vector<std::string> >());
+	}
 	if (node["deathSound"])
 	{
 		_deathSound.clear();
@@ -271,6 +278,15 @@ const std::string &Unit::getMeleeWeapon() const
 }
 
 /**
+* What is this unit's built in psi weapon (if any).
+* @return the name of the weapon.
+*/
+const std::string &Unit::getPsiWeapon() const
+{
+	return _psiWeapon;
+}
+
+/**
  * What weapons does this unit have built in?
  * this is a vector of strings representing any
  * weapons that may be inherent to this creature.
@@ -278,9 +294,27 @@ const std::string &Unit::getMeleeWeapon() const
  * any loadout or living weapon item that may be defined.
  * @return list of weapons that are integral to this unit.
  */
-const std::vector<std::string> &Unit::getBuiltInWeapons() const
+const std::vector<std::vector<std::string> > &Unit::getBuiltInWeapons() const
 {
 	return _builtInWeapons;
+}
+
+/**
+* Checks if this unit can surrender.
+* @return True if this unit can surrender.
+*/
+bool Unit::canSurrender() const
+{
+	return _canSurrender || _autoSurrender;
+}
+
+/**
+* Checks if this unit surrenders automatically, if all other units surrendered too.
+* @return True if this unit auto-surrenders.
+*/
+bool Unit::autoSurrender() const
+{
+	return _autoSurrender;
 }
 
 }

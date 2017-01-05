@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -32,9 +32,9 @@ const std::string Armor::NONE = "STR_NONE";
  */
 Armor::Armor(const std::string &type) :
 	_type(type), _frontArmor(0), _sideArmor(0), _rearArmor(0), _underArmor(0),
-	_drawingRoutine(0), _movementType(MT_WALK), _size(1), _weight(0),
+	_drawingRoutine(0), _movementType(MT_WALK), _moveSound(-1), _size(1), _weight(0),
 	_visibilityAtDark(0), _visibilityAtDay(0), _personalLight(15),
-	_activeCamouflage(0), _predatorVision(0), _heatVision(0), _psiVision(0),
+	_camouflageAtDay(0), _camouflageAtDark(0), _antiCamouflageAtDay(0), _antiCamouflageAtDark(0), _heatVision(0), _psiVision(0),
 	_deathFrames(3), _constantAnimation(false), _canHoldWeapon(false), _hasInventory(true), _forcedTorso(TORSO_USE_GENDER),
 	_faceColorGroup(0), _hairColorGroup(0), _utileColorGroup(0), _rankColorGroup(0),
 	_fearImmune(-1), _bleedImmune(-1), _painImmune(-1), _zombiImmune(-1), _overKill(0.5f), _meleeDodgeBackPenalty(0),
@@ -92,12 +92,15 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers)
 	_underArmor = node["underArmor"].as<int>(_underArmor);
 	_drawingRoutine = node["drawingRoutine"].as<int>(_drawingRoutine);
 	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
+	_moveSound = node["moveSound"].as<int>(_moveSound);
 	_weight = node["weight"].as<int>(_weight);
 	_visibilityAtDark = node["visibilityAtDark"].as<int>(_visibilityAtDark);
 	_visibilityAtDay = node["visibilityAtDay"].as<int>(_visibilityAtDay);
 	_personalLight = node["personalLight"].as<int>(_personalLight);
-	_activeCamouflage = node["activeCamouflage"].as<int>(_activeCamouflage);
-	_predatorVision = node["predatorVision"].as<int>(_predatorVision);
+	_camouflageAtDay = node["camouflageAtDay"].as<int>(_camouflageAtDay);
+	_camouflageAtDark = node["camouflageAtDark"].as<int>(_camouflageAtDark);
+	_antiCamouflageAtDay = node["antiCamouflageAtDay"].as<int>(_antiCamouflageAtDay);
+	_antiCamouflageAtDark = node["antiCamouflageAtDark"].as<int>(_antiCamouflageAtDark);
 	_heatVision = node["heatVision"].as<int>(_heatVision);
 	_psiVision = node["psiVision"].as<int>(_psiVision);
 	_stats.merge(node["stats"].as<UnitStats>(_stats));
@@ -187,6 +190,8 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers)
 
 	_reacActionScript.load(_type, node, parsers.reactionUnitAction);
 	_reacReactionScript.load(_type, node, parsers.reactionUnitReaction);
+
+	_visibilityUnitScript.load(_type, node, parsers.visibilityUnit);
 
 	_units = node["units"].as< std::vector<std::string> >(_units);
 	_scriptValues.load(node, parsers.getShared());
@@ -334,6 +339,15 @@ int Armor::getDrawingRoutine() const
 MovementType Armor::getMovementType() const
 {
 	return _movementType;
+}
+
+/**
+* Gets the armor's move sound.
+* @return The id of the armor's move sound.
+*/
+int Armor::getMoveSound() const
+{
+	return _moveSound;
 }
 
 /**
@@ -521,21 +535,39 @@ int Armor::getVisibilityAtDay() const
 }
 
 /**
-* Gets info about camouflage effect.
+* Gets info about camouflage at day.
 * @return The vision distance modifier.
 */
-int Armor::getActiveCamouflage() const
+int Armor::getCamouflageAtDay() const
 {
-	return _activeCamouflage;
+	return _camouflageAtDay;
 }
 
 /**
-* Gets info about better vision.
+* Gets info about camouflage at dark.
 * @return The vision distance modifier.
 */
-int Armor::getPredatorVision() const
+int Armor::getCamouflageAtDark() const
 {
-	return _predatorVision;
+	return _camouflageAtDark;
+}
+
+/**
+* Gets info about anti camouflage at day.
+* @return The vision distance modifier.
+*/
+int Armor::getAntiCamouflageAtDay() const
+{
+	return _antiCamouflageAtDay;
+}
+
+/**
+* Gets info about anti camouflage at dark.
+* @return The vision distance modifier.
+*/
+int Armor::getAntiCamouflageAtDark() const
+{
+	return _antiCamouflageAtDark;
 }
 
 /**
@@ -757,6 +789,16 @@ const ModScript::ReactionUnitParser::Container &Armor::getReacReactionScript() c
 {
 	return _reacReactionScript;
 }
+
+/**
+ * Get script that caclualte visibility of other units.
+ * @return Script that calculate visibility.
+ */
+const ModScript::VisibilityUnitParser::Container &Armor::getVisibilityUnitScript() const
+{
+	return _visibilityUnitScript;
+}
+
 /**
 * Gets the list of units this armor applies to.
 * @return The list of unit IDs (empty = applies to all).

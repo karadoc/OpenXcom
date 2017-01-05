@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -257,7 +257,7 @@ void State::init()
 		Window* window = dynamic_cast<Window*>(*i);
 		if (window)
 		{
-			window->invalidate(true);
+			window->invalidate();
 		}
 	}
 	if (_ruleInterface != 0 && !_ruleInterface->getMusic().empty())
@@ -526,6 +526,18 @@ void State::setPalette(const std::string &palette, int backpals)
 }
 
 /**
+* Loads palettes from the given resources into the state.
+* @param colors Pointer to the set of colors.
+* @param cursorColor Cursor color to use.
+*/
+void State::setCustomPalette(SDL_Color *colors, int cursorColor)
+{
+	setPalette(colors, 0, 256, false);
+	_cursorColor = cursorColor;
+	setPalette(NULL); // delay actual update to the end
+}
+
+/**
  * Returns the state's 8bpp palette.
  * @return Pointer to the palette's colors.
  */
@@ -561,7 +573,7 @@ void State::recenter(int dX, int dY)
 
 void State::setGamePtr(Game* game)
 {
-    _game = game;
+	_game = game;
 }
 
 }

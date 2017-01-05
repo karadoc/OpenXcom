@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -33,7 +33,6 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/ItemContainer.h"
 #include "ManufactureStartState.h"
-#include "../Mod/Mod.h"
 #include "TechTreeViewerState.h"
 
 namespace OpenXcom
@@ -121,7 +120,7 @@ NewManufactureListState::NewManufactureListState(Base *base) : _base(base), _sho
 
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&NewManufactureListState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	_btnOk->onKeyboardRelease((ActionHandler)&NewManufactureListState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 }

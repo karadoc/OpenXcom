@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -35,13 +35,20 @@ namespace OpenXcom
 
 	ArticleStateCraftWeapon::ArticleStateCraftWeapon(ArticleDefinitionCraftWeapon *defs) : ArticleState(defs->id)
 	{
-		RuleCraftWeapon *weapon = _game->getMod()->getCraftWeapon(defs->id);
+		RuleCraftWeapon *weapon = _game->getMod()->getCraftWeapon(defs->id, true);
 
 		// add screen elements
 		_txtTitle = new Text(200, 32, 5, 24);
 
 		// Set palette
-		setPalette("PAL_BATTLEPEDIA");
+		if (defs->customPalette)
+		{
+			setCustomPalette(_game->getMod()->getSurface(defs->image_id)->getPalette(), Mod::BATTLESCAPE_CURSOR);
+		}
+		else
+		{
+			setPalette("PAL_BATTLEPEDIA");
+		}
 
 		ArticleState::initLayout();
 

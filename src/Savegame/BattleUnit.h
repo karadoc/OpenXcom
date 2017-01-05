@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_BATTLEUNIT_H
-#define OPENXCOM_BATTLEUNIT_H
-
 #include <vector>
 #include <string>
 #include <unordered_set>
@@ -45,10 +43,9 @@ class RuleInventory;
 class Soldier;
 class SavedGame;
 class Language;
-class AlienBAIState;
-class CivilianBAIState;
+class AIModule;
 template<typename, typename...> class ScriptContainer;
-template<typename...> class ScriptParser;
+template<typename, typename...> class ScriptParser;
 class ScriptWorkerBlit;
 struct BattleUnitStatistics;
 struct StatAdjustment;
@@ -57,6 +54,19 @@ enum UnitStatus {STATUS_STANDING, STATUS_WALKING, STATUS_FLYING, STATUS_TURNING,
 enum UnitFaction {FACTION_PLAYER, FACTION_HOSTILE, FACTION_NEUTRAL};
 enum UnitBodyPart {BODYPART_HEAD, BODYPART_TORSO, BODYPART_RIGHTARM, BODYPART_LEFTARM, BODYPART_RIGHTLEG, BODYPART_LEFTLEG, BODYPART_MAX};
 enum UnitBodyPartEx {BODYPART_LEGS = BODYPART_MAX, BODYPART_COLLAPSING, BODYPART_ITEM_RIGHTHAND, BODYPART_ITEM_LEFTHAND, BODYPART_ITEM_FLOOR, BODYPART_ITEM_INVENTORY, BODYPART_LARGE_TORSO, BODYPART_LARGE_PROPULSION = BODYPART_LARGE_TORSO + 4, BODYPART_LARGE_TURRET = BODYPART_LARGE_PROPULSION + 4};
+
+/**
+ * Placeholder class for future functionality.
+ */
+class BattleUnitVisibility
+{
+public:
+
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "BattleUnitVisibility";
+	/// Register all useful function used by script.
+	static void ScriptRegister(ScriptParserBase* parser);
+};
 
 /**
  * Represents a moving unit in the battlescape, player controlled or AI controlled
@@ -78,6 +88,7 @@ private:
 	int _verticalDirection;
 	Position _destination;
 	UnitStatus _status;
+	bool _wantsToSurrender;
 	int _walkPhase, _fallPhase;
 	std::vector<BattleUnit *> _visibleUnits, _unitsSpottedThisTurn;
 	std::vector<Tile *> _visibleTiles;
@@ -89,10 +100,10 @@ private:
 	int _fire;
 	std::vector<BattleItem*> _inventory;
 	BattleItem* _specWeapon[SPEC_WEAPON_MAX];
-	BattleAIState *_currentAIState;
+	AIModule *_currentAIState;
 	bool _visible;
 	int _expBravery, _expReactions, _expFiring, _expThrowing, _expPsiSkill, _expPsiStrength, _expMelee;
-	int improveStat(int exp);
+	int improveStat(int exp) const;
 	int _motionPoints;
 	int _kills;
 	int _faceDirection; // used only during strafeing moves
@@ -105,11 +116,12 @@ private:
 	int _turnsSinceSpotted;
 	std::string _spawnUnit;
 	std::string _activeHand;
-    BattleUnitStatistics* _statistics;
+	BattleUnitStatistics* _statistics;
 	int _murdererId;	// used to credit the murderer with the kills that this unit got by blowing up on death
-    UnitSide _fatalShotSide;
-    UnitBodyPart _fatalShotBodyPart;
-    std::string _murdererWeapon, _murdererWeaponAmmo;
+	int _mindControllerID;	// used to credit the mind controller with the kills of the mind controllee
+	UnitSide _fatalShotSide;
+	UnitBodyPart _fatalShotBodyPart;
+	std::string _murdererWeapon, _murdererWeaponAmmo;
 
 	// static data
 	std::string _type;
@@ -195,6 +207,8 @@ public:
 	int getVerticalDirection() const;
 	/// Gets the unit's status.
 	UnitStatus getStatus() const;
+	/// Does the unit want to surrender?
+	bool wantsToSurrender() const;
 	/// Start the walkingPhase
 	void startWalking(int direction, const Position &destination, Tile *tileBelowMe, bool cache);
 	/// Increase the walkingPhase
@@ -300,7 +314,7 @@ public:
 	/// Get total number of fatal wounds.
 	int getFatalWounds() const;
 	/// Get the current reaction score.
-	double getReactionScore();
+	double getReactionScore() const;
 	/// Prepare for a new turn.
 	void prepareNewTurn(bool fullProcess = true);
 	/// Morale change
@@ -319,10 +333,10 @@ public:
 	std::vector<BattleItem*> *getInventory();
 	/// Let AI do their thing.
 	void think(BattleAction *action);
-	/// Get current AI state.
-	BattleAIState *getCurrentAIState() const;
-	/// Set next AI State
-	void setAIState(BattleAIState *aiState);
+	/// Get AI Module.
+	AIModule *getAIModule() const;
+	/// Set AI Module.
+	void setAIModule(AIModule *ai);
 	/// Set whether this unit is visible
 	void setVisible(bool flag);
 	/// Get whether this unit is visible
@@ -366,7 +380,7 @@ public:
 	/// Adds one to the melee exp counter.
 	void addMeleeExp();
 	/// Updates the stats of a Geoscape soldier.
-	void updateGeoscapeStats(Soldier *soldier);
+	void updateGeoscapeStats(Soldier *soldier) const;
 	/// Check if unit eligible for squaddie promotion.
 	bool postMissionProcedures(SavedGame *geoscape, UnitStats &statsDiff);
 	/// Get the sprite index for the minimap
@@ -416,17 +430,17 @@ public:
 	/// Get the unit's aggression.
 	int getAggression() const;
 	/// Helper method.
-	int getMaxViewDistanceSq(int baseVisibility, int nerf, int buff) const;
-	/// Get square of maximum view distance at dark.
-	int getMaxViewDistanceAtDarkSq(const Armor *otherUnitArmor) const;
-	/// Get square of maximum view distance at day.
-	int getMaxViewDistanceAtDaySq(const Armor *otherUnitArmor) const;
+	int getMaxViewDistance(int baseVisibility, int nerf, int buff) const;
+	/// Get maximum view distance at dark.
+	int getMaxViewDistanceAtDark(const Armor *otherUnitArmor) const;
+	/// Get maximum view distance at day.
+	int getMaxViewDistanceAtDay(const Armor *otherUnitArmor) const;
 	/// Get the units's special ability.
 	int getSpecialAbility() const;
 	/// Set the units's respawn flag.
 	void setRespawn(bool respawn);
 	/// Get the units's respawn flag.
-	bool getRespawn();
+	bool getRespawn() const;
 	/// Get the units's rank string.
 	std::string getRankString() const;
 	/// Get the geoscape-soldier object.
@@ -441,6 +455,8 @@ public:
 	std::string getActiveHand() const;
 	/// Convert's unit to a faction
 	void convertToFaction(UnitFaction f);
+	/// Set health to 0
+	void kill();
 	/// Set health to 0 and set status dead
 	void instaKill();
 	/// Gets the unit's spawn unit.
@@ -501,7 +517,7 @@ public:
 	/// Set the flag for "floor above me" meaning stop rendering bubbles.
 	void setFloorAbove(bool floor);
 	/// Get the flag for "floor above me".
-	bool getFloorAbove();
+	bool getFloorAbove() const;
 	/// Get any utility weapon we may be carrying, or a built in one.
 	BattleItem *getUtilityWeapon(BattleType type);
 	/// Set fire damage form environment.
@@ -517,35 +533,39 @@ public:
 	/// Get special weapon.
 	BattleItem *getSpecialWeapon(BattleType type) const;
 	/// Checks if this unit is in hiding for a turn.
-	bool isHiding() {return _hidingForTurn; };
+	bool isHiding() const {return _hidingForTurn; };
 	/// Sets this unit is in hiding for a turn (or not).
 	void setHiding(bool hiding) { _hidingForTurn = hiding; };
 	/// Puts the unit in the corner to think about what he's done.
 	void goToTimeOut();
 	/// Recovers the unit's time units and energy.
 	void recoverTimeUnits();
-    /// Get the unit's mission statistics.
-    BattleUnitStatistics* getStatistics();
+	/// Get the unit's mission statistics.
+	BattleUnitStatistics* getStatistics();
 	/// Set the unit murderer's id.
 	void setMurdererId(int id);
 	/// Get the unit murderer's id.
 	int getMurdererId() const;
-    /// Set information on the unit's fatal shot.
-    void setFatalShotInfo(UnitSide side, UnitBodyPart bodypart);
-    /// Get information on the unit's fatal shot's side.
-    UnitSide getFatalShotSide() const;
-    /// Get information on the unit's fatal shot's body part.
-    UnitBodyPart getFatalShotBodyPart() const;
-    /// Get the unit murderer's weapon.
-    std::string getMurdererWeapon() const;
-    /// Set the unit murderer's weapon.
-    void setMurdererWeapon(std::string weapon);
-       /// Get the unit murderer's weapon's ammo.
-    std::string getMurdererWeaponAmmo() const;
-    /// Set the unit murderer's weapon's ammo.
-    void setMurdererWeaponAmmo(std::string weaponAmmo);
+	/// Set information on the unit's fatal shot.
+	void setFatalShotInfo(UnitSide side, UnitBodyPart bodypart);
+	/// Get information on the unit's fatal shot's side.
+	UnitSide getFatalShotSide() const;
+	/// Get information on the unit's fatal shot's body part.
+	UnitBodyPart getFatalShotBodyPart() const;
+	/// Get the unit murderer's weapon.
+	std::string getMurdererWeapon() const;
+	/// Set the unit murderer's weapon.
+	void setMurdererWeapon(std::string weapon);
+	/// Get the unit murderer's weapon's ammo.
+	std::string getMurdererWeaponAmmo() const;
+	/// Set the unit murderer's weapon's ammo.
+	void setMurdererWeaponAmmo(std::string weaponAmmo);
+	/// Set the unit mind controller's id.
+	void setMindControllerId(int id);
+	/// Get the unit mind controller's id.
+	int getMindControllerId() const;
+    
 };
 
 } //namespace OpenXcom
 
-#endif

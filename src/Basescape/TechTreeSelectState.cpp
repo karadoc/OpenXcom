@@ -155,9 +155,21 @@ void TechTreeSelectState::initLists()
 	const std::vector<std::string> &researchItems = _game->getMod()->getResearchList();
 	for (std::vector<std::string>::const_iterator i = researchItems.begin(); i != researchItems.end(); ++i)
 	{
+		if (Options::techTreeViewerSpoilerProtection)
+		{
+			if (!_parent->isDiscovered(*i))
+				continue;
+		}
 		std::wstring projectName = tr((*i));
 		for (auto & c : projectName) c = towupper(c);
-		if (projectName.find(searchString) == std::string::npos)
+		if (searchString == L"HOCUSPOCUS")
+		{
+			if (_parent->isDiscovered(*i))
+			{
+				continue;
+			}
+		}
+		else if (projectName.find(searchString) == std::string::npos)
 		{
 			continue;
 		}
@@ -172,9 +184,21 @@ void TechTreeSelectState::initLists()
 	const std::vector<std::string> &manufacturingItems = _game->getMod()->getManufactureList();
 	for (std::vector<std::string>::const_iterator i = manufacturingItems.begin(); i != manufacturingItems.end(); ++i)
 	{
+		if (Options::techTreeViewerSpoilerProtection)
+		{
+			if (!_parent->isDiscovered(*i))
+				continue;
+		}
 		std::wstring projectName = tr((*i));
 		for (auto & c : projectName) c = towupper(c);
-		if (projectName.find(searchString) == std::string::npos)
+		if (searchString == L"HOCUSPOCUS")
+		{
+			if (_parent->isDiscovered(*i))
+			{
+				continue;
+			}
+		}
+		else if (projectName.find(searchString) == std::string::npos)
 		{
 			continue;
 		}

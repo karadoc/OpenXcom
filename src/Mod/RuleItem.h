@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_RULEITEM_H
-#define OPENXCOM_RULEITEM_H
-
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
@@ -107,11 +105,18 @@ private:
 	int _bigSprite;
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
-	int _fireSound;
-	int _hitSound, _hitAnimation, _hitMissSound, _hitMissAnimation;
-	int _meleeSound, _meleeAnimation, _meleeMissSound, _meleeMissAnimation;
-	int _meleeHitSound, _explosionHitSound;
-	int _psiSound, _psiAnimation, _psiMissSound, _psiMissAnimation;
+	std::vector<int> _fireSound, _hitSound; 
+	int _hitAnimation;
+	std::vector<int> _hitMissSound;
+	int _hitMissAnimation;
+	std::vector<int> _meleeSound;
+	int _meleeAnimation;
+	std::vector<int> _meleeMissSound;
+	int _meleeMissAnimation;
+	std::vector<int> _meleeHitSound, _explosionHitSound, _psiSound;
+	int _psiAnimation;
+	std::vector<int> _psiMissSound;
+	int _psiMissAnimation;
 	int _power;
 	float _powerRangeReduction;
 	float _powerRangeThreshold;
@@ -123,9 +128,10 @@ private:
 	BattleType _battleType;
 	BattleFuseType _fuseType;
 	std::string _psiAttackName;
-	bool _twoHanded, _blockBothHands, _waypoint, _fixedWeapon, _fixedWeaponShow, _allowSelfHeal, _isConsumable, _isFireExtinguisher;
+	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _allowSelfHeal, _isConsumable, _isFireExtinguisher;
 	std::string _defaultInventorySlot;
-	int _invWidth, _invHeight;
+	std::vector<std::string> _supportedInventorySections;
+	int _waypoints, _invWidth, _invHeight;
 	int _painKiller, _heal, _stimulant;
 	BattleMediKitType _medikitType;
 	int _woundRecovery, _healthRecovery, _stunRecovery, _energyRecovery, _moraleRecovery, _painKillerRecovery;
@@ -133,7 +139,7 @@ private:
 	int _armor;
 	int _turretType;
 	int _aiUseDelay, _aiMeleeHitCount;
-	bool _recover, _liveAlien;
+	bool _recover, _ignoreInBaseDefense, _liveAlien;
 	int _liveAlienPrisonType;
 	int _attraction;
 	RuleItemUseCost _flatUse, _flatMelee, _flatThrow, _flatPrime;
@@ -163,6 +169,10 @@ private:
 	void loadCost(RuleItemUseCost& a, const YAML::Node& node, const std::string& name) const;
 	/// Load RuleItemUseCost as bool from yaml.
 	void loadPercent(RuleItemUseCost& a, const YAML::Node& node, const std::string& name) const;
+	/// Load sound vector from YAML.
+	void loadSoundVector(const YAML::Node &node, Mod *mod, std::vector<int> &vector);
+	/// Gets a random sound from a given vector.
+	int getRandomSound(const std::vector<int> &vector, int defaultValue = -1) const;
 public:
 	/// Name of class used in script.
 	static constexpr const char *ScriptName = "RuleItem";
@@ -209,14 +219,18 @@ public:
 	bool isTwoHanded() const;
 	/// Gets if the item can only be used by both hands.
 	bool isBlockingBothHands() const;
-	/// Gets if the item is a launcher.
-	bool isWaypoint() const;
 	/// Gets if the item is fixed.
 	bool isFixed() const;
 	/// Do show fixed weapon on unit.
 	bool getFixedShow() const;
 	/// Get name of the default inventory slot.
 	const std::string &getDefaultInventorySlot() const;
+	/// Gets the item's supported inventory sections.
+	const std::vector<std::string> &getSupportedInventorySections() const;
+	/// Checks if the item can be placed into a given inventory section.
+	bool canBePlacedIntoInventorySection(const std::string &inventorySection) const;
+	/// Gets if the item is a launcher.
+	int getWaypoints() const;
 	/// Gets the item's bullet sprite reference.
 	int getBulletSprite() const;
 	/// Gets the item's fire sound.
@@ -373,6 +387,8 @@ public:
 	int getArmor() const;
 	/// Gets the item's recoverability.
 	bool isRecoverable() const;
+	/// Checks if the item can be equipped in base defense mission.
+	bool canBeEquippedBeforeBaseDefense() const;
 	/// Gets the item's turret type.
 	int getTurretType() const;
 	/// Gets first turn when AI can use item.
@@ -466,5 +482,3 @@ public:
 };
 
 }
-
-#endif

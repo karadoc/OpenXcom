@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_ARMOR_H
-#define OPENXCOM_ARMOR_H
-
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
@@ -57,8 +55,9 @@ private:
 	std::vector<std::string> _builtInWeapons;
 	int _frontArmor, _sideArmor, _rearArmor, _underArmor, _drawingRoutine;
 	MovementType _movementType;
+	int _moveSound;
 	int _size, _weight, _visibilityAtDark, _visibilityAtDay, _personalLight;
-	int _activeCamouflage, _predatorVision, _heatVision, _psiVision;
+	int _camouflageAtDay, _camouflageAtDark, _antiCamouflageAtDay, _antiCamouflageAtDark, _heatVision, _psiVision;
 	float _damageModifier[DAMAGE_TYPES];
 	std::vector<int> _loftempsSet;
 	UnitStats _stats;
@@ -74,6 +73,7 @@ private:
 	ModScript::RecolorUnitParser::Container _recolorScript;
 	ModScript::SelectUnitParser::Container _spriteScript;
 	ModScript::ReactionUnitParser::Container _reacActionScript, _reacReactionScript;
+	ModScript::VisibilityUnitParser::Container _visibilityUnitScript;
 
 	std::vector<std::string> _units;
 	ScriptValues<Armor> _scriptValues;
@@ -113,6 +113,8 @@ public:
 	int getDrawingRoutine() const;
 	/// DO NOT USE THIS FUNCTION OUTSIDE THE BATTLEUNIT CONSTRUCTOR OR I WILL HUNT YOU DOWN.
 	MovementType getMovementType() const;
+	/// Gets the move sound id. Overrides default/unit's move sound. To be used in BattleUnit constructors only too!
+	int getMoveSound() const;
 	/// Gets whether this is a normal or big unit.
 	int getSize() const;
 	/// Gets how big space armor ocupy in craft.
@@ -157,10 +159,14 @@ public:
 	int getVisibilityAtDark() const;
 	/// Gets max view distance at day in BattleScape.
 	int getVisibilityAtDay() const;
-	/// Gets info about camouflage effect, if any.
-	int getActiveCamouflage() const;
-	/// Gets info about better vision, if any.
-	int getPredatorVision() const;
+	/// Gets info about camouflage at day.
+	int getCamouflageAtDay() const;
+	/// Gets info about camouflage at dark.
+	int getCamouflageAtDark() const;
+	/// Gets info about anti camouflage at day.
+	int getAntiCamouflageAtDay() const;
+	/// Gets info about anti camouflage at dark.
+	int getAntiCamouflageAtDark() const;
 	/// Gets info about heat vision.
 	int getHeatVision() const;
 	/// Gets info about psi vision.
@@ -203,6 +209,8 @@ public:
 	const ModScript::ReactionUnitParser::Container &getReacActionScript() const;
 	/// Gets script used to calculate reaction chance.
 	const ModScript::ReactionUnitParser::Container &getReacReactionScript() const;
+	/// Gets script used to calculate visibility.
+	const ModScript::VisibilityUnitParser::Container &getVisibilityUnitScript() const;
 	/// Gets the armor's units.
 	const std::vector<std::string> &getUnits() const;
 	/// Gets the index of the sprite in the CustomArmorPreview sprite set
@@ -210,5 +218,3 @@ public:
 };
 
 }
-
-#endif

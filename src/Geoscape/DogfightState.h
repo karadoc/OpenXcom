@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_DOGFIGHTSTATE_H
-#define OPENXCOM_DOGFIGHTSTATE_H
-
 #include "../Engine/State.h"
 #include "../Mod/RuleCraft.h"
 #include <vector>
@@ -28,7 +26,7 @@ namespace OpenXcom
 {
 
 const int STANDOFF_DIST = 560;
-enum ColorNames { CRAFT_MIN, CRAFT_MAX, RADAR_MIN, RADAR_MAX, DAMAGE_MIN, DAMAGE_MAX, BLOB_MIN, RANGE_METER, DISABLED_WEAPON, DISABLED_AMMO, DISABLED_RANGE };
+enum ColorNames { CRAFT_MIN, CRAFT_MAX, RADAR_MIN, RADAR_MAX, DAMAGE_MIN, DAMAGE_MAX, BLOB_MIN, RANGE_METER, DISABLED_WEAPON, DISABLED_AMMO, DISABLED_RANGE, SHIELD_MIN, SHIELD_MAX };
 
 class ImageButton;
 class Text;
@@ -49,7 +47,7 @@ class DogfightState : public State
 private:
 	GeoscapeState *_state;
 	Timer *_craftDamageAnimTimer;
-	Surface *_window, *_battle, *_range[RuleCraft::WeaponMax], *_damage;
+	Surface *_window, *_battle, *_range[RuleCraft::WeaponMax], *_damage, *_craftSprite, *_craftShield;
 	InteractiveSurface *_btnMinimize, *_preview, *_weapon[RuleCraft::WeaponMax];
 	ImageButton *_btnStandoff, *_btnCautious, *_btnStandard, *_btnAggressive, *_btnDisengage, *_btnUfo;
 	ImageButton *_mode;
@@ -68,9 +66,8 @@ private:
 	int _weaponNum;
 	int _pilotAccuracyBonus, _pilotDodgeBonus, _pilotApproachSpeedModifier;
 	bool _firedAtLeastOnce;
-
-	// craft min/max, radar min/max, damage min/max
-	int _colors[11];
+	// craft min/max, radar min/max, damage min/max, shield min/max
+	int _colors[13];
 	// Ends the dogfight.
 	void endDogfight();
 
@@ -127,6 +124,8 @@ public:
 	void animateCraftDamage();
 	/// Updates craft damage.
 	void drawCraftDamage();
+	/// Draws craft shield on sprite
+	void drawCraftShield();
 	/// Toggles usage of weapons.
 	void weaponClick(Action *action);
 	/// Changes colors of weapon icons, range indicators and ammo texts base on current weapon state.
@@ -156,5 +155,3 @@ public:
 };
 
 }
-
-#endif

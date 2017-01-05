@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -392,6 +392,15 @@ void BasescapeState::viewRightClick(Action *)
 	if (f == 0)
 	{
 		_game->pushState(new BaseInfoState(_base, this));
+	}
+	else if (f->getRules()->isMindShield())
+	{
+		if (f->getBuildTime() == 0)
+		{
+			f->setDisabled(!f->getDisabled());
+			_view->draw();
+			_mini->draw();
+		}
 	}
 	else if (f->getRules()->getCrafts() > 0)
 	{

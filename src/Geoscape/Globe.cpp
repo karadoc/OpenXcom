@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#define _USE_MATH_DEFINES
 #include "Globe.h"
-#include <cmath>
 #include <algorithm>
 #include "../fmath.h"
 #include "../Engine/Action.h"
@@ -88,7 +86,7 @@ struct GlobeStaticData
 	 * @param y cord of point where we getting this vector
 	 * @return normal vector of sphere surface
 	 */
-	inline Cord circle_norm(double ox, double oy, double r, double x, double y)
+	static inline Cord circle_norm(double ox, double oy, double r, double x, double y)
 	{
 		const double limit = r*r;
 		const double norm = 1./r;
@@ -399,8 +397,8 @@ double Globe::lastVisibleLat(double lon) const
 Polygon* Globe::getPolygonFromLonLat(double lon, double lat) const
 {
 	const double zDiscard=0.75f;
-    double coslat = cos(lat);
-    double sinlat = sin(lat);
+	double coslat = cos(lat);
+	double sinlat = sin(lat);
 
 	for (std::list<Polygon*>::iterator i = _rules->getPolygons()->begin(); i != _rules->getPolygons()->end(); ++i)
 	{
@@ -747,7 +745,7 @@ std::vector<Target*> Globe::getTargets(int x, int y, bool craft) const
 		}
 	}
 	for (std::vector<AlienBase*>::iterator i = _game->getSavedGame()->getAlienBases()->begin(); i != _game->getSavedGame()->getAlienBases()->end(); ++i)
- 	{
+	{
 		if (!(*i)->isDiscovered())
 		{
 			continue;
@@ -851,7 +849,7 @@ void Globe::blink()
 {
 	_blink = -_blink;
 
-	for (size_t i = 0; i < _markerSet->getTotalFrames(); ++i)
+	for (size_t i = 0; i != _markerSet->getTotalFrames(); ++i)
 	{
 		if (i != CITY_MARKER)
 			_markerSet->getFrame(i)->offset(_blink);
@@ -887,10 +885,10 @@ void Globe::draw()
 	drawOcean();
 	drawLand();
 	drawRadars();
+	drawFlights();
 	drawShadow();
 	drawMarkers();
 	drawDetail();
-	drawFlights();
 }
 
 
@@ -1162,30 +1160,31 @@ void Globe::drawGlobeCircle(double lat, double lon, double radius, int segments)
 			continue;
 		}
 		if (!pointBack(lon1,lat1))
-			XuLine(_radars, this, x, y, x2, y2, 4);
+			XuLine(_radars, this, x, y, x2, y2, 6);
 		x2=x; y2=y;
 	}
 }
-
 
 void Globe::setNewBaseHover(void)
 {
 	_hover=true;
 }
+
 void Globe::unsetNewBaseHover(void)
 {
 	_hover=false;
 }
-bool Globe::getNewBaseHover(void)
+
+bool Globe::getNewBaseHover(void) const
 {
 	return _hover;
 }
+
 void Globe::setNewBaseHoverPos(double lon, double lat)
 {
 	_hoverLon=lon;
 	_hoverLat=lat;
 }
-
 
 void Globe::drawVHLine(Surface *surface, double lon1, double lat1, double lon2, double lat2, Uint8 color)
 {
@@ -1273,7 +1272,6 @@ void Globe::drawDetail()
 		label->setPalette(getPalette());
 		label->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
 		label->setAlign(ALIGN_CENTER);
-		label->setColor(COUNTRY_LABEL_COLOR);
 
 		Sint16 x, y;
 		for (std::vector<Country*>::iterator i = _game->getSavedGame()->getCountries()->begin(); i != _game->getSavedGame()->getCountries()->end(); ++i)
@@ -1288,11 +1286,48 @@ void Globe::drawDetail()
 			label->setX(x - 50);
 			label->setY(y);
 			label->setText(_game->getLanguage()->getString((*i)->getRules()->getType()));
+			label->setColor(COUNTRY_LABEL_COLOR);
+			if ((*i)->getRules()->getLabelColor() > 0)
+			{
+				label->setColor((*i)->getRules()->getLabelColor());
+			}
 			label->blit(_countries);
 		}
 
 		delete label;
 	}
+
+	// Draw extra globe labels
+	Text *label = new Text(120, 18, 0, 0);
+	label->setPalette(getPalette());
+	label->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
+	label->setAlign(ALIGN_CENTER);
+
+	Sint16 x, y;
+	for (std::vector<std::string>::const_iterator i = _game->getMod()->getExtraGlobeLabelsList().begin(); i != _game->getMod()->getExtraGlobeLabelsList().end(); ++i)
+	{
+		RuleCountry *rule = _game->getMod()->getExtraGlobeLabel((*i), true);
+		if (_zoom >= rule->getZoomLevel())
+		{
+			// Don't draw if label is facing back
+			if (pointBack(rule->getLabelLongitude(), rule->getLabelLatitude()))
+				continue;
+
+			// Convert coordinates
+			polarToCart(rule->getLabelLongitude(), rule->getLabelLatitude(), &x, &y);
+
+			label->setX(x - 60);
+			label->setY(y);
+			label->setText(_game->getLanguage()->getString(rule->getType()));
+			label->setColor(COUNTRY_LABEL_COLOR);
+			if (rule->getLabelColor() > 0)
+			{
+				label->setColor(rule->getLabelColor());
+			}
+			label->blit(_countries);
+		}
+	}
+	delete label;
 
 	// Draw the city and base markers
 	if (_zoom >= 3)
@@ -1600,10 +1635,13 @@ void Globe::mouseOver(Action *action, State *state)
 
 		_isMouseScrolled = true;
 
-		// Set the mouse cursor back
-		SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
-		SDL_WarpMouse((_game->getScreen()->getWidth() - 100) / 2 , _game->getScreen()->getHeight() / 2);
-		SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+		if (Options::touchEnabled == false)
+		{
+			// Set the mouse cursor back
+			SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
+			SDL_WarpMouse((_game->getScreen()->getWidth() - 100) / 2 , _game->getScreen()->getHeight() / 2);
+			SDL_EventState(SDL_MOUSEMOTION, SDL_ENABLE);
+		}
 
 		// Check the threshold
 		_totalMouseMoveX += action->getDetails()->motion.xrel;
@@ -1626,13 +1664,18 @@ void Globe::mouseOver(Action *action, State *state)
 			center(_cenLon + newLon / (Options::geoScrollSpeed / 10), _cenLat + newLat / (Options::geoScrollSpeed / 10));
 		}
 
-		// We don't want to look the mouse-cursor jumping :)
-		action->setMouseAction(_xBeforeMouseScrolling, _yBeforeMouseScrolling, getX(), getY());
-		action->getDetails()->motion.x = _xBeforeMouseScrolling; action->getDetails()->motion.y = _yBeforeMouseScrolling;
+		if (Options::touchEnabled == false)
+		{
+			// We don't want to see the mouse-cursor jumping :)
+			action->setMouseAction(_xBeforeMouseScrolling, _yBeforeMouseScrolling, getX(), getY());
+			action->getDetails()->motion.x = _xBeforeMouseScrolling; action->getDetails()->motion.y = _yBeforeMouseScrolling;
+		}
+
 		_game->getCursor()->handle(action);
 	}
 
-	if (_isMouseScrolling &&
+	if (Options::touchEnabled == false &&
+		_isMouseScrolling &&
 		(action->getDetails()->motion.x != _xBeforeMouseScrolling ||
 		action->getDetails()->motion.y != _yBeforeMouseScrolling))
 	{
@@ -1888,4 +1931,5 @@ void Globe::stopScrolling(Action *action)
 	SDL_WarpMouse(_xBeforeMouseScrolling, _yBeforeMouseScrolling);
 	action->setMouseAction(_xBeforeMouseScrolling, _yBeforeMouseScrolling, getX(), getY());
 }
+
 }

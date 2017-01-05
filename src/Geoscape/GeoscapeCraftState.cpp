@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -35,6 +35,7 @@
 #include "../Savegame/Waypoint.h"
 #include "SelectDestinationState.h"
 #include "../Engine/Options.h"
+#include "Globe.h"
 
 namespace OpenXcom
 {
@@ -65,10 +66,12 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 	_txtSpeed = new Text(210, 9, 32, offset_upper + 60);
 	_txtMaxSpeed = new Text(210, 9, 32, offset_upper + 68);
 	_txtAltitude = new Text(210, 9, 32, offset_upper + 76);
-	_txtSoldier = new Text(60, 9, 164, offset_upper + 68);
-	_txtHWP = new Text(80, 9, 164, offset_upper + 76);
+	_txtSoldier = new Text(60, 9, 164, offset_upper + 60);
+	_txtHWP = new Text(80, 9, 164, offset_upper + 68);
 	_txtFuel = new Text(130, 9, 32, offset_upper + 84);
 	_txtDamage = new Text(80, 9, 164, offset_upper + 84);
+	_txtShield = new Text(80, 9, 164, offset_upper + 76);
+
 	for(int i = 0; i < _weaponNum; ++i)
 	{
 		_txtWeaponName[i] = new Text(130, 9, 32, offset_upper + 92 + 8*i);
@@ -96,6 +99,7 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 	add(_txtAltitude, "text3", "geoCraftScreens");
 	add(_txtFuel, "text3", "geoCraftScreens");
 	add(_txtDamage, "text3", "geoCraftScreens");
+	add(_txtShield, "text3", "geoCraftScreens");
 	for(int i = 0; i < _weaponNum; ++i)
 	{
 		add(_txtWeaponName[i], "text3", "geoCraftScreens");
@@ -189,11 +193,19 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 	_txtMaxSpeed->setText(tr("STR_MAXIMUM_SPEED_UC").arg(Text::formatNumber(_craft->getCraftStats().speedMax)));
 
 	std::string altitude = _craft->getAltitude() == "STR_GROUND" ? "STR_GROUNDED" : _craft->getAltitude();
+	bool underwater = _craft->getRules()->getMaxDepth() > 0;
+	if (underwater && !_globe->insideLand(_craft->getLongitude(), _craft->getLatitude()))
+	{
+		altitude = "STR_AIRBORNE";
+	}
 	_txtAltitude->setText(tr("STR_ALTITUDE_").arg(tr(altitude)));
 
 	_txtFuel->setText(tr("STR_FUEL").arg(Text::formatPercentage(_craft->getFuelPercentage())));
 
 	_txtDamage->setText(tr("STR_DAMAGE_UC_").arg(Text::formatPercentage(_craft->getDamagePercentage())));
+
+	_txtShield->setText(tr("STR_SHIELD").arg(Text::formatPercentage(_craft->getShieldPercentage())));
+	_txtShield->setVisible(_craft->getShieldCapacity() != 0);
 
 	for(int i = 0; i < _weaponNum; ++i)
 	{

@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_BATTLEITEM_H
-#define OPENXCOM_BATTLEITEM_H
-
 #include <yaml-cpp/yaml.h>
 
 namespace OpenXcom
@@ -160,6 +158,8 @@ public:
 	bool getGlow() const;
 	/// Gets range of glow in tiles.
 	int getGlowRange() const;
+	/// Calculate range need to be updated by changing this weapon.
+	int getVisibilityUpdateRange() const;
 	/// Sets a flag on the item indicating if this is a clip in a weapon or not.
 	void setIsAmmo(bool ammo);
 	/// Checks a flag on the item to see if it's a clip in a weapon or not.
@@ -167,5 +167,3 @@ public:
 };
 
 }
-
-#endif

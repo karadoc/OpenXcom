@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_NEXTTURNSTATE_H
-#define OPENXCOM_NEXTTURNSTATE_H
-
 #include "../Engine/State.h"
 #include "../Savegame/BattleUnit.h"
 #include "../Mod/RuleStartingCondition.h"
@@ -48,6 +46,8 @@ private:
 	Surface *_bg;
 	/// Applies a given environmental condition effects to a given faction.
 	bool applyEnvironmentalConditionToFaction(UnitFaction faction, EnvironmentalCondition condition);
+	/// Checks if bug hunt mode should be activated or not.
+	void checkBugHuntMode();
 public:
 	/// Creates the Next Turn state.
 	NextTurnState(SavedBattleGame *battleGame, BattlescapeState *state);
@@ -63,5 +63,3 @@ public:
 };
 
 }
-
-#endif

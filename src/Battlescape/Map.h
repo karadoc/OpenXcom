@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_MAP_H
-#define OPENXCOM_MAP_H
-
 #include "../Engine/InteractiveSurface.h"
 #include "../Engine/Options.h"
 #include "Position.h"
@@ -40,6 +38,8 @@ class Text;
 class Tile;
 
 enum CursorType { CT_NONE, CT_NORMAL, CT_AIM, CT_PSI, CT_WAYPOINT, CT_THROW };
+enum MapDataType : int;
+
 /**
  * Interactive map of the battlescape.
  */
@@ -55,16 +55,18 @@ private:
 	Timer *_fadeTimer;
 	int _fadeShade;
 	bool _nightVisionOn;
-	int _nvColor, _nvColorDef;
+	int _nvColor;
 	int _bgColor;
 	Game *_game;
 	SavedBattleGame *_save;
 	Surface *_arrow;
+	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator;
 	int _spriteWidth, _spriteHeight;
 	int _selectorX, _selectorY;
 	int _mouseX, _mouseY;
 	CursorType _cursorType;
 	int _cursorSize;
+	int _activeWeaponUfopediaArticleUnlocked; // -1 = unknown, 0 = locked, 1 = unlocked
 	int _animFrame;
 	Projectile *_projectile;
 	bool _projectileInFOV;
@@ -80,7 +82,8 @@ private:
 	SurfaceSet *_projectileSet;
 
 	void drawTerrain(Surface *surface);
-	int getTerrainLevel(Position pos, int size);
+	int getTerrainLevel(Position pos, int size) const;
+	int getWallShade(MapDataType part, Tile* tileFrot, Tile* tileBehind);
 	int _iconHeight, _iconWidth, _messageColor;
 	const std::vector<Uint8> *_transparencies;
 public:
@@ -145,26 +148,23 @@ public:
 	/// Special handling for updating map width.
 	void setWidth(int width);
 	/// Get the vertical position of the hidden movement screen.
-	int getMessageY();
+	int getMessageY() const;
 	/// Get the icon height.
-	int getIconHeight();
+	int getIconHeight() const;
 	/// Get the icon width.
-	int getIconWidth();
+	int getIconWidth() const;
 	/// Convert a map position to a sound angle.
-	int getSoundAngle(Position pos);
+	int getSoundAngle(Position pos) const;
 	/// Reset the camera smoothing bool.
 	void resetCameraSmoothing();
 	/// Set whether the screen should "flash" or not.
 	void setBlastFlash(bool flash);
 	/// Check if the screen is flashing this.
-	bool getBlastFlash();
+	bool getBlastFlash() const;
 	/// Modify shade for fading
 	int reShade(Tile *tile);
 	/// toggle the night-vision mode
 	void toggleNightVision();
-
 };
 
 }
-
-#endif

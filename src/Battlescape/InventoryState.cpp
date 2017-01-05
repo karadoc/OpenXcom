@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -19,6 +19,7 @@
 #include "InventoryState.h"
 #include "InventoryLoadState.h"
 #include "InventorySaveState.h"
+#include <algorithm>
 #include "Inventory.h"
 #include "../Basescape/SoldierArmorState.h"
 #include "../Basescape/SoldierAvatarState.h"
@@ -43,6 +44,7 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/BattleUnit.h"
 #include "../Savegame/Craft.h"
+#include "../Savegame/ItemContainer.h"
 #include "../Savegame/Soldier.h"
 #include "../Mod/RuleItem.h"
 #include "../Mod/RuleInventory.h"
@@ -50,8 +52,10 @@
 #include "../Engine/Options.h"
 #include "UnitInfoState.h"
 #include "BattlescapeState.h"
+#include "BattlescapeGenerator.h"
 #include "TileEngine.h"
 #include "../Mod/RuleInterface.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -66,7 +70,7 @@ static const int _applyTemplateBtnY  = 113;
  * @param tu Does Inventory use up Time Units?
  * @param parent Pointer to parent Battlescape.
  */
-InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : _tu(tu), _lightUpdated(false), _parent(parent), _base(base), _reloadUnit(false), _globalLayoutIndex(-1)
+InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base, bool noCraft) : _tu(tu), _noCraft(noCraft), _lightUpdated(false), _parent(parent), _base(base), _reloadUnit(false), _globalLayoutIndex(-1)
 {
 	_battleGame = _game->getSavedGame()->getSavedBattle();
 
@@ -100,6 +104,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnUnload = new BattlescapeButton(32, 25, 288, 32);
 	_btnGround = new BattlescapeButton(32, 15, 289, 137);
 	_btnRank = new BattlescapeButton(26, 23, 0, 0);
+	_btnArmor = new BattlescapeButton(40, 70, 60, 65);
 	_btnCreateTemplate = new BattlescapeButton(32, 22, _templateBtnX, _createTemplateBtnY);
 	_btnApplyTemplate = new BattlescapeButton(32, 22, _templateBtnX, _applyTemplateBtnY);
 	_selAmmo = new Surface(RuleInventory::HAND_W * RuleInventory::SLOT_W, RuleInventory::HAND_H * RuleInventory::SLOT_H, 272, 88);
@@ -131,6 +136,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	add(_btnUnload, "buttonUnload", "inventory", _bg);
 	add(_btnGround, "buttonGround", "inventory", _bg);
 	add(_btnRank, "rank", "inventory", _bg);
+	add(_btnArmor, "buttonOK", "inventory", _bg);
 	add(_btnCreateTemplate, "buttonCreate", "inventory", _bg);
 	add(_btnApplyTemplate, "buttonApply", "inventory", _bg);
 	add(_selAmmo);
@@ -173,7 +179,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnOkClick, Options::keyBattleInventory);
 	_btnOk->onKeyboardPress((ActionHandler)&GeoscapeState::btnUfopaediaClick, Options::keyGeoUfopedia);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnArmorClick, Options::keyBattleAbort);
-	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnAvatarClick, Options::keyBattleMap);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnArmorClickRight, Options::keyBattleMap);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnInventoryLoadClick, Options::keyQuickLoad);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnInventorySaveClick, Options::keyQuickSave);
 	_btnOk->setTooltip("STR_OK");
@@ -207,6 +213,12 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnRank->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnRank->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
 
+	_btnArmor->onMouseClick((ActionHandler)&InventoryState::btnArmorClick);
+	_btnArmor->onMouseClick((ActionHandler)&InventoryState::btnArmorClickRight, SDL_BUTTON_RIGHT);
+	_btnArmor->onMouseClick((ActionHandler)&InventoryState::btnArmorClickMiddle, SDL_BUTTON_MIDDLE);
+	_btnArmor->onMouseIn((ActionHandler)&InventoryState::txtArmorTooltipIn);
+	_btnArmor->onMouseOut((ActionHandler)&InventoryState::txtArmorTooltipOut);
+
 	_btnCreateTemplate->onMouseClick((ActionHandler)&InventoryState::btnCreateTemplateClick);
 	_btnCreateTemplate->onKeyboardPress((ActionHandler)&InventoryState::btnCreateTemplateClick, Options::keyInvCreateTemplate);
 	_btnCreateTemplate->setTooltip("STR_CREATE_INVENTORY_TEMPLATE");
@@ -216,6 +228,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnApplyTemplate->onMouseClick((ActionHandler)&InventoryState::btnApplyTemplateClick);
 	_btnApplyTemplate->onKeyboardPress((ActionHandler)&InventoryState::btnApplyTemplateClick, Options::keyInvApplyTemplate);
 	_btnApplyTemplate->onKeyboardPress((ActionHandler)&InventoryState::onClearInventory, Options::keyInvClear);
+	_btnApplyTemplate->onKeyboardPress((ActionHandler)&InventoryState::onAutoequip, Options::keyInvAutoEquip);
 	_btnApplyTemplate->setTooltip("STR_APPLY_INVENTORY_TEMPLATE");
 	_btnApplyTemplate->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnApplyTemplate->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
@@ -223,7 +236,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base) : 
 	_btnQuickSearch->setHighContrast(true);
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&InventoryState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	_btnOk->onKeyboardRelease((ActionHandler)&InventoryState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 
@@ -280,7 +293,7 @@ InventoryState::~InventoryState()
 		}
 		Tile *inventoryTile = _battleGame->getSelectedUnit()->getTile();
 		_battleGame->getTileEngine()->applyGravity(inventoryTile);
-		_battleGame->getTileEngine()->calculateTerrainLighting(); // dropping/picking up flares
+		_battleGame->getTileEngine()->calculateLighting(LL_ITEMS); // dropping/picking up flares
 		_battleGame->getTileEngine()->recalculateFOV();
 	}
 	else
@@ -399,6 +412,10 @@ void InventoryState::init()
 			// refresh ui
 			_inv->arrangeGround(false); // calls drawItems() too
 
+			// reset armor tooltip
+			_currentTooltip = "";
+			_txtItem->setText(L"");
+
 			// reload done
 			_reloadUnit = false;
 		}
@@ -420,7 +437,7 @@ void InventoryState::init()
 			ss << gender;
 			ss << (int)s->getLook() + (s->getLookVariant() & (15 >> i)) * 4;
 			ss << ".SPK";
-			surf = _game->getMod()->getSurface(ss.str());
+			surf = _game->getMod()->getSurface(ss.str(), false);
 			if (surf)
 			{
 				break;
@@ -431,20 +448,20 @@ void InventoryState::init()
 			ss.str("");
 			ss << look;
 			ss << ".SPK";
-			surf = _game->getMod()->getSurface(ss.str());
+			surf = _game->getMod()->getSurface(ss.str(), true);
 		}
 		surf->blit(_soldier);
 	}
 	else
 	{
-		Surface *armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory());
+		Surface *armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory(), false);
 		if (!armorSurface)
 		{
-			armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory() + ".SPK");
+			armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory() + ".SPK", false);
 		}
 		if (!armorSurface)
 		{
-			armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory() + "M0.SPK");
+			armorSurface = _game->getMod()->getSurface(unit->getArmor()->getSpriteInventory() + "M0.SPK", false);
 		}
 		if (armorSurface)
 		{
@@ -626,7 +643,7 @@ void InventoryState::btnArmorClick(Action *action)
  * Opens the Avatar Selection GUI
  * @param action Pointer to an action.
  */
-void InventoryState::btnAvatarClick(Action *action)
+void InventoryState::btnArmorClickRight(Action *action)
 {
 	if (_base == 0)
 	{
@@ -650,6 +667,20 @@ void InventoryState::btnAvatarClick(Action *action)
 		}
 
 		_game->pushState(new SoldierAvatarState(_base, soldierIndex));
+	}
+}
+
+/**
+* Opens Ufopaedia entry for the corresponding armor.
+* @param action Pointer to an action.
+*/
+void InventoryState::btnArmorClickMiddle(Action *action)
+{
+	BattleUnit *unit = _inv->getSelectedUnit();
+	if (unit != 0)
+	{
+		std::string articleId = unit->getArmor()->getType();
+		Ufopaedia::openArticle(_game, articleId);
 	}
 }
 
@@ -776,10 +807,6 @@ void InventoryState::btnOkClick(Action *)
 
 			(*j)->prepareNewTurn();
 		}
-	}
-	if (_battleGame->getTileEngine())
-	{
-		updateLighting();
 	}
 }
 
@@ -947,7 +974,7 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 	std::vector<BattleItem*> *unitInv       = unit->getInventory();
 	Tile                     *groundTile    = unit->getTile();
 	std::vector<BattleItem*> *groundInv     = groundTile->getInventory();
-	RuleInventory            *groundRuleInv = _game->getMod()->getInventory("STR_GROUND");
+	RuleInventory            *groundRuleInv = _game->getMod()->getInventory("STR_GROUND", true);
 
 	_clearInventory(_game, unitInv, groundTile, false);
 
@@ -960,7 +987,7 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 	{
 		// search for template item in ground inventory
 		std::vector<BattleItem*>::iterator groundItem;
-		const bool needsAmmo = !_game->getMod()->getItem((*templateIt)->getItemType())->getCompatibleAmmo()->empty();
+		const bool needsAmmo = !_game->getMod()->getItem((*templateIt)->getItemType(), true)->getCompatibleAmmo()->empty();
 		bool found = false;
 		bool rescan = true;
 		while (rescan)
@@ -1000,7 +1027,7 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 					if (!_inv->overlapItems(
 						unit,
 						*groundItem,
-						_game->getMod()->getInventory((*templateIt)->getSlot()),
+						_game->getMod()->getInventory((*templateIt)->getSlot(), true),
 						(*templateIt)->getSlotX(),
 						(*templateIt)->getSlotY()))
 					{
@@ -1092,7 +1119,7 @@ void InventoryState::refreshMouse()
 
 void InventoryState::onClearInventory(Action *)
 {
-	// don't accept clicks when moving items
+	// don't act when moving items
 	if (_inv->getSelectedItem() != 0)
 	{
 		return;
@@ -1113,6 +1140,35 @@ void InventoryState::onClearInventory(Action *)
 	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
 }
 
+void InventoryState::onAutoequip(Action *)
+{
+	// don't act when moving items
+	if (_inv->getSelectedItem() != 0)
+	{
+		return;
+	}
+
+	BattleUnit               *unit          = _battleGame->getSelectedUnit();
+	Tile                     *groundTile    = unit->getTile();
+	std::vector<BattleItem*> *groundInv     = groundTile->getInventory();
+	Mod                      *mod           = _game->getMod();
+	RuleInventory            *groundRuleInv = mod->getInventory("STR_GROUND", true);
+	int                       worldShade    = _battleGame->getGlobalShade();
+	SavedBattleGame           dummy{ mod };
+
+	std::vector<BattleUnit*> units;
+	units.push_back(unit);
+	BattlescapeGenerator::autoEquip(units, mod, &dummy, groundInv, groundRuleInv, worldShade, true, true);
+
+	// refresh ui
+	_inv->arrangeGround(false);
+	updateStats();
+	refreshMouse();
+
+	// give audio feedback
+	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
+}
+
 /**
  * Updates item info.
  * @param action Pointer to an action.
@@ -1120,23 +1176,6 @@ void InventoryState::onClearInventory(Action *)
 void InventoryState::invClick(Action *act)
 {
 	updateStats();
-	if (_tu && act->isMouseRightClick())
-	{
-		updateLighting();
-	}
-}
-
-/**
- * Update lighting in case of unit pick torch/electroflare to hands.
- */
-void InventoryState::updateLighting()
-{
-	if (!_lightUpdated)
-	{
-		_lightUpdated = true;
-		_battleGame->getTileEngine()->calculateUnitLighting();
-		_battleGame->getTileEngine()->calculateTerrainLighting();
-	}
 }
 
 /**
@@ -1245,6 +1284,72 @@ void InventoryState::invMouseOut(Action *)
 	updateTemplateButtons(!_tu);
 }
 
+void InventoryState::onMoveGroundInventoryToBase(Action *)
+{
+	// don't act when moving items
+	if (_inv->getSelectedItem() != 0)
+	{
+		return;
+	}
+
+	if (_base == 0)
+	{
+		// equipment just before the mission (=after briefing) or during the mission
+		return;
+	}
+
+	if (_noCraft)
+	{
+		// pre-equippping in the base, but *without* a craft
+		return;
+	}
+
+	// ok, which craft?
+	BattleUnit *unit = _battleGame->getSelectedUnit();
+	Soldier *s = unit->getGeoscapeSoldier();
+	Craft *c = s->getCraft();
+
+	if (c == 0 || c->getStatus() == "STR_OUT")
+	{
+		// we're either not in a craft or not in a hangar (should not happen, but just in case)
+		return;
+	}
+		
+	std::vector<BattleItem*> *unitInv = unit->getInventory();
+	Tile                     *groundTile = unit->getTile();
+	std::vector<BattleItem*> *groundInv = groundTile->getInventory();
+
+	// step 1: move stuff from craft to base
+	for (std::vector<BattleItem*>::iterator i = groundInv->begin(); i != groundInv->end(); ++i)
+	{
+		// don't forget the ammo!
+		if ((*i)->getAmmoItem())
+		{
+			c->getItems()->removeItem((*i)->getAmmoItem()->getRules()->getType());
+			_base->getStorageItems()->addItem((*i)->getAmmoItem()->getRules()->getType());
+		}
+		c->getItems()->removeItem((*i)->getRules()->getType());
+		_base->getStorageItems()->addItem((*i)->getRules()->getType());
+	}
+
+	// step 2: clear ground
+	for (std::vector<BattleItem*>::iterator i = groundInv->begin(); i != groundInv->end(); )
+	{
+		(*i)->setOwner(NULL);
+		BattleItem *item = *i;
+		i = groundInv->erase(i);
+		_game->getSavedGame()->getSavedBattle()->removeItem(item);
+	}
+
+	// refresh ui
+	_inv->arrangeGround(false);
+	updateStats();
+	refreshMouse();
+
+	// give audio feedback
+	_game->getMod()->getSoundByDepth(_battleGame->getDepth(), Mod::ITEM_DROP)->play();
+}
+
 /**
  * Takes care of any events from the core game engine.
  * @param action Pointer to an action.
@@ -1260,6 +1365,13 @@ void InventoryState::handle(Action *action)
 		if (action->getDetails()->key.keysym.sym >= SDLK_1 && action->getDetails()->key.keysym.sym <= SDLK_9)
 		{
 			btnGlobalEquipmentLayoutClick(action);
+		}
+		if (action->getDetails()->key.keysym.sym == Options::keyInvClear)
+		{
+			if ((SDL_GetModState() & KMOD_CTRL) != 0 && (SDL_GetModState() & KMOD_ALT) != 0)
+			{
+				onMoveGroundInventoryToBase(action);
+			}
 		}
 	}
 
@@ -1307,6 +1419,52 @@ void InventoryState::txtTooltipOut(Action *action)
 	}
 }
 
+/**
+* Shows a tooltip for the paperdoll's armor.
+* @param action Pointer to an action.
+*/
+void InventoryState::txtArmorTooltipIn(Action *action)
+{
+	if (_inv->getSelectedItem() == 0)
+	{
+		BattleUnit *unit = _inv->getSelectedUnit();
+		if (unit != 0)
+		{
+			action->getSender()->setTooltip(unit->getArmor()->getType());
+			_currentTooltip = action->getSender()->getTooltip();
+			if (Options::showItemNameAndWeightInInventory)
+			{
+				std::wostringstream ss;
+				ss << tr(_currentTooltip);
+				ss << L" [";
+				ss << unit->getArmor()->getWeight();
+				ss << L"]";
+				_txtItem->setText(ss.str().c_str());
+			}
+			else
+			{
+				_txtItem->setText(tr(_currentTooltip));
+			}
+		}
+	}
+}
+
+/**
+* Clears the armor tooltip text.
+* @param action Pointer to an action.
+*/
+void InventoryState::txtArmorTooltipOut(Action *action)
+{
+	if (_inv->getSelectedItem() == 0)
+	{
+		if (_currentTooltip == action->getSender()->getTooltip())
+		{
+			_currentTooltip = "";
+			_txtItem->setText(L"");
+		}
+	}
+}
+
 void InventoryState::updateTemplateButtons(bool isVisible)
 {
 	if (isVisible)
@@ -1334,4 +1492,5 @@ void InventoryState::updateTemplateButtons(bool isVisible)
 		_btnApplyTemplate->clear();
 	}
 }
+
 }

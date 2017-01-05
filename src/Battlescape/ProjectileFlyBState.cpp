@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,8 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#define _USE_MATH_DEFINES
-#include <cmath>
+#include <algorithm>
 #include "ProjectileFlyBState.h"
 #include "ExplosionBState.h"
 #include "Projectile.h"
@@ -33,11 +32,12 @@
 #include "../Engine/RNG.h"
 #include "../Mod/RuleItem.h"
 #include "../Engine/Options.h"
-#include "AlienBAIState.h"
+#include "AIModule.h"
 #include "Camera.h"
 #include "Explosion.h"
 #include "BattlescapeState.h"
 #include "../Savegame/BattleUnitStatistics.h"
+#include "../fmath.h"
 
 namespace OpenXcom
 {
@@ -215,7 +215,9 @@ void ProjectileFlyBState::init()
 		Tile *targetTile = _parent->getSave()->getTile(_action.target);
 		Position hitPos;
 		Position originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
-		if (targetTile->getUnit() != 0)
+		if (targetTile->getUnit() &&
+			((_unit->getFaction() != FACTION_PLAYER) ||
+			targetTile->getUnit()->getVisible()))
 		{
 			if (_origin == _action.target || targetTile->getUnit() == _unit)
 			{
@@ -224,16 +226,9 @@ void ProjectileFlyBState::init()
 			}
 			else
 			{
-				if (_parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit) == false)
+				if (!_parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit))
 				{
-					// if this action requires direct line-of-sight, we should abort.
-					if ((_action.type == BA_SNAPSHOT || _action.type == BA_AUTOSHOT || _action.type == BA_AIMEDSHOT) &&
-					    !_action.weapon->getRules()->getArcingShot())
-					{
-						_action.result = "STR_NO_LINE_OF_FIRE";
-						_parent->popState();
-						return;
-					}
+					_targetVoxel = Position(-16,-16,-24); // out of bounds, even after voxel to tile calculation.
 				}
 			}
 		}
@@ -289,9 +284,6 @@ bool ProjectileFlyBState::createNewProjectile()
 {
 	++_action.autoShotCounter;
 
-	if (_action.type != BA_THROW && _action.type != BA_LAUNCH)
-		_unit->getStatistics()->shotsFiredCounter++;
-
 	// create a new projectile
 	Projectile *projectile = new Projectile(_parent->getMod(), _parent->getSave(), _action, _origin, _targetVoxel, _ammo);
 	// hit log - new bullet
@@ -325,7 +317,7 @@ bool ProjectileFlyBState::createNewProjectile()
 			_projectileItem->moveToOwner(0);
 			if (_projectileItem->getGlow())
 			{
-				_parent->getTileEngine()->calculateUnitLighting();
+				_parent->getTileEngine()->calculateLighting(LL_UNITS, _unit->getPosition());
 				_parent->getTileEngine()->calculateFOV(_unit->getPosition(), _projectileItem->getGlowRange(), false);
 			}
 			_parent->getMod()->getSoundByDepth(_parent->getDepth(), Mod::ITEM_THROW)->play(-1, _parent->getMap()->getSoundAngle(_unit->getPosition()));
@@ -387,7 +379,7 @@ bool ProjectileFlyBState::createNewProjectile()
 		{
 			_projectileImpact = projectile->calculateTrajectory(_unit->getFiringAccuracy(_action.type, _action.weapon, _parent->getMod()) / accuracyDivider);
 		}
-		if (_projectileImpact != V_EMPTY || _action.type == BA_LAUNCH)
+		if (_targetVoxel != Position(-16,-16,-24) && (_projectileImpact != V_EMPTY || _action.type == BA_LAUNCH))
 		{
 			// set the soldier in an aiming position
 			_unit->aim(true);
@@ -420,6 +412,10 @@ bool ProjectileFlyBState::createNewProjectile()
 			return false;
 		}
 	}
+	
+	if (_action.type != BA_THROW && _action.type != BA_LAUNCH)
+		_unit->getStatistics()->shotsFiredCounter++;
+
 	return true;
 }
 
@@ -567,15 +563,24 @@ void ProjectileFlyBState::think()
 						int spread = _ammo->getRules()->getShotgunSpread();
 						int choke = _action.weapon->getRules()->getShotgunChoke();
 						Position firstPelletImpact = _parent->getMap()->getProjectile()->getPosition(-2);
+						Position originalTarget = _targetVoxel;
 
 						int i = 1;
 						while (i != _ammo->getRules()->getShotgunPellets())
 						{
 							if (behaviorType == 1)
 							{
-								// use impact location to determine spread (instead of originally targeted voxel)
-								_targetVoxel = firstPelletImpact;
+								// use impact location to determine spread (instead of originally targeted voxel), as long as it's not the same as the origin
+								if (firstPelletImpact != _parent->getSave()->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin)))
+								{
+									_targetVoxel = firstPelletImpact;
+								}
+								else
+								{
+									_targetVoxel = originalTarget;
+								}
 							}
+
 
 							Projectile *proj = new Projectile(_parent->getMod(), _parent->getSave(), _action, _origin, _targetVoxel, _ammo);
 
@@ -584,6 +589,7 @@ void ProjectileFlyBState::think()
 							{
 								// pellet spread based on spread and choke values
 								_projectileImpact = proj->calculateTrajectory(std::max(0.0, (1.0 - spread / 100.0) * choke / 100.0));
+
 							}
 							else
 							{
@@ -636,10 +642,10 @@ void ProjectileFlyBState::think()
 							}
 							if (victim->getFaction() == FACTION_HOSTILE)
 							{
-								AlienBAIState *aggro = dynamic_cast<AlienBAIState*>(victim->getCurrentAIState());
-								if (aggro != 0)
+								AIModule *ai = victim->getAIModule();
+								if (ai != 0)
 								{
-									aggro->setWasHitBy(_unit);
+									ai->setWasHitBy(_unit);
 									_unit->setTurnsSinceSpotted(0);
 								}
 							}
@@ -718,29 +724,29 @@ bool ProjectileFlyBState::validThrowRange(BattleAction *action, Position origin,
  */
 int ProjectileFlyBState::getMaxThrowDistance(int weight, int strength, int level)
 {
-    double curZ = level + 0.5;
-    double dz = 1.0;
-    int dist = 0;
-    while (dist < 4000) //just in case
-    {
-        dist += 8;
-        if (dz<-1)
-            curZ -= 8;
-        else
-            curZ += dz * 8;
+	double curZ = level + 0.5;
+	double dz = 1.0;
+	int dist = 0;
+	while (dist < 4000) //just in case
+	{
+		dist += 8;
+		if (dz<-1)
+			curZ -= 8;
+		else
+			curZ += dz * 8;
 
-        if (curZ < 0 && dz < 0) //roll back
-        {
-            dz = std::max(dz, -1.0);
-            if (std::abs(dz)>1e-10) //rollback horizontal
-                dist -= curZ / dz;
-            break;
-        }
-        dz -= (double)(50 * weight / strength)/100;
-        if (dz <= -2.0) //become falling
-            break;
-    }
-    return dist;
+		if (curZ < 0 && dz < 0) //roll back
+		{
+			dz = std::max(dz, -1.0);
+			if (std::abs(dz)>1e-10) //rollback horizontal
+				dist -= curZ / dz;
+			break;
+		}
+		dz -= (double)(50 * weight / strength)/100;
+		if (dz <= -2.0) //become falling
+			break;
+	}
+	return dist;
 }
 
 /**

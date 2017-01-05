@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -188,12 +188,12 @@ void UnitWalkBState::think()
 				}
 			}
 
-			// move our personal lighting with us
-			_terrain->calculateUnitLighting();
 			if (_unit->getFaction() != FACTION_PLAYER)
 			{
 				_unit->setVisible(false);
 			}
+			// move our personal lighting with us
+			_terrain->calculateLighting(LL_UNITS, _unit->getPosition(), 2);
 			_terrain->calculateFOV(_unit->getPosition(), 2, false); //update unit visibility for all units which can see last and current position.
 			//tile visibility for this unit is handled later.
 			unitSpotted = (!_action.ignoreSpottedEnemies && !_falling && !_action.desperate && _parent->getPanicHandled() && _numUnitsSpotted != _unit->getUnitsSpottedThisTurn().size());
@@ -270,7 +270,9 @@ void UnitWalkBState::think()
 
 			Position destination;
 			int tu = _pf->getTUCost(_unit->getPosition(), dir, &destination, _unit, 0, false); // gets tu cost, but also gets the destination position.
-			if (_unit->getFaction() == FACTION_HOSTILE &&
+			if (_unit->getFaction() != FACTION_PLAYER &&
+				_unit->getSpecialAbility() < SPECAB_BURNFLOOR &&
+				_parent->getSave()->getTile(destination) &&
 				_parent->getSave()->getTile(destination)->getFire() > 0)
 			{
 				tu -= 32; // we artificially inflate the TU cost by 32 points in getTUCost under these conditions, so we have to deflate it here.
@@ -280,14 +282,14 @@ void UnitWalkBState::think()
 				tu = 0;
 			}
 			int energy = tu / 2;
-			if (_action.run)
-			{
-				tu *= 0.75;
-				energy *= 1.5;
-			}
 			if (dir >= Pathfinding::DIR_UP)
 			{
 				energy = 0;
+			}
+			else if (_action.run)
+			{
+				tu *= 0.75;
+				energy *= 1.5;
 			}
 			if (tu > _unit->getTimeUnits())
 			{
@@ -498,7 +500,7 @@ void UnitWalkBState::postPathProcedures()
 		_unit->setTimeUnits(0);
 	}
 
-	_terrain->calculateUnitLighting();
+	_terrain->calculateLighting(LL_UNITS, _unit->getPosition());
 	_terrain->calculateFOV(_unit);
 	if (!_falling)
 		_parent->popState();
@@ -555,7 +557,7 @@ void UnitWalkBState::playMovementSound()
 				}
 			}
 		}
-		else
+		else if (_unit->getMovementType() == MT_FLY)
 		{
 			// play default flying sound
 			if (_unit->getWalkingPhase() == 1 && !_falling)

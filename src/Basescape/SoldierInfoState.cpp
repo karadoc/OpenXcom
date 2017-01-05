@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,6 +18,7 @@
  */
 #include "SoldierInfoState.h"
 #include "SoldierDiaryOverviewState.h"
+#include <algorithm>
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Engine/Action.h"
@@ -33,7 +34,6 @@
 #include "../Savegame/Base.h"
 #include "../Savegame/Craft.h"
 #include "../Savegame/Soldier.h"
-#include "../Savegame/SoldierDiary.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Mod/Armor.h"
 #include "../Menu/ErrorMessageState.h"
@@ -42,7 +42,7 @@
 #include "SackSoldierState.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleSoldier.h"
-#include <algorithm>
+#include "../Savegame/SoldierDeath.h"
 
 namespace OpenXcom
 {
@@ -82,13 +82,14 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 	_btnArmor = new TextButton(110, 14, 130, 33);
 	_edtSoldier = new TextEdit(this, 210, 16, 40, 9);
 	_btnSack = new TextButton(60, 14, 260, 33);
-    _btnDiary = new TextButton(60, 14, 260, 48);
+	_btnDiary = new TextButton(60, 14, 260, 48);
 	_txtRank = new Text(130, 9, 0, 48);
 	_txtMissions = new Text(100, 9, 130, 48);
 	_txtKills = new Text(100, 9, 200, 48);
 	_txtCraft = new Text(130, 9, 0, 56);
 	_txtRecovery = new Text(180, 9, 130, 56);
 	_txtPsionic = new Text(150, 9, 0, 66);
+	_txtDead = new Text(150, 9, 130, 33);
 
 	int yPos = 80;
 	int step = 11;
@@ -166,6 +167,7 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 	add(_txtCraft, "text1", "soldierInfo");
 	add(_txtRecovery, "text1", "soldierInfo");
 	add(_txtPsionic, "text2", "soldierInfo");
+	add(_txtDead, "text2", "soldierInfo");
 
 	add(_txtTimeUnits, "text2", "soldierInfo");
 	add(_numTimeUnits, "numbers", "soldierInfo");
@@ -260,6 +262,8 @@ SoldierInfoState::SoldierInfoState(Base *base, size_t soldierId) : _base(base), 
 
 	_btnSack->setText(tr("STR_SACK"));
 	_btnSack->onMouseClick((ActionHandler)&SoldierInfoState::btnSackClick);
+	_btnSack->onKeyboardPress((ActionHandler)&SoldierInfoState::btnSackToggleOn, SDLK_LCTRL);
+	_btnSack->onKeyboardRelease((ActionHandler)&SoldierInfoState::btnSackToggleOff, SDLK_LCTRL);
 
 	_btnDiary->setText(tr("STR_DIARY"));
 	_btnDiary->onMouseClick((ActionHandler)&SoldierInfoState::btnDiaryClick);
@@ -352,7 +356,7 @@ void SoldierInfoState::init()
 	std::ostringstream flagId;
 	flagId << "Flag";
 	flagId << _soldier->getNationality();
-	Surface *flagTexture = _game->getMod()->getSurface(flagId.str().c_str());
+	Surface *flagTexture = _game->getMod()->getSurface(flagId.str().c_str(), false);
 	_flag->clear();
 	if (flagTexture != 0)
 	{
@@ -436,7 +440,7 @@ void SoldierInfoState::init()
 
 	_btnArmor->setText(wsArmor);
 
-	_btnSack->setVisible(!(_soldier->getCraft() && _soldier->getCraft()->getStatus() == "STR_OUT"));
+	_btnSack->setVisible(_game->getSavedGame()->getMonthsPassed() > -1 && !(_soldier->getCraft() && _soldier->getCraft()->getStatus() == "STR_OUT"));
 
 	_txtRank->setText(tr("STR_RANK_").arg(tr(_soldier->getRankString())));
 
@@ -517,10 +521,19 @@ void SoldierInfoState::init()
 		_btnArmor->setVisible(false);
 		_btnSack->setVisible(false);
 		_txtCraft->setVisible(false);
+		_txtDead->setVisible(true);
+		if (_soldier->getDeath() && _soldier->getDeath()->getCause())
+		{
+			_txtDead->setText(tr("STR_KILLED_IN_ACTION"));
+		}
+		else
+		{
+			_txtDead->setText(tr("STR_MISSING_IN_ACTION"));
+		}
 	}
 	else
 	{
-		_btnSack->setVisible(_game->getSavedGame()->getMonthsPassed() > -1);
+		_txtDead->setVisible(false);
 	}
 }
 
@@ -559,7 +572,7 @@ void SoldierInfoState::edtSoldierChange(Action *)
  */
 void SoldierInfoState::btnOkClick(Action *)
 {
-    
+	
 	_game->popState();
 	if (_game->getSavedGame()->getMonthsPassed() > -1 && Options::storageLimitsEnforced && _base != 0 && _base->storesOverfull())
 	{
@@ -611,7 +624,31 @@ void SoldierInfoState::btnArmorClick(Action *)
  */
 void SoldierInfoState::btnSackClick(Action *)
 {
-	_game->pushState(new SackSoldierState(_base, _soldierId));
+	if ((SDL_GetModState() & KMOD_LCTRL) != 0)
+	{
+		_soldier->demoteRank();
+
+		SurfaceSet *texture = _game->getMod()->getSurfaceSet("BASEBITS.PCK");
+		texture->getFrame(_soldier->getRankSprite())->setX(0);
+		texture->getFrame(_soldier->getRankSprite())->setY(0);
+		texture->getFrame(_soldier->getRankSprite())->blit(_rank);
+
+		_txtRank->setText(tr("STR_RANK_").arg(tr(_soldier->getRankString())));
+	}
+	else
+	{
+		_game->pushState(new SackSoldierState(_base, _soldierId));
+	}
+}
+
+void SoldierInfoState::btnSackToggleOn(Action *)
+{
+	_btnSack->setText(tr("STR_DEMOTE"));
+}
+
+void SoldierInfoState::btnSackToggleOff(Action *)
+{
+	_btnSack->setText(tr("STR_SACK"));
 }
 
 /**

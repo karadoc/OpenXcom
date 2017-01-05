@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,14 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#define _USE_MATH_DEFINES
-#include <cmath>
 #include <fstream>
 #include "Map.h"
 #include "Camera.h"
 #include "UnitSprite.h"
 #include "ItemSprite.h"
-#include "Position.h"
 #include "Pathfinding.h"
 #include "TileEngine.h"
 #include "Projectile.h"
@@ -42,6 +39,7 @@
 #include "../Savegame/Tile.h"
 #include "../Savegame/BattleUnit.h"
 #include "../Savegame/BattleItem.h"
+#include "../Ufopaedia/Ufopaedia.h"
 #include "../Mod/RuleItem.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/MapDataSet.h"
@@ -52,6 +50,7 @@
 #include "../Savegame/SavedGame.h"
 #include "../Interface/NumberText.h"
 #include "../Interface/Text.h"
+#include "../fmath.h"
 
 
 /*
@@ -111,21 +110,16 @@ Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) 
 	_scrollKeyTimer->onTimer((SurfaceHandler)&Map::scrollKey);
 	_camera->setScrollTimer(_scrollMouseTimer, _scrollKeyTimer);
 
-	_txtAccuracy = new Text(24, 9, 0, 0);
+	_txtAccuracy = new Text(44, 18, 0, 0);
 	_txtAccuracy->setSmall();
 	_txtAccuracy->setPalette(_game->getScreen()->getPalette());
 	_txtAccuracy->setHighContrast(true);
 	_txtAccuracy->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
+	_activeWeaponUfopediaArticleUnlocked = -1;
 
 	_nightVisionOn = false;
 	_fadeShade = 16;
 	_nvColor = 0;
-	_nvColorDef = 5;
-	Element *e = _game->getMod()->getInterface("battlescape")->getElement("nightVision");
-	if (e != 0)
-	{
-		_nvColorDef = e->color;
-	}
 	_fadeTimer = new Timer(FADE_INTERVAL);
 	if ((_save->getGlobalShade() > NIGHT_VISION_THRESHOLD))
 	{
@@ -138,6 +132,10 @@ Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) 
 	{
 		_bgColor = startingCondition->getMapBackgroundColor();
 	}
+
+	_stunIndicator = _game->getMod()->getSurface("FloorStunIndicator", false);
+	_woundIndicator = _game->getMod()->getSurface("FloorWoundIndicator", false);
+	_burnIndicator = _game->getMod()->getSurface("FloorBurnIndicator", false);
 }
 
 /**
@@ -164,7 +162,7 @@ void Map::init()
 	int b = 15; // black
 	int pixels[81] = { 0, 0, b, b, b, b, b, 0, 0,
 					   0, 0, b, f, f, f, b, 0, 0,
-				       0, 0, b, f, f, f, b, 0, 0,
+					   0, 0, b, f, f, f, b, 0, 0,
 					   b, b, b, f, f, f, b, b, b,
 					   b, f, f, f, f, f, f, f, b,
 					   0, b, f, f, f, f, f, b, 0,
@@ -270,6 +268,35 @@ void Map::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
 	_message->setBackground(_game->getMod()->getSurface("TAC00.SCR"));
 	_message->initText(_game->getMod()->getFont("FONT_BIG"), _game->getMod()->getFont("FONT_SMALL"), _game->getLanguage());
 	_message->setText(_game->getLanguage()->getString("STR_HIDDEN_MOVEMENT"));
+}
+
+/**
+ * Get shade of wall.
+ * @param part For what wall do calculations.
+ * @param tileFrot Tile of wall.
+ * @param tileBehind Tile behind wall.
+ * @return Current shade of wall.
+ */
+int Map::getWallShade(MapDataType part, Tile* tileFrot, Tile* tileBehind)
+{
+	int shade;
+	if (tileFrot->isDiscovered(2))
+	{
+		shade = reShade(tileFrot);
+	}
+	else
+	{
+		shade = 16;
+	}
+	if (part)
+	{
+		auto data = tileFrot->getMapData(part);
+		if ((data->isDoor() || data->isUFODoor()) && tileFrot->isDiscovered(part - 1))
+		{
+			shade = std::min(reShade(tileFrot), tileBehind ? tileBehind->getShade() + 5 : 16);
+		}
+	}
+	return shade;
 }
 
 /**
@@ -438,6 +465,8 @@ void Map::drawTerrain(Surface *surface)
 					screenPosition.y > -_spriteHeight && screenPosition.y < surface->getHeight() + _spriteHeight )
 				{
 					tile = _save->getTile(mapPosition);
+					Tile *tileNorth = _save->getTile(mapPosition - Position(0,1,0));
+					Tile *tileWest = _save->getTile(mapPosition - Position(1,0,0));
 
 					if (!tile) continue;
 
@@ -488,9 +517,8 @@ void Map::drawTerrain(Surface *surface)
 					}
 
 					// special handling for a moving unit.
-					if (mapPosition.y > 0)
+					if (tileNorth)
 					{
-						Tile *tileNorth = _save->getTile(mapPosition - Position(0,1,0));
 						BattleUnit *bu = tileNorth->getUnit();
 						int tileNorthShade, tileTwoNorthShade, tileWestShade, tileNorthWestShade, tileSouthWestShade;
 						if (tileNorth->isDiscovered(2))
@@ -577,7 +605,7 @@ void Map::drawTerrain(Surface *surface)
 								if (tmpSurface)
 									tmpSurface->blitNShade(surface, screenPosition.x + tileOffset.x, screenPosition.y - tileNorth->getMapData(O_OBJECT)->getYOffset() + tileOffset.y, tileNorthShade, false, _nvColor);
 							}
-							if (mapPosition.x > 0)
+							if (tileWest)
 							{
 								/*
 								 * Phase V: re-render objects in the tile to the south west
@@ -605,7 +633,6 @@ void Map::drawTerrain(Surface *surface)
 								/*
 								 * Phase VI: we need to re-render everything in the tile to the west.
 								 */
-								Tile *tileWest = _save->getTile(mapPosition - Position(1,0,0));
 								BattleUnit *westUnit = tileWest->getUnit();
 								if (tileWest->isDiscovered(2))
 								{
@@ -619,21 +646,15 @@ void Map::drawTerrain(Surface *surface)
 								tmpSurface = tileWest->getSprite(O_WESTWALL);
 								if (tmpSurface && bu != unit)
 								{
-									if ((tileWest->getMapData(O_WESTWALL)->isDoor() || tileWest->getMapData(O_WESTWALL)->isUFODoor())
-											&& tileWest->isDiscovered(0))
-										wallShade = reShade(tileWest);
-									else
-										wallShade = tileWestShade;
+									Tile *tileWestWest = _save->getTile(mapPosition - Position(2,0,0));
+									wallShade = getWallShade(O_WESTWALL, tileWest, tileWestWest);
 									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(O_WESTWALL)->getYOffset() + tileOffset.y, wallShade, true, _nvColor);
 								}
 								tmpSurface = tileWest->getSprite(O_NORTHWALL);
 								if (tmpSurface)
 								{
-									if ((tileWest->getMapData(O_NORTHWALL)->isDoor() || tileWest->getMapData(O_NORTHWALL)->isUFODoor())
-											&& tileWest->isDiscovered(1))
-										wallShade = reShade(tileWest);
-									else
-										wallShade = tileWestShade;
+									Tile *tileWestNorth = _save->getTile(mapPosition - Position(1,1,0));
+									wallShade = getWallShade(O_NORTHWALL, tileWest, tileWestNorth);
 									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(O_NORTHWALL)->getYOffset() + tileOffset.y, wallShade, true, _nvColor);
 								}
 								tmpSurface = tileWest->getSprite(O_OBJECT);
@@ -658,23 +679,55 @@ void Map::drawTerrain(Surface *surface)
 										tileWestShade,
 										true
 									);
+									if (_stunIndicator || _woundIndicator || _burnIndicator)
+									{
+										BattleUnit *itemUnit = item->getUnit();
+										if (itemUnit && itemUnit->getStatus() == STATUS_UNCONSCIOUS)
+										{
+											if (_burnIndicator && itemUnit->getFire() > 0)
+											{
+												_burnIndicator->blitNShade(surface,
+													screenPosition.x - tileOffset.x,
+													screenPosition.y + tileWest->getTerrainLevel() + tileOffset.y,
+													tileWestShade,
+													true);
+											}
+											else if (_woundIndicator && itemUnit->getFatalWounds() > 0)
+											{
+												_woundIndicator->blitNShade(surface,
+													screenPosition.x - tileOffset.x,
+													screenPosition.y + tileWest->getTerrainLevel() + tileOffset.y,
+													tileWestShade,
+													true);
+											}
+											else if (_stunIndicator)
+											{
+												_stunIndicator->blitNShade(surface,
+													screenPosition.x - tileOffset.x,
+													screenPosition.y + tileWest->getTerrainLevel() + tileOffset.y,
+													tileWestShade,
+													true);
+											}
+										}
+									}
 								}
 								// Draw soldier
-								if (westUnit && westUnit->getStatus() != STATUS_WALKING && (!tileWest->getMapData(O_OBJECT) || tileWest->getMapData(O_OBJECT)->getBigWall() < 6 || tileWest->getMapData(O_OBJECT)->getBigWall() == 9) && (westUnit->getVisible() || _save->getDebugMode()))
+								if (westUnit && (!tileWest->getMapData(O_OBJECT) || tileWest->getMapData(O_OBJECT)->getBigWall() < 6 || tileWest->getMapData(O_OBJECT)->getBigWall() == 9) && (westUnit->getVisible() || _save->getDebugMode()))
 								{
 									// the part is 0 for small units, large units have parts 1,2 & 3 depending on the relative x/y position of this tile vs the actual unit position.
 									int part = 0;
 									part += tileWest->getPosition().x - westUnit->getPosition().x;
 									part += (tileWest->getPosition().y - westUnit->getPosition().y)*2;
+									Position offset;
+									calculateWalkingOffset(westUnit, &offset);
 									unitSprite.draw(
 										westUnit, part,
-										screenPosition.x - tileOffset.x,
-										screenPosition.y + tileOffset.y + getTerrainLevel(westUnit->getPosition(), westUnit->getArmor()->getSize()),
+										screenPosition.x - tileOffset.x + offset.x,
+										screenPosition.y + tileOffset.y + offset.y + getTerrainLevel(westUnit->getPosition(), westUnit->getArmor()->getSize()),
 										tileWestShade,
 										true
 									);
 								}
-
 								// Draw smoke/fire
 								if (tileWest->getSmoke() && tileWest->isDiscovered(2))
 								{
@@ -723,30 +776,15 @@ void Map::drawTerrain(Surface *surface)
 						tmpSurface = tile->getSprite(O_WESTWALL);
 						if (tmpSurface)
 						{
-							if ((tile->getMapData(O_WESTWALL)->isDoor() || tile->getMapData(O_WESTWALL)->isUFODoor())
-								 && tile->isDiscovered(0))
-								wallShade = reShade(tile);
-							else
-								wallShade = tileShade;
+							wallShade = getWallShade(O_WESTWALL, tile, tileWest);
 							tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(O_WESTWALL)->getYOffset(), wallShade, false, _nvColor);
 						}
 						// Draw north wall
 						tmpSurface = tile->getSprite(O_NORTHWALL);
 						if (tmpSurface)
 						{
-							if ((tile->getMapData(O_NORTHWALL)->isDoor() || tile->getMapData(O_NORTHWALL)->isUFODoor())
-								 && tile->isDiscovered(1))
-								wallShade = reShade(tile);
-							else
-								wallShade = tileShade;
-							if (tile->getMapData(O_WESTWALL))
-							{
-								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(O_NORTHWALL)->getYOffset(), wallShade, true, _nvColor);
-							}
-							else
-							{
-								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(O_NORTHWALL)->getYOffset(), wallShade, false, _nvColor);
-							}
+							wallShade = getWallShade(O_NORTHWALL, tile, tileNorth);
+							tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(O_NORTHWALL)->getYOffset(), wallShade, tile->getMapData(O_WESTWALL), _nvColor);
 						}
 						// Draw object
 						if (tile->getMapData(O_OBJECT) && (tile->getMapData(O_OBJECT)->getBigWall() < 6 || tile->getMapData(O_OBJECT)->getBigWall() == 9))
@@ -764,6 +802,34 @@ void Map::drawTerrain(Surface *surface)
 								screenPosition.y + tile->getTerrainLevel(),
 								tileShade
 							);
+							if (_stunIndicator || _woundIndicator || _burnIndicator)
+							{
+								BattleUnit *itemUnit = item->getUnit();
+								if (itemUnit && itemUnit->getStatus() == STATUS_UNCONSCIOUS)
+								{
+									if (_burnIndicator && itemUnit->getFire() > 0)
+									{
+										_burnIndicator->blitNShade(surface,
+											screenPosition.x,
+											screenPosition.y + tile->getTerrainLevel(),
+											tileShade);
+									}
+									else if (_woundIndicator && itemUnit->getFatalWounds() > 0)
+									{
+										_woundIndicator->blitNShade(surface,
+											screenPosition.x,
+											screenPosition.y + tile->getTerrainLevel(),
+											tileShade);
+									}
+									else if (_stunIndicator)
+									{
+										_stunIndicator->blitNShade(surface,
+											screenPosition.x,
+											screenPosition.y + tile->getTerrainLevel(),
+											tileShade);
+									}
+								}
+							}
 						}
 					}
 
@@ -861,7 +927,7 @@ void Map::drawTerrain(Surface *surface)
 							}
 						}
 					}
-			        unit = tile->getUnit();
+					unit = tile->getUnit();
 					// Draw soldier
 					if (unit && (unit->getVisible() || _save->getDebugMode()))
 					{
@@ -1055,7 +1121,7 @@ void Map::drawTerrain(Surface *surface)
 									break;
 								}
 								// at this point, let's assume the shot is adjusted and set the text amber.
-								_txtAccuracy->setColor(Palette::blockOffset(1)-1);
+								_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::yellow - 1)-1);
 
 								if (distance > upperLimit)
 								{
@@ -1068,7 +1134,7 @@ void Map::drawTerrain(Surface *surface)
 								else
 								{
 									// no adjustment made? set it to green.
-									_txtAccuracy->setColor(Palette::blockOffset(4)-1);
+									_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::green - 1)-1);
 								}
 
 								bool outOfRange = distance > weapon->getMaxRange();
@@ -1093,10 +1159,78 @@ void Map::drawTerrain(Surface *surface)
 								if (accuracy <= 0 || outOfRange)
 								{
 									accuracy = 0;
-									_txtAccuracy->setColor(Palette::blockOffset(2)-1);
+									_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::red - 1)-1);
 								}
 								ss << accuracy;
 								ss << "%";
+
+								// display additional damage info
+								if (isAltPressed)
+								{
+									// step 1: determine rule
+									const RuleItem *rule;
+									if (action->weapon->needsAmmo())
+									{
+										if (action->weapon->getAmmoItem() != 0)
+										{
+											rule = action->weapon->getAmmoItem()->getRules();
+										}
+										else
+										{
+											rule = 0; // empty weapon = no rule
+										}
+									}
+									else
+									{
+										rule = weapon;
+									}
+
+									// step 2: check if unlocked
+									if (_activeWeaponUfopediaArticleUnlocked == -1)
+									{
+										_activeWeaponUfopediaArticleUnlocked = 0;
+										if (_game->getSavedGame()->getMonthsPassed() == -1)
+										{
+											_activeWeaponUfopediaArticleUnlocked = 1; // new battle mode
+										}
+										else if (rule)
+										{
+											_activeWeaponUfopediaArticleUnlocked = 1; // assume unlocked
+											ArticleDefinition *article = _game->getMod()->getUfopaediaArticle(rule->getType(), false);
+											if (article && !Ufopaedia::isArticleAvailable(_game->getSavedGame(), article))
+											{
+												_activeWeaponUfopediaArticleUnlocked = 0; // ammo/weapon locked
+											}
+											if (rule->getType() != weapon->getType())
+											{
+												article = _game->getMod()->getUfopaediaArticle(weapon->getType(), false);
+												if (article && !Ufopaedia::isArticleAvailable(_game->getSavedGame(), article))
+												{
+													_activeWeaponUfopediaArticleUnlocked = 0; // weapon locked
+												}
+											}
+										}
+									}
+
+									// step 3: calculate and draw
+									if (rule && _activeWeaponUfopediaArticleUnlocked == 1)
+									{
+										int totalDamage = 0;
+										totalDamage += rule->getPowerBonus(action->actor);
+										totalDamage -= rule->getPowerRangeReduction(distance * 16);
+										ss << "\n";
+										ss << rule->getDamageType()->getRandomDamage(totalDamage, 1);
+										ss << "-";
+										ss << rule->getDamageType()->getRandomDamage(totalDamage, 2);
+										if (rule->getDamageType()->RandomType == DRT_UFO_WITH_TWO_DICE)
+											ss << "*";
+									}
+									else
+									{
+										ss << "\n?-?";
+									}
+								}
+
 								_txtAccuracy->setText(Language::utf8ToWstr(ss.str()));
 								_txtAccuracy->draw();
 								_txtAccuracy->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
@@ -1563,13 +1697,6 @@ void Map::calculateWalkingOffset(BattleUnit *unit, Position *offset)
 	{
 		offset->y += getTerrainLevel(unit->getPosition(), size);
 
-		if (unit->getArmor()->getCanHoldWeapon())
-		{
-			if (unit->getStatus() == STATUS_AIMING)
-			{
-				offset->x = -16;
-			}
-		}
 		if (_save->getDepth() > 0)
 		{
 			unit->setFloorAbove(false);
@@ -1588,7 +1715,6 @@ void Map::calculateWalkingOffset(BattleUnit *unit, Position *offset)
 			}
 		}
 	}
-
 }
 
 
@@ -1598,7 +1724,7 @@ void Map::calculateWalkingOffset(BattleUnit *unit, Position *offset)
   * @param size Size of the unit we want to get the level from.
   * @return terrainlevel.
   */
-int Map::getTerrainLevel(Position pos, int size)
+int Map::getTerrainLevel(Position pos, int size) const
 {
 	int lowestlevel = 0;
 
@@ -1622,6 +1748,7 @@ int Map::getTerrainLevel(Position pos, int size)
  */
 void Map::setCursorType(CursorType type, int size)
 {
+	_activeWeaponUfopediaArticleUnlocked = -1; // reset cache
 	_cursorType = type;
 	if (_cursorType == CT_NORMAL)
 		_cursorSize = size;
@@ -1702,7 +1829,7 @@ void Map::fadeShade()
 	bool hold = SDL_GetKeyState(NULL)[Options::keyNightVisionHold];
 	if ((_nightVisionOn && !hold) || (!_nightVisionOn && hold))
 	{
-		_nvColor = _nvColorDef;
+		_nvColor = Options::nightVisionColor;
 		if (_fadeShade > NIGHT_VISION_SHADE) // 0 = max brightness
 		{
 			--_fadeShade;
@@ -1781,7 +1908,7 @@ void Map::setWidth(int width)
  * Get the hidden movement screen's vertical position.
  * @return the vertical position of the hidden movement window.
  */
-int Map::getMessageY()
+int Map::getMessageY() const
 {
 	return _message->getY();
 }
@@ -1789,7 +1916,7 @@ int Map::getMessageY()
 /**
  * Get the icon height.
  */
-int Map::getIconHeight()
+int Map::getIconHeight() const
 {
 	return _iconHeight;
 }
@@ -1797,7 +1924,7 @@ int Map::getIconHeight()
 /**
  * Get the icon width.
  */
-int Map::getIconWidth()
+int Map::getIconWidth() const
 {
 	return _iconWidth;
 }
@@ -1808,7 +1935,7 @@ int Map::getIconWidth()
  * @param pos the map position to calculate the sound angle from.
  * @return the angle of the sound (280 to 440).
  */
-int Map::getSoundAngle(Position pos)
+int Map::getSoundAngle(Position pos) const
 {
 	int midPoint = getWidth() / 2;
 	Position relativePosition;
@@ -1846,7 +1973,7 @@ void Map::setBlastFlash(bool flash)
  * Checks if the screen is still being rendered in EGA.
  * @return if we are still in EGA mode.
  */
-bool Map::getBlastFlash()
+bool Map::getBlastFlash() const
 {
 	return _flashScreen;
 }

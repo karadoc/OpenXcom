@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Inventory.h"
+#include <algorithm>
 #include <cmath>
 #include "../Mod/Mod.h"
 #include "../Mod/RuleInventory.h"
@@ -43,6 +44,7 @@
 #include <algorithm>
 #include "../Ufopaedia/Ufopaedia.h"
 #include <unordered_map>
+#include "../Engine/Screen.h"
 
 namespace OpenXcom
 {
@@ -56,7 +58,7 @@ namespace OpenXcom
  * @param y Y position in pixels.
  * @param base Is the inventory being called from the basescape?
  */
-Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base) : InteractiveSurface(width, height, x, y), _game(game), _selUnit(0), _selItem(0), _tu(true), _base(base), _groundOffset(0), _animFrame(0)
+Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base) : InteractiveSurface(width, height, x, y), _game(game), _selUnit(0), _selItem(0), _tu(true), _base(base), _mouseOverItem(0), _groundOffset(0), _animFrame(0)
 {
 	_depth = _game->getSavedGame()->getSavedBattle()->getDepth();
 	_grid = new Surface(width, height, x, y);
@@ -73,6 +75,10 @@ Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base)
 	_animTimer = new Timer(125);
 	_animTimer->onTimer((SurfaceHandler)&Inventory::drawPrimers);
 	_animTimer->start();
+
+	_stunIndicator = _game->getMod()->getSurface("BigStunIndicator", false);
+	_woundIndicator = _game->getMod()->getSurface("BigWoundIndicator", false);
+	_burnIndicator = _game->getMod()->getSurface("BigBurnIndicator", false);
 }
 
 /**
@@ -254,6 +260,9 @@ void Inventory::drawItems()
 	ScriptWorkerBlit work;
 	_items->clear();
 	_grenadeIndicators.clear();
+	_stunnedIndicators.clear();
+	_woundedIndicators.clear();
+	_burningIndicators.clear();
 	Uint8 color = _game->getMod()->getInterface("inventory")->getElement("numStack")->color;
 	if (_selUnit != 0)
 	{
@@ -282,6 +291,22 @@ void Inventory::drawItems()
 			}
 			BattleItem::ScriptFill(&work, *i, BODYPART_ITEM_INVENTORY, 0, 0);
 			work.executeBlit(frame, _items, x, y, 0);
+
+			// two-handed indicator
+			if (Options::twoHandedIndicatorInventory && (*i)->getSlot()->getType() == INV_HAND)
+			{
+				if ((*i)->getRules()->isTwoHanded() || (*i)->getRules()->isBlockingBothHands())
+				{
+					NumberText text = NumberText(10, 5, 0, 0);
+					text.setPalette(getPalette());
+					text.setColor((*i)->getRules()->isBlockingBothHands() ? 36 : 52);
+					text.setBordered(false);
+					text.setX((*i)->getSlot()->getX() + RuleInventory::HAND_W * RuleInventory::SLOT_W - 5);
+					text.setY((*i)->getSlot()->getY() + RuleInventory::HAND_H * RuleInventory::SLOT_H - 7);
+					text.setValue(2);
+					text.blit(_items);
+				}
+			}
 
 			// grenade primer indicators
 			if ((*i)->getFuseTimer() >= 0)
@@ -320,6 +345,18 @@ void Inventory::drawItems()
 				if ((*i)->getUnit()->getStatus() == STATUS_UNCONSCIOUS)
 				{
 					fatalWounds = (*i)->getUnit()->getFatalWounds();
+					if (_burnIndicator && (*i)->getUnit()->getFire() > 0)
+					{
+						_burningIndicators.push_back(std::make_pair(x, y));
+					}
+					else if (_woundIndicator && fatalWounds > 0)
+					{
+						_woundedIndicators.push_back(std::make_pair(x, y));
+					}
+					else if (_stunIndicator)
+					{
+						_stunnedIndicators.push_back(std::make_pair(x, y));
+					}
 				}
 			}
 			if (fatalWounds > 0)
@@ -628,7 +665,7 @@ void Inventory::mouseClick(Action *action, State *state)
 							return;
 						}
 
-						RuleInventory *newSlot = _game->getMod()->getInventory("STR_GROUND");
+						RuleInventory *newSlot = _game->getMod()->getInventory("STR_GROUND", true);
 						std::string warning = "STR_NOT_ENOUGH_SPACE";
 						bool placed = false;
 
@@ -637,22 +674,22 @@ void Inventory::mouseClick(Action *action, State *state)
 							switch (item->getRules()->getBattleType())
 							{
 							case BT_FIREARM:
-								newSlot = _game->getMod()->getInventory("STR_RIGHT_HAND");
+								newSlot = _game->getMod()->getInventory("STR_RIGHT_HAND", true);
 								break;
 							case BT_MINDPROBE:
 							case BT_PSIAMP:
 							case BT_MELEE:
 							case BT_CORPSE:
-								newSlot = _game->getMod()->getInventory("STR_LEFT_HAND");
+								newSlot = _game->getMod()->getInventory("STR_LEFT_HAND", true);
 								break;
 							default:
 								if (item->getRules()->getInventoryHeight() > 2)
 								{
-									newSlot = _game->getMod()->getInventory("STR_BACK_PACK");
+									newSlot = _game->getMod()->getInventory("STR_BACK_PACK", true);
 								}
 								else
 								{
-									newSlot = _game->getMod()->getInventory("STR_BELT");
+									newSlot = _game->getMod()->getInventory("STR_BELT", true);
 								}
 								break;
 							}
@@ -728,8 +765,13 @@ void Inventory::mouseClick(Action *action, State *state)
 
 				bool canStack = slot->getType() == INV_GROUND && canBeStacked(item, _selItem);
 
+				// Check if this inventory section supports the item
+				if (!_selItem->getRules()->canBePlacedIntoInventorySection(slot->getId()))
+				{
+					_warning->showMessage(_game->getLanguage()->getString("STR_CANNOT_PLACE_ITEM_INTO_THIS_SECTION"));
+				}
 				// Put item in empty slot, or stack it, if possible.
-				if (item == 0 || item == _selItem || canStack)
+				else if (item == 0 || item == _selItem || canStack)
 				{
 					if (!overlapItems(_selUnit, _selItem, slot, x, y) && slot->fitItemInSlot(_selItem->getRules(), x, y))
 					{
@@ -987,12 +1029,12 @@ bool Inventory::unload()
 
 	if (_selItem->getSlot()->getType() != INV_HAND)
 	{
-		tuCost += _selItem->getSlot()->getCost(_game->getMod()->getInventory("STR_RIGHT_HAND"));
+		tuCost += _selItem->getSlot()->getCost(_game->getMod()->getInventory("STR_RIGHT_HAND", true));
 	}
 
 	if (!_tu || _selUnit->spendTimeUnits(tuCost))
 	{
-		moveItem(_selItem, _game->getMod()->getInventory("STR_RIGHT_HAND"), 0, 0);
+		moveItem(_selItem, _game->getMod()->getInventory("STR_RIGHT_HAND", true), 0, 0);
 		_selItem->moveToOwner(_selUnit);
 		if (grenade)
 		{
@@ -1001,7 +1043,7 @@ bool Inventory::unload()
 		}
 		else
 		{
-			moveItem(_selItem->getAmmoItem(), _game->getMod()->getInventory("STR_LEFT_HAND"), 0, 0);
+			moveItem(_selItem->getAmmoItem(), _game->getMod()->getInventory("STR_LEFT_HAND", true), 0, 0);
 			_selItem->getAmmoItem()->moveToOwner(_selUnit);
 			_selItem->setAmmoItem(0);
 		}
@@ -1089,10 +1131,10 @@ bool Inventory::isInSearchString(BattleItem *item)
  */
 void Inventory::arrangeGround(bool alterOffset)
 {
-	RuleInventory *ground = _game->getMod()->getInventory("STR_GROUND");
+	RuleInventory *ground = _game->getMod()->getInventory("STR_GROUND", true);
 
-	int slotsX = (320 - ground->getX()) / RuleInventory::SLOT_W;
-	int slotsY = (200 - ground->getY()) / RuleInventory::SLOT_H;
+	int slotsX = (Screen::ORIGINAL_WIDTH - ground->getX()) / RuleInventory::SLOT_W;
+	int slotsY = (Screen::ORIGINAL_HEIGHT - ground->getY()) / RuleInventory::SLOT_H;
 	int x = 0;
 	int y = 0;
 	bool donePlacing = false;
@@ -1243,9 +1285,9 @@ void Inventory::arrangeGround(bool alterOffset)
 	}
 	if (alterOffset)
 	{
-		if (xMax >= _groundOffset + slotsX - 1)
+		if (xMax >= _groundOffset + slotsX)
 		{
-			_groundOffset += slotsX - 1;
+			_groundOffset += slotsX;
 		}
 		else
 		{
@@ -1264,6 +1306,13 @@ void Inventory::arrangeGround(bool alterOffset)
  */
 bool Inventory::fitItem(RuleInventory *newSlot, BattleItem *item, std::string &warning)
 {
+	// Check if this inventory section supports the item
+	if (!item->getRules()->canBePlacedIntoInventorySection(newSlot->getId()))
+	{
+		warning = "STR_CANNOT_PLACE_ITEM_INTO_THIS_SECTION";
+		return false;
+	}
+
 	bool placed = false;
 	for (int y2 = 0; y2 <= newSlot->getY() / RuleInventory::SLOT_H && !placed; ++y2)
 	{
@@ -1329,6 +1378,7 @@ void Inventory::showWarning(const std::wstring &msg)
 
 /**
  * Shows primer warnings on all live grenades.
+ * Also shows stunned-indicator on unconscious units.
  */
 void Inventory::drawPrimers()
 {
@@ -1337,11 +1387,32 @@ void Inventory::drawPrimers()
 	{
 		_animFrame = 0;
 	}
+
+	// grenades
 	Surface *tempSurface = _game->getMod()->getSurfaceSet("SCANG.DAT")->getFrame(6);
 	for (std::vector<std::pair<int, int> >::const_iterator i = _grenadeIndicators.begin(); i != _grenadeIndicators.end(); ++i)
 	{
 		tempSurface->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame]);
 	}
+
+	// burning units
+	for (std::vector<std::pair<int, int> >::const_iterator i = _burningIndicators.begin(); i != _burningIndicators.end(); ++i)
+	{
+		_burnIndicator->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame]);
+	}
+
+	// wounded units
+	for (std::vector<std::pair<int, int> >::const_iterator i = _woundedIndicators.begin(); i != _woundedIndicators.end(); ++i)
+	{
+		_woundIndicator->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame]);
+	}
+
+	// stunned units
+	for (std::vector<std::pair<int, int> >::const_iterator i = _stunnedIndicators.begin(); i != _stunnedIndicators.end(); ++i)
+	{
+		_stunIndicator->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame]);
+	}
+
 	_animFrame++;
 }
 

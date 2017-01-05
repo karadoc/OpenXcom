@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -17,10 +17,10 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "TransferItemsState.h"
+#include <algorithm>
 #include <sstream>
 #include <climits>
 #include <cfloat>
-#include <cmath>
 #include <algorithm>
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
@@ -47,6 +47,7 @@
 #include "../Mod/RuleCraftWeapon.h"
 #include "../Mod/Armor.h"
 #include "../Interface/ComboBox.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -211,7 +212,7 @@ TransferItemsState::TransferItemsState(Base *baseFrom, Base *baseTo) : _baseFrom
 
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&TransferItemsState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	_btnOk->onKeyboardRelease((ActionHandler)&TransferItemsState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 
@@ -460,7 +461,7 @@ void TransferItemsState::completeTransfer()
 							t->setCraft(*c);
 							_baseTo->getTransfers()->push_back(t);
 						}
-						// Clear Hangar
+						// Clear hangar
 						for (std::vector<BaseFacility*>::iterator f = _baseFrom->getFacilities()->begin(); f != _baseFrom->getFacilities()->end(); ++f)
 						{
 							if ((*f)->getCraft() == *c)
@@ -609,6 +610,27 @@ void TransferItemsState::lstItemsMousePress(Action *action)
 			action->getAbsoluteXMouse() <= _lstItems->getArrowsRightEdge())
 		{
 			decreaseByValue(Options::changeValueByMouseWheel);
+		}
+	}
+	else if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
+	{
+		if (getRow().type == TRANSFER_ITEM)
+		{
+			RuleItem *rule = (RuleItem*)getRow().rule;
+			if (rule != 0)
+			{
+				std::string articleId = rule->getType();
+				Ufopaedia::openArticle(_game, articleId);
+			}
+		}
+		else if (getRow().type == TRANSFER_CRAFT)
+		{
+			Craft *rule = (Craft*)getRow().rule;
+			if (rule != 0)
+			{
+				std::string articleId = rule->getRules()->getType();
+				Ufopaedia::openArticle(_game, articleId);
+			}
 		}
 	}
 }

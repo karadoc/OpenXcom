@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -183,7 +183,7 @@ StoresState::StoresState(Base *base) : _base(base)
 
 	_btnQuickSearch->setText(L""); // redraw
 	_btnQuickSearch->onEnter((ActionHandler)&StoresState::btnQuickSearchApply);
-	_btnQuickSearch->setVisible(Options::showQuickSearch);
+	_btnQuickSearch->setVisible(false);
 
 	_btnOk->onKeyboardRelease((ActionHandler)&StoresState::btnQuickSearchToggle, Options::keyToggleQuickSearch);
 }
@@ -327,7 +327,7 @@ void StoresState::initList(bool grandTotal)
 				{
 					if ((*research)->getRules()->needItem() && (*research)->getRules()->getName() == (*item))
 					{
-						if ((_game->getMod()->getUnit((*research)->getRules()->getName()) || Options::spendResearchedItems))
+						if ((*research)->getRules()->destroyItem())
 						{
 							qty += 1;
 							break;
@@ -387,7 +387,7 @@ void StoresState::initList(bool grandTotal)
 
 		if (qty > 0)
 		{
-			RuleItem *rule = _game->getMod()->getItem(*item);
+			RuleItem *rule = _game->getMod()->getItem(*item, true);
 			_itemList.push_back(StoredItem(tr(*item), qty, rule->getSize(), qty * rule->getSize()));
 		}
 	}

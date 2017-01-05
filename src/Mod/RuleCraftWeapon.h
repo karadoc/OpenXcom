@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_RULECRAFTWEAPON_H
-#define OPENXCOM_RULECRAFTWEAPON_H
-
 #include <string>
 #include <yaml-cpp/yaml.h>
 #include "RuleCraft.h"
@@ -39,7 +37,7 @@ class RuleCraftWeapon
 {
 private:
 	std::string _type;
-	int _sprite, _sound, _damage, _range, _accuracy, _reloadCautious, _reloadStandard, _reloadAggressive, _ammoMax, _rearmRate, _projectileSpeed, _weaponType;
+	int _sprite, _sound, _damage, _shieldDamageModifier, _range, _accuracy, _reloadCautious, _reloadStandard, _reloadAggressive, _ammoMax, _rearmRate, _projectileSpeed, _weaponType;
 	CraftWeaponProjectileType _projectileType;
 	std::string _launcher, _clip;
 	RuleCraftStats _stats;
@@ -59,6 +57,8 @@ public:
 	int getSound() const;
 	/// Gets the craft weapon's damage.
 	int getDamage() const;
+	/// Gets the craft weapon's effectiveness against shields.
+	int getShieldDamageModifier() const;
 	/// Gets the craft weapon's range.
 	int getRange() const;
 	/// Gets the craft weapon's accuracy.
@@ -90,5 +90,3 @@ public:
 };
 
 }
-
-#endif

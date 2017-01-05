@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_SAVEDGAME_H
-#define OPENXCOM_SAVEDGAME_H
-
 #include <map>
 #include <vector>
 #include <set>
@@ -47,6 +45,7 @@ class RuleResearch;
 class ResearchProject;
 class Soldier;
 class RuleManufacture;
+class RuleItem;
 class ArticleDefinition;
 class MissionSite;
 class AlienBase;
@@ -60,17 +59,22 @@ struct MissionStatistics;
 struct BattleUnitKills;
 
 /**
- *Enumerator containing all the possible game difficulties.
+ * Enumerator containing all the possible game difficulties.
  */
 enum GameDifficulty { DIFF_BEGINNER = 0, DIFF_EXPERIENCED, DIFF_VETERAN, DIFF_GENIUS, DIFF_SUPERHUMAN };
 
- /**
+/**
  * Enumerator for the various save types.
  */
 enum SaveType { SAVE_DEFAULT, SAVE_QUICK, SAVE_AUTO_GEOSCAPE, SAVE_AUTO_BATTLESCAPE, SAVE_IRONMAN, SAVE_IRONMAN_END };
 
 /**
- *Container for savegame info displayed on listings.
+ * Enumerator for the current game ending.
+ */
+enum GameEnding { END_NONE, END_WIN, END_LOSE };
+
+/**
+ * Container for savegame info displayed on listings.
  */
 struct SaveInfo
 {
@@ -105,6 +109,7 @@ public:
 private:
 	std::wstring _name;
 	GameDifficulty _difficulty;
+	GameEnding _end;
 	bool _ironman;
 	GameTime *_time;
 	std::vector<int> _researchScores;
@@ -139,6 +144,7 @@ private:
 	std::vector<EquipmentLayoutItem*> _globalEquipmentLayout[MAX_EQUIPMENT_LAYOUT_TEMPLATES];
 	std::vector<MissionStatistics*> _missionStatistics;
 	std::set<int> _ignoredUfos;
+	std::set<const RuleItem *> _autosales;
 
 	void getDependableResearchBasic (std::vector<RuleResearch*> & dependables, const RuleResearch *research, const Mod *mod, Base *base) const;
 	static SaveInfo getSaveInfo(const std::string &file, Language *lang);
@@ -160,9 +166,14 @@ public:
 	void setName(const std::wstring &name);
 	/// Gets the game difficulty.
 	GameDifficulty getDifficulty() const;
-	int getDifficultyCoefficient() const;
 	/// Sets the game difficulty.
 	void setDifficulty(GameDifficulty difficulty);
+	/// Gets the game difficulty coefficient.
+	int getDifficultyCoefficient() const;
+	/// Gets the game ending.
+	GameEnding getEnding() const;
+	/// Sets the game ending.
+	void setEnding(GameEnding end);
 	/// Gets if the game is in ironman mode.
 	bool isIronman() const;
 	/// Sets if the game is in ironman mode.
@@ -194,7 +205,9 @@ public:
 	/// Gets the current ID for an object.
 	int getId(const std::string &name);
 	/// Resets the list of object IDs.
-	void setIds(const std::map<std::string, int> &ids);
+	const std::map<std::string, int> &getAllIds() const;
+	/// Resets the list of object IDs.
+	void setAllIds(const std::map<std::string, int> &ids);
 	/// Gets the list of countries.
 	std::vector<Country*> *getCountries();
 	/// Gets the total country funding.
@@ -313,7 +326,7 @@ public:
 	void removePoppedResearch(const RuleResearch* research);
 	/// Gets the list of dead soldiers.
 	std::vector<Soldier*> *getDeadSoldiers();
-    /// Gets the last selected player base.
+	/// Gets the last selected player base.
 	Base *getSelectedBase();
 	/// Set the last selected player base.
 	void setSelectedBase(size_t base);
@@ -339,6 +352,10 @@ public:
 	bool isUfoOnIgnoreList(int ufoId);
 	/// Handles a soldier's death.
 	std::vector<Soldier*>::iterator killSoldier(Soldier *soldier, BattleUnitKills *cause = 0);
+	/// enables/disables autosell for an item type
+	void setAutosell(const RuleItem *itype, const bool enabled);
+	/// get autosell state for an item type
+	bool getAutosell(const RuleItem *) const;
 };
+
 }
-#endif

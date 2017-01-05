@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,9 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_SOLDIERARMORSTATE_H
-#define OPENXCOM_SOLDIERARMORSTATE_H
-
 #include <vector>
 #include "../Engine/State.h"
 
@@ -63,8 +61,8 @@ public:
 	void btnCancelClick(Action *action);
 	/// Handler for clicking the Weapons list.
 	void lstArmorClick(Action *action);
+	/// Handler for clicking the Weapons list.
+	void lstArmorClickMiddle(Action *action);
 };
 
 }
-
-#endif
