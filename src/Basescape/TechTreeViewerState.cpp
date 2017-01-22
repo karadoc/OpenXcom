@@ -290,6 +290,27 @@ void TechTreeViewerState::initLists()
 			++row;
 		}
 
+		// 1b. requires buildings
+		const std::vector<std::string> reqFacilities = rule->getRequireBaseFunc();
+		if (reqFacilities.size() > 0)
+		{
+			_lstLeft->addRow(1, tr("STR_FACILITIES_REQUIRED").c_str());
+			_lstLeft->setRowColor(row, 218); // blue
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(0);
+			++row;
+			for (std::vector<std::string>::const_iterator i = reqFacilities.begin(); i != reqFacilities.end(); ++i)
+			{
+				std::wstring name = tr((*i));
+				name.insert(0, L"  ");
+				_lstLeft->addRow(1, name.c_str());
+				_lstLeft->setRowColor(row, 213); // gold
+				_leftTopics.push_back("-");
+				_leftFlags.push_back(0);
+				++row;
+			}
+		}
+
 		// 2. requires
 		if (reqs.size() > 0)
 		{
@@ -610,6 +631,26 @@ void TechTreeViewerState::initLists()
 				_rightFlags.push_back(0);
 				++row;
 			}
+		}
+
+		// 5. person joining
+		if (rule->getSpawnedPersonType() != "")
+		{
+			_lstRight->addRow(1, tr("STR_PERSON_RECRUITED").c_str());
+			_lstRight->setRowColor(row, 218); // blue
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(0);
+			++row;
+
+			// person joining
+			std::wostringstream name;
+			name << L"  ";
+			name << tr(rule->getSpawnedPersonName() != "" ? rule->getSpawnedPersonName() : rule->getSpawnedPersonType());
+			_lstRight->addRow(1, name.str().c_str());
+			_lstRight->setRowColor(row, 208); // white
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(0);
+			++row;
 		}
 	}
 }
