@@ -29,7 +29,7 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _borderColor(0), _scale(0), _max(0), _value(0), _value2(0), _secondOnTop(true)
+Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _borderColor(0), _scale(0), _max(0), _value(0), _value2(0), _overflowLayers(1), _secondOnTop(true)
 {
 
 }
@@ -164,6 +164,17 @@ void Bar::setSecondValueOnTop(bool onTop)
 	_secondOnTop = onTop;
 }
 
+
+/**
+ *  Defines how many types we can draw over the top of a bar to represent values beyond the maximum width of the bar.
+ * @param overflowLayers Maximum number of layers to use.
+ */
+void Bar::setOverflowLayers(int overflowLayers)
+{
+	_redraw = _overflowLayers != overflowLayers;
+	_overflowLayers = overflowLayers;
+}
+
 /**
  * Draws the bordered bar filled according
  * to its values.
@@ -189,20 +200,35 @@ void Bar::draw()
 
 	drawRect(&square, 0);
 
-	if (_secondOnTop)
+	auto topValue = _secondOnTop ? _value2 : _value;
+	auto bottomValue = _secondOnTop ? _value : _value2;
+
+	auto topColor = _secondOnTop ? _color2 : _color;
+	auto bottomColor = _secondOnTop ? _color : _color2;
+
+	const int maxBarWidth = getWidth();
+
+	// Draw bottom bar
+	int layer = 0;
+	int barWidth = (Uint16)(_scale * bottomValue);
+	do
 	{
-		square.w = (Uint16)(_scale * _value);
-		drawRect(&square, _color);
-		square.w = (Uint16)(_scale * _value2);
-		drawRect(&square, _color2);
-	}
-	else
+		square.w = barWidth; // Note. barWidth is used because drawRect can change the value of square.w.
+		drawRect(&square, bottomColor + layer*4);
+		++layer;
+		barWidth -= maxBarWidth;
+	} while (layer <= _overflowLayers && barWidth > 0);
+
+	// Draw top bar
+	layer = 0;
+	barWidth = (Uint16)(_scale * topValue);
+	do
 	{
-		square.w = (Uint16)(_scale * _value2);
-		drawRect(&square, _color2);
-		square.w = (Uint16)(_scale * _value);
-		drawRect(&square, _color);
-	}
+		square.w = barWidth;
+		drawRect(&square, topColor + layer*4);
+		++layer;
+		barWidth -= maxBarWidth;
+	} while (layer <= _overflowLayers && barWidth > 0);
 }
 
 /**
