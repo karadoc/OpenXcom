@@ -806,7 +806,7 @@ void DebriefingState::btnOkClick(Action *)
 			{
 				_game->pushState(new CommendationState(_soldiersCommended));
 			}
-			if (_game->getSavedGame()->handlePromotions(participants))
+			if (_game->getSavedGame()->handlePromotions(participants, _game->getMod()))
 			{
 				_game->pushState(new PromotionsState);
 			}
@@ -1434,6 +1434,7 @@ void DebriefingState::prepareDebriefing()
 				else
 				{
 					addStat("STR_CIVILIANS_SAVED", 1, (*j)->getValue());
+					recoverCivilian(*j, base);
 				}
 			}
 		}
@@ -1818,16 +1819,17 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 {
 	for (std::vector<BattleItem*>::iterator it = from->begin(); it != from->end(); ++it)
 	{
-		if ((*it)->getRules()->getName() == _game->getMod()->getAlienFuelName())
+		const RuleItem *rule = (*it)->getRules();
+		if (rule->getName() == _game->getMod()->getAlienFuelName())
 		{
 			// special case of an item counted as a stat
-			addStat(_game->getMod()->getAlienFuelName(), _game->getMod()->getAlienFuelQuantity(), (*it)->getRules()->getRecoveryPoints());
+			addStat(_game->getMod()->getAlienFuelName(), _game->getMod()->getAlienFuelQuantity(), rule->getRecoveryPoints());
 		}
 		else
 		{
-			if ((*it)->getRules()->getRecoveryPoints() && !(*it)->getXCOMProperty())
+			if (rule->getRecoveryPoints() && !(*it)->getXCOMProperty())
 			{
-				if ((*it)->getRules()->getBattleType() == BT_CORPSE && (*it)->getUnit()->getStatus() == STATUS_DEAD)
+				if (rule->getBattleType() == BT_CORPSE && (*it)->getUnit()->getStatus() == STATUS_DEAD)
 				{
 					std::string corpseItem = (*it)->getUnit()->getArmor()->getCorpseGeoscape();
 					RuleItem *rule = _game->getMod()->getItem(corpseItem);
@@ -1837,7 +1839,7 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 						base->getStorageItems()->addItem(corpseItem, 1);
 					}
 				}
-				else if ((*it)->getRules()->getBattleType() == BT_CORPSE)
+				else if (rule->getBattleType() == BT_CORPSE)
 				{
 					// it's unconscious
 					if ((*it)->getUnit()->getStatus() == STATUS_UNCONSCIOUS ||
@@ -1854,40 +1856,41 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 						else if ((*it)->getUnit()->getOriginalFaction() == FACTION_NEUTRAL)
 						{
 							addStat("STR_CIVILIANS_SAVED", 1, (*it)->getUnit()->getValue());
+							recoverCivilian((*it)->getUnit(), base);
 						}
 					}
 				}
 				// only "recover" unresearched items
-				else if (!_game->getSavedGame()->isResearched((*it)->getRules()->getType()))
+				else if (!_game->getSavedGame()->isResearched(rule->getType()))
 				{
-					addStat("STR_ALIEN_ARTIFACTS_RECOVERED", 1, (*it)->getRules()->getRecoveryPoints());
+					addStat("STR_ALIEN_ARTIFACTS_RECOVERED", 1, rule->getRecoveryPoints());
 				}
 			}
 
 			// put items back in the base
-			if (!(*it)->getRules()->isFixed() && (*it)->getRules()->isRecoverable())
+			if (!rule->isFixed() && rule->isRecoverable() && (!rule->isConsumable() || (*it)->getFuseTimer() < 0))
 			{
-				switch ((*it)->getRules()->getBattleType())
+				switch (rule->getBattleType())
 				{
 					case BT_CORPSE:
 						break;
 					case BT_MEDIKIT:
-						if ((*it)->getRules()->isConsumable())
+						if (rule->isConsumable())
 						{
 							// Need to remember all three!
-							_roundsPainKiller[(*it)->getRules()] += (*it)->getPainKillerQuantity();
-							_roundsStimulant[(*it)->getRules()] += (*it)->getStimulantQuantity();
-							_roundsHeal[(*it)->getRules()] += (*it)->getHealQuantity();
+							_roundsPainKiller[rule] += (*it)->getPainKillerQuantity();
+							_roundsStimulant[rule] += (*it)->getStimulantQuantity();
+							_roundsHeal[rule] += (*it)->getHealQuantity();
 						}
 						else
 						{
 							// Vanilla behaviour (recover a full medikit).
-							base->getStorageItems()->addItem((*it)->getRules()->getType(), 1);
+							base->getStorageItems()->addItem(rule->getType(), 1);
 						}
 						break;
 					case BT_AMMO:
 						// It's a clip, count any rounds left.
-						_rounds[(*it)->getRules()] += (*it)->getAmmoQuantity();
+						_rounds[rule] += (*it)->getAmmoQuantity();
 						break;
 					case BT_FIREARM:
 					case BT_MELEE:
@@ -1901,13 +1904,86 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 						}
 						// Fall-through, to recover the weapon itself.
 					default:
-						base->getStorageItems()->addItem((*it)->getRules()->getType(), 1);
+						base->getStorageItems()->addItem(rule->getType(), 1);
 				}
-				if ((*it)->getRules()->getBattleType() == BT_NONE)
+				if (rule->getBattleType() == BT_NONE)
 				{
 					for (std::vector<Craft*>::iterator c = base->getCrafts()->begin(); c != base->getCrafts()->end(); ++c)
 					{
-						(*c)->reuseItem((*it)->getRules()->getType());
+						(*c)->reuseItem(rule->getType());
+					}
+				}
+			}
+		}
+	}
+}
+
+/**
+* Recovers a live civilian from the battlescape.
+* @param from Battle unit to recover.
+* @param base Base to add items to.
+*/
+void DebriefingState::recoverCivilian(BattleUnit *from, Base *base)
+{
+	std::string type = from->getUnitRules()->getCivilianRecoveryType();
+	if (type == "STR_SCIENTIST")
+	{
+		Transfer *t = new Transfer(24);
+		t->setScientists(1);
+		base->getTransfers()->push_back(t);
+	}
+	else if (type == "STR_ENGINEER")
+	{
+		Transfer *t = new Transfer(24);
+		t->setEngineers(1);
+		base->getTransfers()->push_back(t);
+	}
+	else
+	{
+		RuleSoldier *ruleSoldier = _game->getMod()->getSoldier(type);
+		if (ruleSoldier != 0)
+		{
+			Transfer *t = new Transfer(24);
+			Soldier *s = _game->getMod()->genSoldier(_game->getSavedGame(), ruleSoldier->getType());
+			t->setSoldier(s);
+			base->getTransfers()->push_back(t);
+		}
+		else
+		{
+			RuleItem *ruleItem = _game->getMod()->getItem(type);
+			if (ruleItem != 0)
+			{
+				if (!ruleItem->isAlien())
+				{
+					base->getStorageItems()->addItem(type, 1);
+				}
+				else
+				{
+					RuleItem *ruleLiveAlienItem = ruleItem;
+					bool killPrisonersAutomatically = base->getAvailableContainment(ruleLiveAlienItem->getPrisonType()) == 0;
+					if (killPrisonersAutomatically)
+					{
+						// check also other bases, maybe we can transfer/redirect prisoners there
+						for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
+						{
+							if ((*i)->getAvailableContainment(ruleLiveAlienItem->getPrisonType()) > 0)
+							{
+								killPrisonersAutomatically = false;
+								break;
+							}
+						}
+					}
+					if (killPrisonersAutomatically)
+					{
+						_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 1; // 1 = not available
+					}
+					else
+					{
+						base->getStorageItems()->addItem(type, 1);
+						if (base->getAvailableContainment(ruleLiveAlienItem->getPrisonType()) - (base->getUsedContainment(ruleLiveAlienItem->getPrisonType()) * _limitsEnforced) < 0)
+						{
+							_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 2; // 2 = full
+						}
 					}
 				}
 			}

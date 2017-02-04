@@ -201,7 +201,7 @@ public:
 	/// Gets the current game time.
 	GameTime *getTime() const;
 	/// Sets the current game time.
-	void setTime(GameTime time);
+	void setTime(const GameTime& time);
 	/// Gets the current ID for an object.
 	int getId(const std::string &name);
 	/// Resets the list of object IDs.
@@ -263,7 +263,7 @@ public:
 	/// Gets the soldier matching this ID.
 	Soldier *getSoldier(int id) const;
 	/// Handles the higher promotions.
-	bool handlePromotions(std::vector<Soldier*> &participants);
+	bool handlePromotions(std::vector<Soldier*> &participants, const Mod *mod);
 	/// Processes a soldier's promotion.
 	void processSoldier(Soldier *soldier, PromotionInfo &soldierData);
 	/// Checks how many soldiers of a rank exist and which one has the highest score.
