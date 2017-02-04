@@ -214,7 +214,7 @@ void Bar::draw()
 	do
 	{
 		square.w = barWidth; // Note. barWidth is used because drawRect can change the value of square.w.
-		drawRect(&square, bottomColor + layer*4);
+		drawRect(&square, bottomColor + layer*8);
 		++layer;
 		barWidth -= maxBarWidth;
 	} while (layer <= _overflowLayers && barWidth > 0);
@@ -225,7 +225,7 @@ void Bar::draw()
 	do
 	{
 		square.w = barWidth;
-		drawRect(&square, topColor + layer*4);
+		drawRect(&square, topColor + layer*8);
 		++layer;
 		barWidth -= maxBarWidth;
 	} while (layer <= _overflowLayers && barWidth > 0);
