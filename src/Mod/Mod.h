@@ -160,6 +160,8 @@ private:
 	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
 	int _ufoGlancingHitThreshold, _ufoBeamWidthParameter;
 	int _soldiersPerSergeant, _soldiersPerCaptain, _soldiersPerColonel, _soldiersPerCommander;
+	int _performanceBonusFactor;
+	bool _useCustomCategories;
 	int _defeatScore, _defeatFunds;
 	std::pair<std::string, int> _alienFuel;
 	std::string _fontName, _finalResearch;
@@ -440,6 +442,10 @@ public:
 	int getSoldiersPerColonel() const { return _soldiersPerColonel; }
 	/// Gets how many soldiers are needed for one commander promotion
 	int getSoldiersPerCommander() const { return _soldiersPerCommander; }
+	/// Gets a performance bonus factor
+	int getPerformanceBonusFactor() const { return _performanceBonusFactor; }
+	/// Should custom categories be used in Buy/Sell/Transfer GUIs?
+	bool getUseCustomCategories() const { return _useCustomCategories; }
 	/// Gets whether or not to load base defense terrain from globe texture
 	int getBaseDefenseMapFromLocation() const { return _baseDefenseMapFromLocation; }
 	/// Gets the ruleset for a specific research project.
