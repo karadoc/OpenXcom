@@ -114,7 +114,7 @@ namespace OpenXcom
  * @param type String defining the type.
  */
 AlienDeployment::AlienDeployment(const std::string &type) : _type(type), _bughuntMinTurn(0), _width(0), _length(0), _height(0), _civilians(0), _shade(-1), _minShade(-1), _maxShade(-1), _finalDestination(false), _isAlienBase(false), _alert("STR_ALIENS_TERRORISE"),
-	_alertBackground("BACK03.SCR"), _markerName("STR_TERROR_SITE"), _markerIcon(-1), _durationMin(0), _durationMax(0), _minDepth(0), _maxDepth(0), _minSiteDepth(0), _maxSiteDepth(0), _genMissionFrequency(0),
+	_alertBackground("BACK03.SCR"), _alertDescription(""), _markerName("STR_TERROR_SITE"), _markerIcon(-1), _durationMin(0), _durationMax(0), _minDepth(0), _maxDepth(0), _minSiteDepth(0), _maxSiteDepth(0), _genMissionFrequency(0),
 	_objectiveType(-1), _objectivesRequired(0), _objectiveCompleteScore(0), _objectiveFailedScore(0), _despawnPenalty(0), _points(0), _turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE)
 {
 }
@@ -145,6 +145,7 @@ void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 	_length = node["length"].as<int>(_length);
 	_height = node["height"].as<int>(_height);
 	_civilians = node["civilians"].as<int>(_civilians);
+	_civiliansByType = node["civiliansByType"].as<std::map<std::string, int> >(_civiliansByType);
 	_terrains = node["terrains"].as<std::vector<std::string> >(_terrains);
 	_shade = node["shade"].as<int>(_shade);
 	_minShade = node["minShade"].as<int>(_minShade);
@@ -157,6 +158,7 @@ void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 	_script = node["script"].as<std::string>(_script);
 	_alert = node["alert"].as<std::string>(_alert);
 	_alertBackground = node["alertBackground"].as<std::string>(_alertBackground);
+	_alertDescription = node["alertDescription"].as<std::string>(_alertDescription);
 	_briefingData = node["briefing"].as<BriefingData>(_briefingData);
 	_markerName = node["markerName"].as<std::string>(_markerName);
 	if (node["markerIcon"])
@@ -277,6 +279,15 @@ int AlienDeployment::getCivilians() const
 }
 
 /**
+ * Gets the number of civilians per type.
+ * @return The number of civilians per type.
+ */
+const std::map<std::string, int> &AlienDeployment::getCiviliansByType() const
+{
+	return _civiliansByType;
+}
+
+/**
  * Gets the terrain for battlescape generation.
  * @return The terrain.
  */
@@ -382,6 +393,15 @@ std::string AlienDeployment::getAlertMessage() const
 std::string AlienDeployment::getAlertBackground() const
 {
 	return _alertBackground;
+}
+
+/**
+* Gets the alert description (displayed when clicking on [Info] button in TargetInfo).
+* @return String ID for the description.
+*/
+std::string AlienDeployment::getAlertDescription() const
+{
+	return _alertDescription;
 }
 
 /**

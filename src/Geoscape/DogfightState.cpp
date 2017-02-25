@@ -253,6 +253,7 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	{
 		_weaponEnabled[i] = true;
 		_weaponFireCountdown[i] = 0;
+		_tractorLockedOn[i] = false;
 	}
 
 	// pilot modifiers
@@ -260,6 +261,11 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	_pilotAccuracyBonus = _craft->getPilotAccuracyBonus(pilots);
 	_pilotDodgeBonus = _craft->getPilotDodgeBonus(pilots);
 	_pilotApproachSpeedModifier = _craft->getPilotApproachSpeedModifier(pilots);
+	_craftAccelerationBonus = 2; // vanilla
+	if (!pilots.empty())
+	{
+		_craftAccelerationBonus = std::min(4, (_craft->getCraftStats().accel / 3) + 1);
+	}
 
 	// Create objects
 	_window = new Surface(160, 96, _x, _y);
@@ -442,7 +448,7 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	for (int i = 0; i < _weaponNum; ++i)
 	{
 		CraftWeapon *w = _craft->getWeapons()->at(i);
-		if (w == 0 || w->getRules()->getAmmoMax() == 0)
+		if (w == 0 || (w->getRules()->getAmmoMax() == 0 && w->getRules()->getTractorBeamPower() == 0))
 			continue;
 
 		Surface *weapon = _weapon[i], *range = _range[i];
@@ -865,7 +871,8 @@ void DogfightState::update()
 		}
 	}
 	// Crappy craft is chasing UFO.
-	if (_ufo->getSpeed() > _craft->getCraftStats().speedMax)
+	int speedMinusTractors = std::max(0, _ufo->getSpeed() - _ufo->getTractorBeamSlowdown());
+	if (speedMinusTractors > _craft->getCraftStats().speedMax)
 	{
 		_ufoBreakingOff = true;
 		finalRun = true;
@@ -886,7 +893,7 @@ void DogfightState::update()
 		{
 			if (_currentDist < _targetDist && !_ufo->isCrashed() && !_craft->isDestroyed())
 			{
-				distanceChange = 2 * _pilotApproachSpeedModifier;
+				distanceChange = 2 * _craftAccelerationBonus; // disengage speed
 				if (_currentDist + distanceChange >_targetDist)
 				{
 					distanceChange = _targetDist - _currentDist;
@@ -894,7 +901,7 @@ void DogfightState::update()
 			}
 			else if (_currentDist > _targetDist && !_ufo->isCrashed() && !_craft->isDestroyed())
 			{
-				distanceChange = -1 * _pilotApproachSpeedModifier;
+				distanceChange = -1 * _pilotApproachSpeedModifier; // engage speed
 			}
 
 			// don't let the interceptor mystically push or pull its fired projectiles
@@ -905,7 +912,7 @@ void DogfightState::update()
 		}
 		else
 		{
-			distanceChange = 2 * _pilotApproachSpeedModifier;
+			distanceChange = 4; // ufo breaking off speed
 
 			// UFOs can try to outrun our missiles, don't adjust projectile positions here
 			// If UFOs ever fire anything but beams, those positions need to be adjust here though.
@@ -1140,6 +1147,35 @@ void DogfightState::update()
 				--_weaponFireCountdown[i];
 			}
 
+			// Handle craft tractor beams
+			if (w->getRules()->getTractorBeamPower() != 0)
+			{
+				if (_currentDist <= w->getRules()->getRange() * 8 && _mode != _btnStandoff
+					&& _mode != _btnDisengage && !_ufo->isCrashed() && !_craft->isDestroyed()
+					&& _weaponEnabled[i])
+				{
+					if (!_tractorLockedOn[i])
+					{
+						_tractorLockedOn[i] = true;
+						int tractorBeamSlowdown = _ufo->getTractorBeamSlowdown();
+						tractorBeamSlowdown += w->getRules()->getTractorBeamPower() * _game->getMod()->getUfoTractorBeamSizeModifier(_ufoSize) / 100;
+						_ufo->setTractorBeamSlowdown(tractorBeamSlowdown);
+						setStatus("STR_TRACTOR_BEAM_ENGAGED");
+					}
+				}
+				else
+				{
+					if (_tractorLockedOn[i])
+					{
+						_tractorLockedOn[i] = false;
+						int tractorBeamSlowdown = _ufo->getTractorBeamSlowdown();
+						tractorBeamSlowdown -= w->getRules()->getTractorBeamPower() * _game->getMod()->getUfoTractorBeamSizeModifier(_ufoSize) / 100;
+						_ufo->setTractorBeamSlowdown(tractorBeamSlowdown);
+						setStatus("STR_TRACTOR_BEAM_DISENGAGED");
+					}
+				}
+			}
+
 			if (w->getAmmo() == 0 && !projectileInFlight && !_craft->isDestroyed())
 			{
 				// Handle craft distance according to option set by user and available ammo.
@@ -1365,6 +1401,50 @@ void DogfightState::update()
 				_timeout += 30;
 				finalRun = true;
 				_ufo->setShootingAt(0);
+			}
+		}
+		else if (_ufo->getCraftStats().speedMax - _ufo->getTractorBeamSlowdown() == 0) // UFO brought down by tractor beam
+		{
+			_endUfoHandled = true;
+
+			if (!_state->getGlobe()->insideLand(_ufo->getLongitude(), _ufo->getLatitude())) // Brought it down over water
+			{
+				finalRun = true;
+				_ufo->setDamage(_ufo->getCraftStats().damageMax);
+				_ufo->setShotDownByCraftId(_craft->getUniqueId());
+				_ufo->setSpeed(0);
+				_ufo->setStatus(Ufo::DESTROYED);
+				_destroyUfo = true;
+				for (std::vector<Country*>::iterator country = _game->getSavedGame()->getCountries()->begin(); country != _game->getSavedGame()->getCountries()->end(); ++country)
+				{
+					if ((*country)->getRules()->insideCountry(_ufo->getLongitude(), _ufo->getLatitude()))
+					{
+						(*country)->addActivityXcom(_ufo->getRules()->getScore());
+						break;
+					}
+				}
+				for (std::vector<Region*>::iterator region = _game->getSavedGame()->getRegions()->begin(); region != _game->getSavedGame()->getRegions()->end(); ++region)
+				{
+					if ((*region)->getRules()->insideRegion(_ufo->getLongitude(), _ufo->getLatitude()))
+					{
+						(*region)->addActivityXcom(_ufo->getRules()->getScore());
+						break;
+					}
+				}
+			}
+			else // Brought it down over land
+			{
+				finalRun = true;
+				_ufo->setSecondsRemaining(RNG::generate(30, 120)*60);
+				_ufo->setShootingAt(0);
+				_ufo->setStatus(Ufo::LANDED);
+				_ufo->setAltitude("STR_GROUND");
+				_ufo->setSpeed(0);
+				_ufo->setTractorBeamSlowdown(0);
+				if (_ufo->getLandId() == 0)
+				{
+					_ufo->setLandId(_game->getSavedGame()->getId("STR_LANDING_SITE"));
+				}
 			}
 		}
 	}

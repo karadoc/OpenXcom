@@ -409,6 +409,13 @@ Mod::Mod() :
 		_statAdjustment[i].aimAndArmorMultiplier = 1.0;
 		_statAdjustment[i].growthMultiplier = i;
 	}
+
+	// Setting default value for array
+	_ufoTractorBeamSizeModifiers[0] = 400;
+	_ufoTractorBeamSizeModifiers[1] = 200;
+	_ufoTractorBeamSizeModifiers[2] = 100;
+	_ufoTractorBeamSizeModifiers[3] = 50;
+	_ufoTractorBeamSizeModifiers[4] = 25;
 }
 
 /**
@@ -950,6 +957,7 @@ void Mod::loadAll(const std::vector< std::pair< std::string, std::vector<std::st
 		}
 	}
 	_scriptGlobal->endLoad();
+
 	// post-processing item categories
 	std::map<std::string, std::string> replacementRules;
 	for (auto i = _itemCategories.begin(); i != _itemCategories.end(); ++i)
@@ -962,6 +970,20 @@ void Mod::loadAll(const std::vector< std::pair< std::string, std::vector<std::st
 	for (auto j = _items.begin(); j != _items.end(); ++j)
 	{
 		j->second->updateCategories(&replacementRules);
+	}
+
+	// fixed user options
+	if (!_fixedUserOptions.empty())
+	{
+		const std::vector<OptionInfo> &options = Options::getOptionInfo();
+		for (std::vector<OptionInfo>::const_iterator i = options.begin(); i != options.end(); ++i)
+		{
+			if (i->type() != OPTION_KEY && !i->category().empty())
+			{
+				i->load(_fixedUserOptions, false);
+			}
+		}
+		Options::save();
 	}
 
 	sortLists();
@@ -1352,6 +1374,15 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	_bughuntTimeUnitsLeft = doc["bughuntTimeUnitsLeft"].as<int>(_bughuntTimeUnitsLeft);
 	_ufoGlancingHitThreshold = doc["ufoGlancingHitThreshold"].as<int>(_ufoGlancingHitThreshold);
 	_ufoBeamWidthParameter = doc["ufoBeamWidthParameter"].as<int>(_ufoBeamWidthParameter);
+	if (doc["ufoTractorBeamSizeModifiers"])
+	{
+		int index = 0;
+		for (YAML::const_iterator i = doc["ufoTractorBeamSizeModifiers"].begin(); i != doc["ufoTractorBeamSizeModifiers"].end() && index < 5; ++i)
+		{
+			_ufoTractorBeamSizeModifiers[index] = (*i).as<int>(_ufoTractorBeamSizeModifiers[index]);
+			index++;
+		}
+	}
 	_soldiersPerSergeant = doc["soldiersPerSergeant"].as<int>(_soldiersPerSergeant);
 	_soldiersPerCaptain = doc["soldiersPerCaptain"].as<int>(_soldiersPerCaptain);
 	_soldiersPerColonel = doc["soldiersPerColonel"].as<int>(_soldiersPerColonel);
@@ -1361,6 +1392,8 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	_baseDefenseMapFromLocation = doc["baseDefenseMapFromLocation"].as<int>(_baseDefenseMapFromLocation);
 	_missionRatings = doc["missionRatings"].as<std::map<int, std::string> >(_missionRatings);
 	_monthlyRatings = doc["monthlyRatings"].as<std::map<int, std::string> >(_monthlyRatings);
+	_fixedUserOptions = doc["fixedUserOptions"].as<std::map<std::string, std::string> >(_fixedUserOptions);
+	_hiddenMovementBackgrounds = doc["hiddenMovementBackgrounds"].as<std::vector<std::string> >(_hiddenMovementBackgrounds);
 
 	_defeatScore = doc["defeatScore"].as<int>(_defeatScore);
 	_defeatFunds = doc["defeatFunds"].as<int>(_defeatFunds);
@@ -2817,6 +2850,16 @@ const std::map<int, std::string> *Mod::getMissionRatings() const
 const std::map<int, std::string> *Mod::getMonthlyRatings() const
 {
 	return &_monthlyRatings;
+}
+
+const std::map<std::string, std::string> &Mod::getFixedUserOptions() const
+{
+	return _fixedUserOptions;
+}
+
+const std::vector<std::string> &Mod::getHiddenMovementBackgrounds() const
+{
+	return _hiddenMovementBackgrounds;
 }
 
 namespace

@@ -17,15 +17,33 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "../Engine/State.h"
 
-#define OPENXCOM_VERSION_SHORT "Extended 3.6+"
-#define OPENXCOM_VERSION_LONG "3.6.0.0"
-#define OPENXCOM_VERSION_NUMBER 3,6,0,0
+namespace OpenXcom
+{
 
-#ifdef GIT_BUILD
-#include "git_version.h"
-#endif
+class TextButton;
+class Window;
+class Text;
+class AlienDeployment;
 
-#ifndef OPENXCOM_VERSION_GIT
-#define OPENXCOM_VERSION_GIT " (v2017-02-25)"
-#endif
+/**
+ * Briefing screen which displays basic info
+ * about a mission site or an alien base.
+ */
+class BriefingLightState : public State
+{
+private:
+	TextButton *_btnOk;
+	Window *_window;
+	Text *_txtTitle, *_txtBriefing;
+public:
+	/// Creates the BriefingLight state.
+	BriefingLightState(AlienDeployment *deployment);
+	/// Cleans up the BriefingLight state.
+	~BriefingLightState();
+	/// Handler for clicking the Ok button.
+	void btnOkClick(Action *action);
+};
+
+}

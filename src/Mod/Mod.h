@@ -159,6 +159,7 @@ private:
 	int _surrenderMode;
 	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
 	int _ufoGlancingHitThreshold, _ufoBeamWidthParameter;
+	int _ufoTractorBeamSizeModifiers[5];
 	int _soldiersPerSergeant, _soldiersPerCaptain, _soldiersPerColonel, _soldiersPerCommander;
 	int _performanceBonusFactor;
 	bool _useCustomCategories;
@@ -169,6 +170,8 @@ private:
 	GameTime _startingTime;
 	int _baseDefenseMapFromLocation;
 	std::map<int, std::string> _missionRatings, _monthlyRatings;
+	std::map<std::string, std::string> _fixedUserOptions;
+	std::vector<std::string> _hiddenMovementBackgrounds;
 	StatAdjustment _statAdjustment[5];
 
 	std::vector<std::string> _countriesIndex, _extraGlobeLabelsIndex, _regionsIndex, _facilitiesIndex, _craftsIndex, _craftWeaponsIndex, _itemCategoriesIndex, _itemsIndex, _invsIndex, _ufosIndex;
@@ -434,6 +437,8 @@ public:
 	int getUfoGlancingHitThreshold() const { return _ufoGlancingHitThreshold; }
 	/// Gets the parameter for drawing the width of a ufo's beam weapon based on power
 	int getUfoBeamWidthParameter() const { return _ufoBeamWidthParameter; }
+	/// Gets the modifier to a tractor beam's power based on a ufo's size
+	int getUfoTractorBeamSizeModifier(int ufoSize) const { return _ufoTractorBeamSizeModifiers[ufoSize]; }
 	/// Gets how many soldiers are needed for one sergeant promotion
 	int getSoldiersPerSergeant() const { return _soldiersPerSergeant; }
 	/// Gets how many soldiers are needed for one captain promotion
@@ -519,6 +524,8 @@ public:
 	std::string getFinalResearch() const;
 	const std::map<int, std::string> *getMissionRatings() const;
 	const std::map<int, std::string> *getMonthlyRatings() const;
+	const std::map<std::string, std::string> &getFixedUserOptions() const;
+	const std::vector<std::string> &getHiddenMovementBackgrounds() const;
 	StatAdjustment *getStatAdjustment(int difficulty);
 	int getDefeatScore() const;
 	int getDefeatFunds() const;
