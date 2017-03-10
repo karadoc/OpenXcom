@@ -98,8 +98,10 @@ bool calculateLineHitHelper(const Position& origin, const Position& target, Func
 
 	//drift controls when to step in 'shallow' planes
 	//starting value keeps Line centred
-	drift_xy  = (delta_x / 2);
-	drift_xz  = (delta_x / 2);
+	// (round up, to prevent overflow drift at the end)
+	drift_xy  = (delta_x+1) / 2;
+	drift_xz  = (delta_x+1) / 2;
+
 
 	//direction of line
 	step_x = 1;  if (x0 > x1) {  step_x = -1; }
