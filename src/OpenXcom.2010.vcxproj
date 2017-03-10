@@ -30,7 +30,7 @@
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
-    <PlatformToolset>v140_xp</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -40,7 +40,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -372,6 +372,7 @@
     <ClCompile Include="Engine\Zoom.cpp" />
     <ClCompile Include="Geoscape\AlienBaseState.cpp" />
     <ClCompile Include="Geoscape\AllocateTrainingState.cpp" />
+    <ClCompile Include="Geoscape\CraftNotEnoughPilotsState.cpp" />
     <ClCompile Include="Geoscape\DogfightErrorState.cpp" />
     <ClCompile Include="Geoscape\MissionDetectedState.cpp" />
     <ClCompile Include="Geoscape\AllocatePsiTrainingState.cpp" />
@@ -386,6 +387,7 @@
     <ClCompile Include="Geoscape\ConfirmNewBaseState.cpp" />
     <ClCompile Include="Geoscape\CraftPatrolState.cpp" />
     <ClCompile Include="Geoscape\DogfightState.cpp" />
+    <ClCompile Include="Geoscape\NewPossiblePurchaseState.cpp" />
     <ClCompile Include="Geoscape\ResearchRequiredState.cpp" />
     <ClCompile Include="Geoscape\NewPossibleManufactureState.cpp" />
     <ClCompile Include="Geoscape\PsiTrainingState.cpp" />
@@ -731,6 +733,7 @@
     <ClInclude Include="Geoscape\AlienBaseState.h" />
     <ClInclude Include="Geoscape\AllocateTrainingState.h" />
     <ClInclude Include="Geoscape\Cord.h" />
+    <ClInclude Include="Geoscape\CraftNotEnoughPilotsState.h" />
     <ClInclude Include="Geoscape\DogfightErrorState.h" />
     <ClInclude Include="Geoscape\MissionDetectedState.h" />
     <ClInclude Include="Geoscape\AllocatePsiTrainingState.h" />
@@ -746,6 +749,7 @@
     <ClInclude Include="Geoscape\CraftPatrolState.h" />
     <ClInclude Include="Geoscape\DogfightState.h" />
     <ClInclude Include="Geoscape\FundingState.h" />
+    <ClInclude Include="Geoscape\NewPossiblePurchaseState.h" />
     <ClInclude Include="Geoscape\ResearchRequiredState.h" />
     <ClInclude Include="Geoscape\GeoscapeCraftState.h" />
     <ClInclude Include="Geoscape\NewPossibleManufactureState.h" />

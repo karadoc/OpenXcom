@@ -170,6 +170,7 @@ set ( geoscape_src
   Geoscape/ConfirmLandingState.cpp
   Geoscape/ConfirmNewBaseState.cpp
   Geoscape/CraftErrorState.cpp
+  Geoscape/CraftNotEnoughPilotsState.cpp
   Geoscape/CraftPatrolState.cpp
   Geoscape/DogfightErrorState.cpp
   Geoscape/DogfightState.cpp
@@ -185,6 +186,7 @@ set ( geoscape_src
   Geoscape/MonthlyReportState.cpp
   Geoscape/MultipleTargetsState.cpp
   Geoscape/NewPossibleManufactureState.cpp
+  Geoscape/NewPossiblePurchaseState.cpp
   Geoscape/NewPossibleResearchState.cpp
   Geoscape/ProductionCompleteState.cpp
   Geoscape/PsiTrainingState.cpp
@@ -474,7 +476,7 @@ if ( WIN32 )
 endif ()
 
 # backtrace(3) requires libexecinfo on some *BSD systems
-if (${CMAKE_SYSTEM_NAME} MATCHES FreeBSD OR ${CMAKE_SYSTEM_NAME} MATCHES NetBSD)
+if (${CMAKE_SYSTEM_NAME} MATCHES FreeBSD OR ${CMAKE_SYSTEM_NAME} MATCHES NetBSD OR ${CMAKE_SYSTEM_NAME} MATCHES OpenBSD)
   set ( system_libs -lexecinfo )
 endif ()
 

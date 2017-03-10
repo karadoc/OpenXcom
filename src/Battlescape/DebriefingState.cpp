@@ -78,7 +78,7 @@ namespace OpenXcom
  * Initializes all the elements in the Debriefing screen.
  * @param game Pointer to the core game.
  */
-DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(true), _destroyBase(false), _pageNumber(0), _showSellButton(true)
+DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(true), _destroyBase(false), _showSellButton(true), _pageNumber(0)
 {
 	_missionStatistics = new MissionStatistics();
 
@@ -1314,10 +1314,9 @@ void DebriefingState::prepareDebriefing()
 				if ((((*j)->isInExitArea() || (*j)->getStatus() == STATUS_IGNORE_ME) && (battle->getMissionType() != "STR_BASE_DEFENSE" || success)) || !aborted)
 				{ // so game is not aborted or aborted and unit is on exit area
 					UnitStats statIncrease;
-					bool hasImproved = (*j)->postMissionProcedures(save, statIncrease);
+					(*j)->postMissionProcedures(save, statIncrease);
 					if ((*j)->getGeoscapeSoldier())
 					{
-						//if (hasImproved)
 						_soldierStats.push_back(std::pair<std::wstring, UnitStats>((*j)->getGeoscapeSoldier()->getName(), statIncrease));
 					}
 					playerInExitArea++;
@@ -1392,7 +1391,7 @@ void DebriefingState::prepareDebriefing()
 					}
 				}
 			}
-			else if (oldFaction == FACTION_HOSTILE && (!aborted || (*j)->isInExitArea())
+			else if (oldFaction == FACTION_HOSTILE && (!aborted || (*j)->isInExitArea()) && !_destroyBase
 				// mind controlled units may as well count as unconscious
 				&& faction == FACTION_PLAYER && (!(*j)->isOut() || (*j)->getStatus() == STATUS_IGNORE_ME))
 			{
@@ -1501,7 +1500,7 @@ void DebriefingState::prepareDebriefing()
 				{
 					if (battle->getTile(i)->getMapData(part))
 					{
-						size_t specialType = battle->getTile(i)->getMapData(part)->getSpecialType();
+						int specialType = battle->getTile(i)->getMapData(part)->getSpecialType();
 						if (specialType != nonRecoverType && _recoveryStats.find(specialType) != _recoveryStats.end())
 						{
 							addStat(_recoveryStats[specialType]->name, 1, _recoveryStats[specialType]->value);
@@ -1556,6 +1555,31 @@ void DebriefingState::prepareDebriefing()
 		}
 	}
 
+	// recover all our goodies
+	if (playersSurvived > 0)
+	{
+		int aadivider = (target == "STR_UFO") ? 10 : 150;
+		for (std::vector<DebriefingStat*>::iterator i = _stats.begin(); i != _stats.end(); ++i)
+		{
+			// alien alloys recovery values are divided by 10 or divided by 150 in case of an alien base
+			if ((*i)->item == _recoveryStats[ALIEN_ALLOYS]->name)
+			{
+				(*i)->qty = (*i)->qty / aadivider;
+				(*i)->score = (*i)->score / aadivider;
+			}
+
+			// recoverable battlescape tiles are now converted to items and put in base inventory
+			if ((*i)->recovery && (*i)->qty > 0)
+			{
+				base->getStorageItems()->addItem((*i)->item, (*i)->qty);
+			}
+		}
+
+		// assuming this was a multi-stage mission,
+		// recover everything that was in the craft in the previous stage
+		recoverItems(battle->getGuaranteedRecoveredItems(), base);
+	}
+
 	// calculate the clips for each type based on the recovered rounds.
 	for (std::map<const RuleItem*, int>::const_iterator i = _rounds.begin(); i != _rounds.end(); ++i)
 	{
@@ -1587,31 +1611,6 @@ void DebriefingState::prepareDebriefing()
 			base->getStorageItems()->addItem(i->first->getType(), totalRecovered);
 	}
 
-	// recover all our goodies
-	if (playersSurvived > 0)
-	{
-		int aadivider = (target == "STR_UFO") ? 10 : 150;
-		for (std::vector<DebriefingStat*>::iterator i = _stats.begin(); i != _stats.end(); ++i)
-		{
-			// alien alloys recovery values are divided by 10 or divided by 150 in case of an alien base
-			if ((*i)->item == _recoveryStats[ALIEN_ALLOYS]->name)
-			{
-				(*i)->qty = (*i)->qty / aadivider;
-				(*i)->score = (*i)->score / aadivider;
-			}
-
-			// recoverable battlescape tiles are now converted to items and put in base inventory
-			if ((*i)->recovery && (*i)->qty > 0)
-			{
-				base->getStorageItems()->addItem((*i)->item, (*i)->qty);
-			}
-		}
-
-		// assuming this was a multi-stage mission,
-		// recover everything that was in the craft in the previous stage
-		recoverItems(battle->getGuaranteedRecoveredItems(), base);
-	}
-
 	// reequip craft after a non-base-defense mission (of course only if it's not lost already (that case craft=0))
 	if (craft)
 	{
@@ -1639,7 +1638,6 @@ void DebriefingState::prepareDebriefing()
 			{
 				if ((*i) == base)
 				{
-
 					delete (*i);
 					base = 0; // To avoid similar (potential) problems as with the deleted craft
 					_game->getSavedGame()->getBases()->erase(i);
@@ -1903,6 +1901,15 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 						_rounds[rule] += (*it)->getAmmoQuantity();
 						break;
 					case BT_FIREARM:
+						{
+							if (!(*it)->needsAmmo() && (*it)->getRules()->getClipSize() > 0)
+							{
+								// It's a weapon without clips
+								_rounds[(*it)->getRules()] += (*it)->getAmmoQuantity();
+								break;
+							}
+						}
+						// Fall-through...
 					case BT_MELEE:
 						// It's a weapon, count any rounds left in the clip.
 						{

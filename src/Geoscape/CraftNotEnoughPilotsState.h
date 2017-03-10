@@ -17,15 +17,36 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include "../Engine/State.h"
 
-#define OPENXCOM_VERSION_SHORT "Extended 3.7a+"
-#define OPENXCOM_VERSION_LONG "3.7.0.0"
-#define OPENXCOM_VERSION_NUMBER 3,7,0,0
+namespace OpenXcom
+{
 
-#ifdef GIT_BUILD
-#include "git_version.h"
-#endif
+class TextButton;
+class Window;
+class Text;
+class Craft;
 
-#ifndef OPENXCOM_VERSION_GIT
-#define OPENXCOM_VERSION_GIT " (v2017-03-10)"
-#endif
+/**
+ * Window used to notify the player when
+ * there are not enough pilots to pilot the craft.
+ */
+class CraftNotEnoughPilotsState : public State
+{
+private:
+	TextButton *_btnOk, *_btnAssignPilots;
+	Window *_window;
+	Text *_txtMessage;
+	Craft *_craft;
+public:
+	/// Creates the CraftNotEnoughPilotsState state.
+	CraftNotEnoughPilotsState(Craft *craft);
+	/// Cleans up the CraftNotEnoughPilotsState state.
+	~CraftNotEnoughPilotsState();
+	/// Handler for clicking the OK button.
+	void btnOkClick(Action *action);
+	/// Handler for clicking the [Assign Pilots] button.
+	void btnAssignPilotsClick(Action *action);
+};
+
+}

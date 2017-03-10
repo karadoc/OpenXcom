@@ -1,5 +1,6 @@
+#pragma once
 /*
- * Copyright 2010-2015 OpenXcom Developers.
+ * Copyright 2010-2016 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -16,45 +17,38 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef OPENXCOM_CONFIRMENDMISSION_H
-#define OPENXCOM_CONFIRMENDMISSION_H
-
 #include "../Engine/State.h"
 
 namespace OpenXcom
 {
 
+class Game;
 class Window;
-class Text;
 class TextButton;
-class SavedBattleGame;
-class BattlescapeGame;
+class Text;
+class Base;
+class TextList;
+class RuleItem;
 
 /**
- * Screen which asks for confirmation to end the mission.
- * Note: only if auto-end battle option is enabled and if there are still soldiers with fatal wounds
+ * Window which inform the player of new possible items to buy.
+ * Also allows to go to the PurchaseState to order some new items.
  */
-class ConfirmEndMissionState : public State
+class NewPossiblePurchaseState : public State
 {
 private:
 	Window *_window;
-	Text *_txtTitle, *_txtWounded, *_txtConfirm;
-	TextButton *_btnOk, *_btnCancel;
-	SavedBattleGame *_battleGame;
-	int _wounded;
-	BattlescapeGame *_parent;
+	Text *_txtTitle;
+	TextList * _lstPossibilities;
+	TextButton *_btnPurchase, *_btnOk;
+	Base * _base;
 public:
-	/// Creates the ConfirmEndMission state.
-	ConfirmEndMissionState(SavedBattleGame *battleGame, int wounded, BattlescapeGame *parent);
-	/// Cleans up the ConfirmEndMission state.
-	~ConfirmEndMissionState();
+	/// Creates the NewPossiblePurchaseState state.
+	NewPossiblePurchaseState(Base * base, const std::vector<RuleItem *> & possibilities);
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
-	/// Handler for clicking the Cancel button.
-	void btnCancelClick(Action *action);
-
+	/// Handler for clicking the Purchase button.
+	void btnPurchaseClick(Action *action);
 };
 
 }
-
-#endif

@@ -61,8 +61,8 @@ namespace OpenXcom
 Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base) : InteractiveSurface(width, height, x, y), _game(game), _selUnit(0), _selItem(0), _tu(true), _base(base), _mouseOverItem(0), _groundOffset(0), _animFrame(0)
 {
 	_depth = _game->getSavedGame()->getSavedBattle()->getDepth();
-	_grid = new Surface(width, height, x, y);
-	_items = new Surface(width, height, x, y);
+	_grid = new Surface(width, height, 0, 0);
+	_items = new Surface(width, height, 0, 0);
 	_selection = new Surface(RuleInventory::HAND_W * RuleInventory::SLOT_W, RuleInventory::HAND_H * RuleInventory::SLOT_H, x, y);
 	_warning = new WarningMessage(224, 24, 48, 176);
 	_stackNumber = new NumberText(15, 15, 0, 0);
@@ -1290,9 +1290,9 @@ void Inventory::arrangeGround(bool alterOffset)
 				// as there can be no spot before this x-address with available slots for items that are larger in one or more dimensions.
 				std::map<std::pair<int, int>, int>::iterator cacheToUpdate;
 				int firstPossibleX = itemTypeSample->getRules()->getInventoryHeight() * 2 > slotsY ? x + itemTypeSample->getRules()->getInventoryWidth() : x;
-				for (int offsetY = itemTypeSample->getRules()->getInventoryHeight(); offsetY < startIndexCacheX.size(); ++offsetY)
+				for (size_t offsetY = itemTypeSample->getRules()->getInventoryHeight(); offsetY < startIndexCacheX.size(); ++offsetY)
 				{
-					for (int offsetX = itemTypeSample->getRules()->getInventoryWidth(); offsetX < startIndexCacheX[offsetY].size(); ++offsetX)
+					for (size_t offsetX = itemTypeSample->getRules()->getInventoryWidth(); offsetX < startIndexCacheX[offsetY].size(); ++offsetX)
 					{
 						startIndexCacheX[offsetY][offsetX] = std::max(firstPossibleX, startIndexCacheX[offsetY][offsetX]);
 					}

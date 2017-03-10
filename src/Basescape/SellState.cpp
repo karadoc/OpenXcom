@@ -61,7 +61,7 @@ namespace OpenXcom
  * @param base Pointer to the base to get info from.
  * @param origin Game section that originated this state.
  */
-SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin origin) : _base(base), _debriefingState(debriefingState),_sel(0), _total(0), _spaceChange(0), _origin(origin), _reset(false)
+SellState::SellState(Base *base, DebriefingState *debriefingState, OptionsOrigin origin) : _base(base), _debriefingState(debriefingState), _sel(0), _total(0), _spaceChange(0), _origin(origin), _reset(false)
 {
 	bool overfull = _debriefingState == 0 && Options::storageLimitsEnforced && _base->storesOverfull();
 
@@ -614,9 +614,9 @@ void SellState::btnOkClick(Action *)
 				{
 					_base->getStorageItems()->removeItem(item->getType(), i->amount);
 				}
-				// set autosell status if we sold all of the item
 				if (_debriefingState != 0)
 				{
+					// set autosell status if we sold all of the item
 					_game->getSavedGame()->setAutosell(item, (i->qtySrc == i->amount));
 				}
 
@@ -625,8 +625,11 @@ void SellState::btnOkClick(Action *)
 		}
 		else
 		{
-			// disable autosell since we haven't sold any of the item.
-			_game->getSavedGame()->setAutosell((RuleItem*)i->rule, false);
+			if (_debriefingState != 0 && i->type == TRANSFER_ITEM)
+			{
+				// disable autosell since we haven't sold any of the item.
+				_game->getSavedGame()->setAutosell((RuleItem*)i->rule, false);
+			}
 		}
 	}
 	if (_debriefingState != 0)
