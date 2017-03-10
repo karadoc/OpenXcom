@@ -399,7 +399,6 @@ bool SoldierDiary::manageCommendations(Mod *mod, std::vector<MissionStatistics*>
 							count++; // Turns and missions start at 1 because of how thisTime and lastTime work.
 						int thisTime = -1; // Time being a turn or a mission.
 						int lastTime = -1;
-						bool goToNextTime = false;
 						// Loop over the KILLS.
 						for (std::vector<BattleUnitKills*>::const_iterator singleKill = _killList.begin(); singleKill != _killList.end(); ++singleKill)
 						{
@@ -423,16 +422,10 @@ bool SoldierDiary::manageCommendations(Mod *mod, std::vector<MissionStatistics*>
 									++singleKill;
 								}
 							}
-							// Skip kill-groups that we already got an award for.
 							// Skip kills that are inbetween turns.
-							if ( thisTime == lastTime && goToNextTime && (*j).first != "killsWithCriteriaCareer")
-							{
-								continue;
-							}
-							else if (thisTime != lastTime && (*j).first != "killsWithCriteriaCareer") 
+							if (thisTime != lastTime && (*j).first != "killsWithCriteriaCareer")
 							{
 								count = 1; // Reset.
-								goToNextTime = false;
 								continue;
 							}
 							bool foundMatch = true;
@@ -476,7 +469,7 @@ bool SoldierDiary::manageCommendations(Mod *mod, std::vector<MissionStatistics*>
 							{
 								count++;
 								if ( count == (*andCriteria).first) 
-									goToNextTime = true; // Criteria met, move to next mission/turn.
+									break; // Criteria met. No need to check further kills.
 							}
 						}
 						int multiCriteria = (*andCriteria).first;
