@@ -1071,7 +1071,8 @@ bool TileEngine::visible(BattleUnit *currentUnit, Tile *tile)
 				densityOfFire += t->getFire();
 			}
 		}
-		auto visibilityQuality = visibleDistanceMaxVoxel - visibleDistanceVoxels - densityOfSmoke * getMaxViewDistance()/(3 * 20);
+		visibleDistanceMaxVoxel = getMaxVoxelViewDistance(); // reset again (because of smoke formula)
+		auto visibilityQuality = visibleDistanceMaxVoxel - visibleDistanceVoxels - densityOfSmoke * smokeDensityFactor * getMaxViewDistance()/(3 * 20 * 100);
 		ModScript::VisibilityUnitParser::Output arg{ visibilityQuality, visibilityQuality, ScriptTag<BattleUnitVisibility>::getNullTag() };
 		ModScript::VisibilityUnitParser::Worker worker{ currentUnit, tile->getUnit(), visibleDistanceVoxels, visibleDistanceMaxVoxel, densityOfSmoke * smokeDensityFactor / 100, densityOfFire };
 		worker.execute(currentUnit->getArmor()->getVisibilityUnitScript(), arg);
@@ -3555,7 +3556,16 @@ bool TileEngine::meleeAttack(BattleAction *action)
 		targetUnit = _save->getTile(action->target - Position(0, 0, 1))->getUnit();
 	}
 
-	int hitChance = action->actor->getFiringAccuracy(BA_HIT, action->weapon, _save->getBattleGame()->getMod());
+	int hitChance;
+	if (action->type == BA_CQB)
+	{
+		hitChance = action->actor->getFiringAccuracy(BA_CQB, action->weapon, _save->getBattleGame()->getMod());
+	}
+	else
+	{
+		hitChance = action->actor->getFiringAccuracy(BA_HIT, action->weapon, _save->getBattleGame()->getMod());
+	}
+
 	if (targetUnit)
 	{
 		int arc = _save->getTileEngine()->getArcDirection(_save->getTileEngine()->getDirectionTo(targetUnit->getPositionVexels(), action->actor->getPositionVexels()), targetUnit->getDirection());

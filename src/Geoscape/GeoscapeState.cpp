@@ -78,6 +78,8 @@
 #include "NewPossibleResearchState.h"
 #include "NewPossibleManufactureState.h"
 #include "NewPossiblePurchaseState.h"
+#include "NewPossibleCraftState.h"
+#include "NewPossibleFacilityState.h"
 #include "../Savegame/Production.h"
 #include "../Mod/RuleManufacture.h"
 #include "../Savegame/ItemContainer.h"
@@ -970,7 +972,7 @@ void GeoscapeState::time5Seconds()
 					case Ufo::LANDED:
 					case Ufo::CRASHED:
 					case Ufo::DESTROYED: // Just before expiration
-						if ((*j)->getNumSoldiers() > 0 || (*j)->getNumVehicles() > 0)
+						if (((*j)->getNumSoldiers() > 0 || (*j)->getNumVehicles() > 0) && (*j)->getRules()->getAllowLanding())
 						{
 							if (!(*j)->isInDogfight())
 							{
@@ -998,7 +1000,7 @@ void GeoscapeState::time5Seconds()
 				}
 				else if (m != 0)
 				{
-					if ((*j)->getNumSoldiers() > 0)
+					if ((*j)->getNumSoldiers() > 0 && (*j)->getRules()->getAllowLanding())
 					{
 						// look up polygons texture
 						int texture, shade;
@@ -1016,7 +1018,7 @@ void GeoscapeState::time5Seconds()
 				{
 					if (b->isDiscovered())
 					{
-						if ((*j)->getNumSoldiers() > 0)
+						if ((*j)->getNumSoldiers() > 0 && (*j)->getRules()->getAllowLanding())
 						{
 							int texture, shade;
 							_globe->getPolygonTextureAndShade(b->getLongitude(), b->getLatitude(), &texture, &shade);
@@ -1601,6 +1603,7 @@ void GeoscapeState::time1Hour()
 
 		if (Options::storageLimitsEnforced && (*i)->storesOverfull())
 		{
+			timerReset();
 			popup(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg((*i)->getName()), _palette, _game->getMod()->getInterface("geoscape")->getElement("errorMessage")->color, "BACK13.SCR", _game->getMod()->getInterface("geoscape")->getElement("errorPalette")->color));
 			popup(new SellState((*i), 0));
 		}
@@ -1761,6 +1764,10 @@ void GeoscapeState::time1Day()
 			_game->getSavedGame()->getDependableManufacture (newPossibleManufacture, research, _game->getMod(), *i);
 			std::vector<RuleItem *> newPossiblePurchase;
 			_game->getSavedGame()->getDependablePurchase(newPossiblePurchase, research, _game->getMod());
+			std::vector<RuleCraft *> newPossibleCraft;
+			_game->getSavedGame()->getDependableCraft(newPossibleCraft, research, _game->getMod());
+			std::vector<RuleBaseFacility *> newPossibleFacilities;
+			_game->getSavedGame()->getDependableFacilities(newPossibleFacilities, research, _game->getMod());
 			timerReset();
 			// check for possible researching weapon before clip
 			if (newResearch)
@@ -1789,6 +1796,14 @@ void GeoscapeState::time1Day()
 			if (!newPossiblePurchase.empty())
 			{
 				popup(new NewPossiblePurchaseState(*i, newPossiblePurchase));
+			}
+			if (!newPossibleCraft.empty())
+			{
+				popup(new NewPossibleCraftState(*i, newPossibleCraft));
+			}
+			if (!newPossibleFacilities.empty())
+			{
+				popup(new NewPossibleFacilityState(*i, _globe, newPossibleFacilities));
 			}
 			// now iterate through all the bases and remove this project from their labs
 			for (std::vector<Base*>::iterator j = _game->getSavedGame()->getBases()->begin(); j != _game->getSavedGame()->getBases()->end(); ++j)

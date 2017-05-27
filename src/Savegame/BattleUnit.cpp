@@ -146,8 +146,8 @@ BattleUnit::BattleUnit(Soldier *soldier, int depth, int maxViewDistance) :
 	}
 	_stunlevel = 0;
 	_maxArmor[SIDE_FRONT] = _armor->getFrontArmor();
-	_maxArmor[SIDE_LEFT] = _armor->getSideArmor();
-	_maxArmor[SIDE_RIGHT] = _armor->getSideArmor();
+	_maxArmor[SIDE_LEFT] = _armor->getLeftSideArmor();
+	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
 	_currentArmor[SIDE_FRONT] = _maxArmor[SIDE_FRONT];
@@ -197,11 +197,16 @@ void BattleUnit::updateArmorFromSoldier(Soldier *soldier, int depth, int maxView
 	_tu = _stats.tu;
 	_energy = _stats.stamina;
 	_health = _stats.health;
-	_currentArmor[SIDE_FRONT] = _armor->getFrontArmor();
-	_currentArmor[SIDE_LEFT] = _armor->getSideArmor();
-	_currentArmor[SIDE_RIGHT] = _armor->getSideArmor();
-	_currentArmor[SIDE_REAR] = _armor->getRearArmor();
-	_currentArmor[SIDE_UNDER] = _armor->getUnderArmor();
+	_maxArmor[SIDE_FRONT] = _armor->getFrontArmor();
+	_maxArmor[SIDE_LEFT] = _armor->getLeftSideArmor();
+	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
+	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
+	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
+	_currentArmor[SIDE_FRONT] = _maxArmor[SIDE_FRONT];
+	_currentArmor[SIDE_LEFT] = _maxArmor[SIDE_LEFT];
+	_currentArmor[SIDE_RIGHT] = _maxArmor[SIDE_RIGHT];
+	_currentArmor[SIDE_REAR] = _maxArmor[SIDE_REAR];
+	_currentArmor[SIDE_UNDER] = _maxArmor[SIDE_UNDER];
 }
 
 /**
@@ -280,8 +285,8 @@ BattleUnit::BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, St
 	_breathing = false;
 
 	_maxArmor[SIDE_FRONT] = _armor->getFrontArmor();
-	_maxArmor[SIDE_LEFT] = _armor->getSideArmor();
-	_maxArmor[SIDE_RIGHT] = _armor->getSideArmor();
+	_maxArmor[SIDE_LEFT] = _armor->getLeftSideArmor();
+	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
 
@@ -1731,6 +1736,11 @@ int BattleUnit::getFiringAccuracy(BattleActionType actionType, BattleItem *item,
 	{
 		kneeled = false;
 		result = item->getRules()->getThrowMultiplier(this) * item->getRules()->getAccuracyThrow() / 100;
+	}
+	else if (actionType == BA_CQB)
+	{
+		kneeled = false;
+		result = item->getRules()->getCloseQuartersMultiplier(this) * item->getRules()->getAccuracyCloseQuarters(mod) / 100;
 	}
 
 	if (kneeled)

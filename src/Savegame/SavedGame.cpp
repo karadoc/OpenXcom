@@ -49,6 +49,7 @@
 #include "../Mod/ArticleDefinition.h"
 #include "../Mod/RuleResearch.h"
 #include "../Mod/RuleManufacture.h"
+#include "../Mod/RuleBaseFacility.h"
 #include "Production.h"
 #include "MissionSite.h"
 #include "AlienBase.h"
@@ -1561,6 +1562,52 @@ void SavedGame::getDependablePurchase(std::vector<RuleItem *> & dependables, con
 }
 
 /**
+ * Get the list of newly available craft to purchase/rent once a ResearchProject has been completed.
+ * @param dependables the list of RuleCraft which are now available.
+ * @param research The RuleResearch which has just been discovered
+ * @param mod the Game Mod
+ */
+void SavedGame::getDependableCraft(std::vector<RuleCraft *> & dependables, const RuleResearch *research, const Mod * mod) const
+{
+	const std::vector<std::string> &craftlist = mod->getCraftsList();
+	for (std::vector<std::string>::const_iterator iter = craftlist.begin(); iter != craftlist.end(); ++iter)
+	{
+		RuleCraft *craftItem = mod->getCraft(*iter);
+		const std::vector<std::string> &reqs = craftItem->getRequirements();
+		if (std::find(reqs.begin(), reqs.end(), research->getName()) != reqs.end())
+		{
+			if (isResearched(craftItem->getRequirements()))
+			{
+				dependables.push_back(craftItem);
+			}
+		}
+	}
+}
+
+/**
+ * Get the list of newly available facilities to build once a ResearchProject has been completed.
+ * @param dependables the list of RuleBaseFacility which are now available.
+ * @param research The RuleResearch which has just been discovered
+ * @param mod the Game Mod
+ */
+void SavedGame::getDependableFacilities(std::vector<RuleBaseFacility *> & dependables, const RuleResearch *research, const Mod * mod) const
+{
+	const std::vector<std::string> &facilitylist = mod->getBaseFacilitiesList();
+	for (std::vector<std::string>::const_iterator iter = facilitylist.begin(); iter != facilitylist.end(); ++iter)
+	{
+		RuleBaseFacility *facilityItem = mod->getBaseFacility(*iter);
+		const std::vector<std::string> &reqs = facilityItem->getRequirements();
+		if (std::find(reqs.begin(), reqs.end(), research->getName()) != reqs.end())
+		{
+			if (isResearched(facilityItem->getRequirements()))
+			{
+				dependables.push_back(facilityItem);
+			}
+		}
+	}
+}
+
+/**
  * Gets the status of a ufopedia rule.
  * @param ufopediaRule Ufopedia rule ID.
  * @return Status (0=new, 1=normal).
@@ -1573,7 +1620,7 @@ int SavedGame::getUfopediaRuleStatus(const std::string &ufopediaRule)
 /**
  * Gets the status of a manufacture rule.
  * @param manufactureRule Manufacture rule ID.
- * @return Status (0=new, 1=normal).
+ * @return Status (0=new, 1=normal, 2=hidden).
  */
 int SavedGame::getManufactureRuleStatus(const std::string &manufactureRule)
 {

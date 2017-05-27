@@ -53,7 +53,7 @@ private:
 	std::string _type, _spriteSheet, _spriteInv, _corpseGeo, _storeItem, _specWeapon;
 	std::vector<std::string> _corpseBattle;
 	std::vector<std::string> _builtInWeapons;
-	int _frontArmor, _sideArmor, _rearArmor, _underArmor, _drawingRoutine;
+	int _frontArmor, _sideArmor, _leftArmorDiff, _rearArmor, _underArmor, _drawingRoutine;
 	MovementType _movementType;
 	int _moveSound;
 	int _size, _weight, _visibilityAtDark, _visibilityAtDay, _personalLight;
@@ -67,6 +67,7 @@ private:
 	int _faceColorGroup, _hairColorGroup, _utileColorGroup, _rankColorGroup;
 	std::vector<int> _faceColor, _hairColor, _utileColor, _rankColor;
 	int _fearImmune, _bleedImmune, _painImmune, _zombiImmune;
+	int _ignoresMeleeThreat, _createsMeleeThreat;
 	float _overKill, _meleeDodgeBackPenalty;
 	RuleStatBonus _psiDefence, _meleeDodge;
 	RuleStatBonus _timeRecovery, _energyRecovery, _moraleRecovery, _healthRecovery, _stunRecovery;
@@ -88,7 +89,7 @@ public:
 	/// Cleans up the armor ruleset.
 	~Armor();
 	/// Loads the armor data from YAML.
-	void load(const YAML::Node& node, const ModScript& parsers);
+	void load(const YAML::Node& node, const ModScript& parsers, Mod *mod);
 	/// Gets the armor's type.
 	std::string getType() const;
 	/// Gets the unit's sprite sheet.
@@ -97,8 +98,10 @@ public:
 	std::string getSpriteInventory() const;
 	/// Gets the front armor level.
 	int getFrontArmor() const;
-	/// Gets the side armor level.
-	int getSideArmor() const;
+	/// Gets the left side armor level.
+	int getLeftSideArmor() const;
+	/// Gets the right side armor level.
+	int getRightSideArmor() const;
 	/// Gets the rear armor level.
 	int getRearArmor() const;
 	/// Gets the under armor level.
@@ -185,6 +188,10 @@ public:
 	bool getPainImmune(bool def = false) const;
 	/// Gets how armor react to zombification.
 	bool getZombiImmune(bool def = false) const;
+	/// Gets whether or not this unit ignores close quarters threats.
+	bool getIgnoresMeleeThreat(bool def = false) const;
+	/// Gets whether or not this unit is a close quarters threat.
+	bool getCreatesMeleeThreat(bool def = true) const;
 	/// Gets how much negative hp is require to gib unit.
 	float getOverKill() const;
 	/// Get face base color

@@ -31,13 +31,15 @@ const std::string Armor::NONE = "STR_NONE";
  * @param type String defining the type.
  */
 Armor::Armor(const std::string &type) :
-	_type(type), _frontArmor(0), _sideArmor(0), _rearArmor(0), _underArmor(0),
+	_type(type), _frontArmor(0), _sideArmor(0), _leftArmorDiff(0), _rearArmor(0), _underArmor(0),
 	_drawingRoutine(0), _movementType(MT_WALK), _moveSound(-1), _size(1), _weight(0),
 	_visibilityAtDark(0), _visibilityAtDay(0), _personalLight(15),
 	_camouflageAtDay(0), _camouflageAtDark(0), _antiCamouflageAtDay(0), _antiCamouflageAtDark(0), _heatVision(0), _psiVision(0),
 	_deathFrames(3), _constantAnimation(false), _canHoldWeapon(false), _hasInventory(true), _forcedTorso(TORSO_USE_GENDER),
 	_faceColorGroup(0), _hairColorGroup(0), _utileColorGroup(0), _rankColorGroup(0),
-	_fearImmune(-1), _bleedImmune(-1), _painImmune(-1), _zombiImmune(-1), _overKill(0.5f), _meleeDodgeBackPenalty(0),
+	_fearImmune(-1), _bleedImmune(-1), _painImmune(-1), _zombiImmune(-1),
+	_ignoresMeleeThreat(-1), _createsMeleeThreat(-1),
+	_overKill(0.5f), _meleeDodgeBackPenalty(0),
 	_customArmorPreviewIndex(0)
 {
 	for (int i=0; i < DAMAGE_TYPES; i++)
@@ -61,11 +63,11 @@ Armor::~Armor()
  * Loads the armor from a YAML file.
  * @param node YAML node.
  */
-void Armor::load(const YAML::Node &node, const ModScript &parsers)
+void Armor::load(const YAML::Node &node, const ModScript &parsers, Mod *mod)
 {
 	if (const YAML::Node &parent = node["refNode"])
 	{
-		load(parent, parsers);
+		load(parent, parsers, mod);
 	}
 	_type = node["type"].as<std::string>(_type);
 	_spriteSheet = node["spriteSheet"].as<std::string>(_spriteSheet);
@@ -88,11 +90,15 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers)
 	_specWeapon = node["specialWeapon"].as<std::string>(_specWeapon);
 	_frontArmor = node["frontArmor"].as<int>(_frontArmor);
 	_sideArmor = node["sideArmor"].as<int>(_sideArmor);
+	_leftArmorDiff = node["leftArmorDiff"].as<int>(_leftArmorDiff);
 	_rearArmor = node["rearArmor"].as<int>(_rearArmor);
 	_underArmor = node["underArmor"].as<int>(_underArmor);
 	_drawingRoutine = node["drawingRoutine"].as<int>(_drawingRoutine);
 	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
-	_moveSound = node["moveSound"].as<int>(_moveSound);
+	if (node["moveSound"])
+	{
+		_moveSound = mod->getSoundOffset(node["moveSound"].as<int>(_moveSound), "BATTLE.CAT");
+	}
 	_weight = node["weight"].as<int>(_weight);
 	_visibilityAtDark = node["visibilityAtDark"].as<int>(_visibilityAtDark);
 	_visibilityAtDay = node["visibilityAtDay"].as<int>(_visibilityAtDay);
@@ -143,6 +149,8 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers)
 			_bleedImmune = 1;
 			_painImmune = 1;
 			_zombiImmune = 1;
+			_ignoresMeleeThreat = 1;
+			_createsMeleeThreat = 0;
 		}
 	}
 	if (node["fearImmune"])
@@ -160,6 +168,14 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers)
 	if (node["zombiImmune"] && _size == 1) //Big units are always immune, because game we don't have 2x2 unit zombie
 	{
 		_zombiImmune = node["zombiImmune"].as<bool>();
+	}
+	if (node["ignoresMeleeThreat"])
+	{
+		_ignoresMeleeThreat = node["ignoresMeleeThreat"].as<bool>();
+	}
+	if (node["createsMeleeThreat"])
+	{
+		_createsMeleeThreat = node["createsMeleeThreat"].as<bool>();
 	}
 	_overKill = node["overKill"].as<float>(_overKill);
 	_meleeDodgeBackPenalty = node["meleeDodgeBackPenalty"].as<float>(_meleeDodgeBackPenalty);
@@ -241,10 +257,19 @@ int Armor::getFrontArmor() const
 }
 
 /**
- * Gets the side armor level.
- * @return The side armor level.
+ * Gets the left side armor level.
+ * @return The left side armor level.
  */
-int Armor::getSideArmor() const
+int Armor::getLeftSideArmor() const
+{
+	return _sideArmor + _leftArmorDiff;
+}
+
+/**
+* Gets the right side armor level.
+* @return The right side armor level.
+*/
+int Armor::getRightSideArmor() const
 {
 	return _sideArmor;
 }
@@ -277,7 +302,7 @@ int Armor::getArmor(UnitSide side) const
 	switch (side)
 	{
 	case SIDE_FRONT:	return _frontArmor;
-	case SIDE_LEFT:		return _sideArmor;
+	case SIDE_LEFT:		return _sideArmor + _leftArmorDiff;
 	case SIDE_RIGHT:	return _sideArmor;
 	case SIDE_REAR:		return _rearArmor;
 	case SIDE_UNDER:	return _underArmor;
@@ -640,6 +665,26 @@ bool Armor::getPainImmune(bool def) const
 bool Armor::getZombiImmune(bool def) const
 {
 	return _zombiImmune != -1 ? _zombiImmune : def;
+}
+
+/**
+ * Gets whether or not this unit ignores close quarters threats.
+ * @param def Default value.
+ * @return Ignores CQB check?
+ */
+bool Armor::getIgnoresMeleeThreat(bool def) const
+{
+	return _ignoresMeleeThreat != -1 ? _ignoresMeleeThreat : def;
+}
+
+/**
+ * Gets whether or not this unit is a close quarters threat.
+ * @param def Default value.
+ * @return Creates CQB check for others?
+ */
+bool Armor::getCreatesMeleeThreat(bool def) const
+{
+	return _createsMeleeThreat != -1 ? _createsMeleeThreat : def;
 }
 
 /**

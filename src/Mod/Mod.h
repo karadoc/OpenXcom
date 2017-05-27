@@ -155,7 +155,7 @@ private:
 	int _aiUseDelayBlaster, _aiUseDelayFirearm, _aiUseDelayGrenade, _aiUseDelayMelee, _aiUseDelayPsionic;
 	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor, _minReactionAccuracy;
 	int _chanceToStopRetaliation;
-	int _kneelBonusGlobal, _oneHandedPenaltyGlobal;
+	int _kneelBonusGlobal, _oneHandedPenaltyGlobal, _enableCloseQuartersCombat, _closeQuartersAccuracyGlobal;
 	int _surrenderMode;
 	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
 	int _ufoGlancingHitThreshold, _ufoBeamWidthParameter;
@@ -164,7 +164,7 @@ private:
 	int _pilotAccuracyZeroPoint, _pilotAccuracyRange, _pilotReactionsZeroPoint, _pilotReactionsRange;
 	int _pilotBraveryThresholds[3];
 	int _performanceBonusFactor;
-	bool _useCustomCategories;
+	bool _useCustomCategories, _showDogfightDistanceInKm;
 	int _defeatScore, _defeatFunds;
 	std::pair<std::string, int> _alienFuel;
 	std::string _fontName, _finalResearch;
@@ -423,6 +423,10 @@ public:
 	int getKneelBonusGlobal() const { return _kneelBonusGlobal; }
 	/// Gets the global one-handed penalty (default = 80).
 	int getOneHandedPenaltyGlobal() const { return _oneHandedPenaltyGlobal; }
+	/// Gets whether close quarters combat is enabled (default = 0 is off).
+	int getEnableCloseQuartersCombat() const { return _enableCloseQuartersCombat; }
+	/// Gets the default close quarters combat accuracy (default = 100).
+	int getCloseQuartersAccuracyGlobal() const { return _closeQuartersAccuracyGlobal; }
 	/// Gets the surrender mode (default = 0).
 	int getSurrenderMode() const { return _surrenderMode; }
 	/// Gets the bug hunt mode minimum turn requirement (default = 20).
@@ -467,6 +471,8 @@ public:
 	int getPerformanceBonusFactor() const { return _performanceBonusFactor; }
 	/// Should custom categories be used in Buy/Sell/Transfer GUIs?
 	bool getUseCustomCategories() const { return _useCustomCategories; }
+	/// Should distance in dogfight GUI be shown in kilometers?
+	bool getShowDogfightDistanceInKm() const { return _showDogfightDistanceInKm; }
 	/// Gets whether or not to load base defense terrain from globe texture
 	int getBaseDefenseMapFromLocation() const { return _baseDefenseMapFromLocation; }
 	/// Gets the ruleset for a specific research project.
