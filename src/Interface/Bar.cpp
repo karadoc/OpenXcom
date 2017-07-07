@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Bar.h"
+#include "../Engine/Options.h"
 #include <SDL.h>
 
 namespace OpenXcom
@@ -29,7 +30,7 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _borderColor(0), _scale(0), _max(0), _value(0), _value2(0), _overflowLayers(1), _secondOnTop(true)
+Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _borderColor(0), _scale(0), _max(0), _value(0), _value2(0), _overflowLayers(2), _secondOnTop(true)
 {
 
 }
@@ -207,6 +208,7 @@ void Bar::draw()
 	auto bottomColor = _secondOnTop ? _color : _color2;
 
 	const int maxBarWidth = getWidth();
+	const int maxLayers = Options::showBarOverflowLayers ? _overflowLayers : 0;
 
 	// Draw bottom bar
 	int layer = 0;
@@ -217,7 +219,7 @@ void Bar::draw()
 		drawRect(&square, bottomColor + layer*8);
 		++layer;
 		barWidth -= maxBarWidth;
-	} while (layer <= _overflowLayers && barWidth > 0);
+	} while (layer <= maxLayers && barWidth > 0);
 
 	// Draw top bar
 	layer = 0;
@@ -228,7 +230,7 @@ void Bar::draw()
 		drawRect(&square, topColor + layer*8);
 		++layer;
 		barWidth -= maxBarWidth;
-	} while (layer <= _overflowLayers && barWidth > 0);
+	} while (layer <= maxLayers && barWidth > 0);
 }
 
 /**
