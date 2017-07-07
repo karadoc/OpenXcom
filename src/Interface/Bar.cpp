@@ -210,27 +210,30 @@ void Bar::draw()
 	const int maxBarWidth = getWidth();
 	const int maxLayers = Options::showBarOverflowLayers ? _overflowLayers : 0;
 
-	// Draw bottom bar
-	int layer = 0;
-	int barWidth = (Uint16)(_scale * bottomValue);
-	do
-	{
-		square.w = barWidth; // Note. barWidth is used because drawRect can change the value of square.w.
-		drawRect(&square, bottomColor + layer*8);
-		++layer;
-		barWidth -= maxBarWidth;
-	} while (layer <= maxLayers && barWidth > 0);
+	// For 2-stat bars, we want the overflow from the bottom to cover the base layer of the top.
+	// Eg, if a 0-100 bar has health on the bottom and stun on the top; we only want to draw as follows:
+	// Health up to 100, Stun up to 100, Health up to 200, Stun up to 200, ... etc.
 
-	// Draw top bar
-	layer = 0;
-	barWidth = (Uint16)(_scale * topValue);
+	int layer = 0;
+	int bottomWidth = (Uint16)(_scale * bottomValue);
+	int topWidth = (Uint16)(_scale * topValue);
 	do
 	{
-		square.w = barWidth;
-		drawRect(&square, topColor + layer*8);
+		if (bottomWidth > 0)
+		{
+			square.w = bottomWidth;
+			drawRect(&square, bottomColor + layer*8);
+			bottomWidth -= maxBarWidth;
+		}
+
+		if (topWidth > 0)
+		{
+			square.w = topWidth;
+			drawRect(&square, topColor + layer*8);
+			topWidth -= maxBarWidth;
+		}
 		++layer;
-		barWidth -= maxBarWidth;
-	} while (layer <= maxLayers && barWidth > 0);
+	} while (layer <= maxLayers && (bottomWidth > 0 || topWidth > 0));
 }
 
 /**
