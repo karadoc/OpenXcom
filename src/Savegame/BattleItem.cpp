@@ -581,7 +581,12 @@ const RuleItemAction *BattleItem::getActionConf(BattleActionType action) const
  */
 const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
 {
-	auto conf = getActionConf(action);
+	auto conf = getActionConfNullable(action);
+	if (conf == nullptr)
+	{
+		return nullptr;
+	}
+
 	if (conf->ammoSlot == -1)
 	{
 		return this;
@@ -603,7 +608,12 @@ const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
  */
 BattleItem *BattleItem::getAmmoForAction(BattleActionType action, std::string* message)
 {
-	auto conf = getActionConf(action);
+	auto conf = getActionConfNullable(action);
+	if (conf == nullptr)
+	{
+		return nullptr;
+	}
+
 	if (conf->ammoSlot == -1)
 	{
 		return this;
