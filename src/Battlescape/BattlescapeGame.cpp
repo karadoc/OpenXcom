@@ -2130,7 +2130,7 @@ bool BattlescapeGame::worthTaking(BattleItem* item, BattleAction *action)
 				{
 					if (i->getRules()->getBattleType() == BT_AMMO)
 					{
-						if (item->getRules()->getSlotForAmmo(i->getRules()->getName()) != -1)
+						if (item->getRules()->getSlotForAmmo(i->getRules()->getType()) != -1)
 						{
 							ammoFound = true;
 							break;
@@ -2152,7 +2152,7 @@ bool BattlescapeGame::worthTaking(BattleItem* item, BattleAction *action)
 			{
 				if (i->getRules()->getBattleType() == BT_FIREARM)
 				{
-					if (i->getRules()->getSlotForAmmo(item->getRules()->getName()) != -1)
+					if (i->getRules()->getSlotForAmmo(item->getRules()->getType()) != -1)
 					{
 						weaponFound = true;
 						break;
@@ -2545,6 +2545,40 @@ void BattlescapeGame::playSound(int sound)
 std::list<BattleState*> BattlescapeGame::getStates()
 {
 	return _states;
+}
+
+/**
+ * Ends the turn if auto-end battle is enabled
+ * and all mission objectives are completed.
+ */
+void BattlescapeGame::autoEndBattle()
+{
+	if (Options::battleAutoEnd)
+	{
+		bool end = false;
+		bool askForConfirmation = false;
+		if (_save->getObjectiveType() == MUST_DESTROY)
+		{
+			end = _save->allObjectivesDestroyed();
+		}
+		else
+		{
+			int liveAliens = 0;
+			int liveSoldiers = 0;
+			tallyUnits(liveAliens, liveSoldiers);
+			end = (liveAliens == 0 || liveSoldiers == 0);
+			if (liveAliens == 0)
+			{
+				askForConfirmation = true;
+			}
+		}
+		if (end)
+		{
+			_save->setSelectedUnit(0);
+			cancelCurrentAction(true);
+			requestEndTurn(askForConfirmation);
+		}
+	}
 }
 
 }

@@ -1517,6 +1517,14 @@ bool AIModule::findFirePoint()
  */
 int AIModule::explosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, int radius, int diff, bool grenade) const
 {
+	Tile *targetTile = _save->getTile(targetPos);
+
+	// don't throw grenades at flying enemies.
+	if (grenade && targetPos.z > 0 && targetTile->hasNoFloor(_save->getTile(targetPos - Position(0,0,1))))
+	{
+		return false;
+	}
+
 	if (diff == -1)
 	{
 		diff = _save->getBattleState()->getGame()->getSavedGame()->getDifficultyCoefficient();
@@ -1541,8 +1549,8 @@ int AIModule::explosiveEfficacy(Position targetPos, BattleUnit *attackingUnit, i
 	efficacy += diff/2;
 
 	// account for the unit we're targetting
-	BattleUnit *target = _save->getTile(targetPos)->getUnit();
-	if (target && !_save->getTile(targetPos)->getDangerous())
+	BattleUnit *target = targetTile->getUnit();
+	if (target && !targetTile->getDangerous())
 	{
 		++enemiesAffected;
 		++efficacy;
@@ -2017,10 +2025,35 @@ bool AIModule::psiAction()
 
 		if (_visibleEnemies)
 		{
-			auto ammo = _attackAction->weapon->getAmmoForAction(_attackAction->type);
-			if (ammo && ammo->getRules()->getPowerBonus(_attackAction->actor) >= weightToAttack)
+			BattleActionType actions[] = {
+				BA_AIMEDSHOT,
+				BA_AUTOSHOT,
+				BA_SNAPSHOT,
+				BA_HIT,
+			};
+			for (auto action : actions)
 			{
-				return false;
+				auto ammo = _attackAction->weapon->getAmmoForAction(action);
+				if (!ammo)
+				{
+					continue;
+				}
+
+				int weightPower = ammo->getRules()->getPowerBonus(_attackAction->actor);
+				if (action == BA_HIT)
+				{
+					// prefer psi over melee
+					weightPower /= 2;
+				}
+				else
+				{
+					// prefer machineguns
+					weightPower *= _attackAction->weapon->getActionConf(action)->shots;
+				}
+				if (weightPower >= weightToAttack)
+				{
+					return false;
+				}
 			}
 		}
 		else if (RNG::generate(35, 155) >= weightToAttack)

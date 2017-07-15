@@ -423,9 +423,9 @@ Surface *BattleItem::getFloorSprite(SurfaceSet *set) const
 			throw Exception("Invlid surface set 'FLOOROB.PCK' for item '" + _rules->getType() + "': not enough frames");
 		}
 
-		ModScript::SelectItemParser::Output arg{ i, 0 };
-		ModScript::SelectItemParser::Worker work{ this, BODYPART_ITEM_FLOOR, 0, 0 };
-		work.execute(_rules->getSpriteScript(), arg);
+		ModScript::SelectItemSprite::Output arg{ i, 0 };
+		ModScript::SelectItemSprite::Worker work{ this, BODYPART_ITEM_FLOOR, 0, 0 };
+		work.execute(_rules->getScript<ModScript::SelectItemSprite>(), arg);
 
 		surf = set->getFrame(arg.getFirst());
 		if (surf == nullptr)
@@ -456,9 +456,9 @@ Surface *BattleItem::getBigSprite(SurfaceSet *set) const
 			throw Exception("Invlid surface set 'BIGOBS.PCK' for item '" + _rules->getType() + "': not enough frames");
 		}
 
-		ModScript::SelectItemParser::Output arg{ i, 0 };
-		ModScript::SelectItemParser::Worker work{ this, BODYPART_ITEM_INVENTORY, 0, 0 };
-		work.execute(_rules->getSpriteScript(), arg);
+		ModScript::SelectItemSprite::Output arg{ i, 0 };
+		ModScript::SelectItemSprite::Worker work{ this, BODYPART_ITEM_INVENTORY, 0, 0 };
+		work.execute(_rules->getScript<ModScript::SelectItemSprite>(), arg);
 
 		surf = set->getFrame(arg.getFirst());
 		if (surf == nullptr)
@@ -546,7 +546,7 @@ bool BattleItem::setAmmoPreMission(BattleItem *item)
  * @param action Action type.
  * @return Return config of item action or nullptr for wrong action type or item.
  */
-const RuleItemAction *BattleItem::getActionConfNullable(BattleActionType action) const
+const RuleItemAction *BattleItem::getActionConf(BattleActionType action) const
 {
 	switch (action)
 	{
@@ -560,18 +560,17 @@ const RuleItemAction *BattleItem::getActionConfNullable(BattleActionType action)
 }
 
 /**
- * Get configuration of action on that item.
- * @param action Action type.
- * @return Return config of item action.
+ * Determines if this item uses ammo.
  */
-const RuleItemAction *BattleItem::getActionConf(BattleActionType action) const
+bool BattleItem::needsAmmoForAction(BattleActionType action) const
 {
-	auto rule = getActionConfNullable(action);
-	if (!rule)
+	auto conf = getActionConf(action);
+	if (!conf || conf->ammoSlot == -1)
 	{
-		throw Exception("Unsupported action (val: " + std::to_string((int)action) + ") for item " + _rules->getType());
+		return false;
 	}
-	return rule;
+
+	return needsAmmoForSlot(conf->ammoSlot);
 }
 
 /**
@@ -581,12 +580,11 @@ const RuleItemAction *BattleItem::getActionConf(BattleActionType action) const
  */
 const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
 {
-	auto conf = getActionConfNullable(action);
-	if (conf == nullptr)
+	auto conf = getActionConf(action);
+	if (!conf)
 	{
 		return nullptr;
 	}
-
 	if (conf->ammoSlot == -1)
 	{
 		return this;
@@ -608,12 +606,11 @@ const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
  */
 BattleItem *BattleItem::getAmmoForAction(BattleActionType action, std::string* message)
 {
-	auto conf = getActionConfNullable(action);
-	if (conf == nullptr)
+	auto conf = getActionConf(action);
+	if (!conf)
 	{
 		return nullptr;
 	}
-
 	if (conf->ammoSlot == -1)
 	{
 		return this;
@@ -674,7 +671,7 @@ void BattleItem::spendAmmoForAction(BattleActionType action, SavedBattleGame* sa
  */
 bool BattleItem::haveNextShotsForAction(BattleActionType action, int shotCount) const
 {
-	auto conf = getActionConfNullable(action);
+	auto conf = getActionConf(action);
 	if (conf)
 	{
 		return shotCount < conf->shots;
@@ -1037,7 +1034,7 @@ struct getAmmoForActionScript
 	static RetEnum func(BattleItem *weapon, BattleItem *&ammo, int action)
 	{
 		BattleActionType bat = (BattleActionType)action;
-		if (weapon && weapon->getActionConfNullable(bat))
+		if (weapon)
 		{
 			ammo = weapon->getAmmoForAction(bat);
 		}
@@ -1054,7 +1051,7 @@ struct getAmmoForActionConstScript
 	static RetEnum func(const BattleItem *weapon, const BattleItem *&ammo, int action)
 	{
 		BattleActionType bat = (BattleActionType)action;
-		if (weapon && weapon->getActionConfNullable(bat))
+		if (weapon)
 		{
 			ammo = weapon->getAmmoForAction(bat);
 		}
@@ -1251,7 +1248,7 @@ void BattleItem::ScriptFill(ScriptWorkerBlit* w, BattleItem* item, int part, int
 	w->clear();
 	if(item)
 	{
-		const auto &scr = item->getRules()->getRecolorScript();
+		const auto &scr = item->getRules()->getScript<ModScript::RecolorItemSprite>();
 		if (scr)
 		{
 			w->update(scr, item, part, anim_frame, shade);
