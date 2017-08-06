@@ -80,6 +80,7 @@
 #include "NewPossiblePurchaseState.h"
 #include "NewPossibleCraftState.h"
 #include "NewPossibleFacilityState.h"
+#include "TrainingFinishedState.h"
 #include "../Savegame/Production.h"
 #include "../Mod/RuleManufacture.h"
 #include "../Savegame/ItemContainer.h"
@@ -1725,14 +1726,39 @@ void GeoscapeState::time1Day()
 				std::vector<std::string> possibilities;
 				for (std::vector<std::string>::const_iterator f = research->getGetOneFree().begin(); f != research->getGetOneFree().end(); ++f)
 				{
+					if (_game->getSavedGame()->isResearchRuleStatusDisabled(*f))
+					{
+						continue; // skip disabled topics
+					}
 					if (!_game->getSavedGame()->isResearched(*f, false))
 					{
 						possibilities.push_back(*f);
 					}
 				}
+				for (std::map<std::string, std::vector<std::string> >::const_iterator itMap = research->getGetOneFreeProtected().begin(); itMap != research->getGetOneFreeProtected().end(); ++itMap)
+				{
+					if (_game->getSavedGame()->isResearched(itMap->first, false))
+					{
+						for (std::vector<std::string>::const_iterator itVector = itMap->second.begin(); itVector != itMap->second.end(); ++itVector)
+						{
+							if (_game->getSavedGame()->isResearchRuleStatusDisabled(*itVector))
+							{
+								continue; // skip disabled topics
+							}
+							if (!_game->getSavedGame()->isResearched(*itVector, false))
+							{
+								possibilities.push_back(*itVector);
+							}
+						}
+					}
+				}
 				if (!possibilities.empty())
 				{
-					size_t pick = RNG::generate(0, possibilities.size()-1);
+					size_t pick = 0;
+					if (!research->sequentialGetOneFree())
+					{
+						pick = RNG::generate(0, possibilities.size() - 1);
+					}
 					std::string sel = possibilities.at(pick);
 					bonus = _game->getMod()->getResearch(sel, true);
 					_game->getSavedGame()->addFinishedResearch(bonus, _game->getMod(), (*i));
@@ -1825,13 +1851,13 @@ void GeoscapeState::time1Day()
 				{
 					if (research->getName() == (*iter2)->getRules()->getName())
 					{
-						if (!_game->getSavedGame()->isResearched(research->getGetOneFree(), false))
+						if (_game->getSavedGame()->hasUndiscoveredGetOneFree(research, true))
 						{
-							// This research topic still has some more undiscovered "getOneFree" topics, keep it!
+							// This research topic still has some more undiscovered non-disabled and *AVAILABLE* "getOneFree" topics, keep it!
 						}
 						else if (_game->getSavedGame()->hasUndiscoveredProtectedUnlock(research, _game->getMod()))
 						{
-							// This research topic still has one or more undiscovered "protected unlocks", keep it!
+							// This research topic still has one or more undiscovered non-disabled "protected unlocks", keep it!
 						}
 						else
 						{
@@ -1846,9 +1872,10 @@ void GeoscapeState::time1Day()
 			delete(*iter);
 		}
 
-		// Handle soldier wounds
+		// Handle soldier wounds and martial training
 		float absBonus = (*i)->getSickBayAbsoluteBonus();
 		float relBonus = (*i)->getSickBayRelativeBonus();
+		std::vector<Soldier *> trainingFinishedList;
 		for (std::vector<Soldier*>::iterator j = (*i)->getSoldiers()->begin(); j != (*i)->getSoldiers()->end(); ++j)
 		{
 			if ((*j)->isWounded())
@@ -1858,7 +1885,16 @@ void GeoscapeState::time1Day()
 			if ((*j)->isInTraining())
 			{
 				(*j)->trainPhys(_game->getMod()->getCustomTrainingFactor());
+				if ((*j)->isFullyTrained())
+				{
+					(*j)->setTraining(false);
+					trainingFinishedList.push_back(*j);
+				}
 			}
+		}
+		if (!trainingFinishedList.empty())
+		{
+			popup(new TrainingFinishedState(*i, trainingFinishedList));
 		}
 		// Handle psionic training
 		if ((*i)->getAvailablePsiLabs() > 0 && Options::anytimePsiTraining)
@@ -1870,6 +1906,24 @@ void GeoscapeState::time1Day()
 			}
 		}
 	}
+
+	// check and remove disabled projects from ongoing research
+	for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
+	{
+		std::vector<ResearchProject*> obsolete;
+		for (std::vector<ResearchProject*>::const_iterator iter = (*i)->getResearch().begin(); iter != (*i)->getResearch().end(); ++iter)
+		{
+			if (_game->getSavedGame()->isResearchRuleStatusDisabled((*iter)->getRules()->getName()))
+			{
+				obsolete.push_back(*iter);
+			}
+		}
+		for (std::vector<ResearchProject*>::const_iterator iter = obsolete.begin(); iter != obsolete.end(); ++iter)
+		{
+			(*i)->removeResearch(*iter);
+		}
+	}
+
 	// handle regional and country points for alien bases
 	for (std::vector<AlienBase*>::const_iterator b = _game->getSavedGame()->getAlienBases()->begin(); b != _game->getSavedGame()->getAlienBases()->end(); ++b)
 	{
@@ -1912,8 +1966,26 @@ void GeoscapeState::time1Day()
 	// pay attention to your maintenance player!
 	if (_game->getSavedGame()->getTime()->isLastDayOfMonth())
 	{
+		// approximate score at the end of the month
+		size_t invertedEntry = _game->getSavedGame()->getFundsList().size() - 1;
+		int scoreTotal = _game->getSavedGame()->getResearchScores().at(invertedEntry);
+		if (_game->getSavedGame()->getMonthsPassed() > 1)
+		{
+			// the council is more lenient after the first month
+			scoreTotal += 400;
+		}
+		for (std::vector<Region*>::iterator iter = _game->getSavedGame()->getRegions()->begin(); iter != _game->getSavedGame()->getRegions()->end(); ++iter)
+		{
+			scoreTotal += (*iter)->getActivityXcom().at(invertedEntry) - (*iter)->getActivityAlien().at(invertedEntry);
+		}
+		int performanceBonus = scoreTotal * _game->getMod()->getPerformanceBonusFactor();
+		if (performanceBonus < 0)
+		{
+			performanceBonus = 0; // bonus only, no malus
+		}
+
 		int funds = _game->getSavedGame()->getFunds();
-		int income = _game->getSavedGame()->getCountryFunding();
+		int income = _game->getSavedGame()->getCountryFunding() + performanceBonus;
 		int maintenance = _game->getSavedGame()->getBaseMaintenance();
 		int projection = funds + income - maintenance;
 		if (projection < 0)

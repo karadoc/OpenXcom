@@ -23,7 +23,7 @@
 namespace OpenXcom
 {
 
-RuleResearch::RuleResearch(const std::string &name) : _name(name), _cost(0), _points(0), _needItem(false), _destroyItem(false), _listOrder(0)
+RuleResearch::RuleResearch(const std::string &name) : _name(name), _cost(0), _points(0), _sequentialGetOneFree(false), _needItem(false), _destroyItem(false), _listOrder(0)
 {
 }
 
@@ -46,9 +46,12 @@ void RuleResearch::load(const YAML::Node &node, int listOrder)
 	_points = node["points"].as<int>(_points);
 	_dependencies = node["dependencies"].as< std::vector<std::string> >(_dependencies);
 	_unlocks = node["unlocks"].as< std::vector<std::string> >(_unlocks);
+	_disables = node["disables"].as< std::vector<std::string> >(_disables);
 	_getOneFree = node["getOneFree"].as< std::vector<std::string> >(_getOneFree);
 	_requires = node["requires"].as< std::vector<std::string> >(_requires);
 	_requiresBaseFunc = node["requiresBaseFunc"].as< std::vector<std::string> >(_requiresBaseFunc);
+	_sequentialGetOneFree = node["sequentialGetOneFree"].as<bool>(_sequentialGetOneFree);
+	_getOneFreeProtected = node["getOneFreeProtected"].as< std::map<std::string, std::vector<std::string> > >(_getOneFreeProtected);
 	_needItem = node["needItem"].as<bool>(_needItem);
 	_destroyItem = node["destroyItem"].as<bool>(_destroyItem);
 	_listOrder = node["listOrder"].as<int>(_listOrder);
@@ -92,6 +95,15 @@ const std::vector<std::string> &RuleResearch::getDependencies() const
 }
 
 /**
+ * Checks if this ResearchProject gives free topics in sequential order (or random order).
+ * @return True if the ResearchProject gives free topics in sequential order.
+ */
+bool RuleResearch::sequentialGetOneFree() const
+{
+	return _sequentialGetOneFree;
+}
+
+/**
  * Checks if this ResearchProject needs a corresponding Item to be researched.
  *  @return True if the ResearchProject needs a corresponding item.
  */
@@ -118,6 +130,15 @@ const std::vector<std::string> &RuleResearch::getUnlocked() const
 }
 
 /**
+ * Gets the list of ResearchProjects disabled by this research.
+ * @return The list of ResearchProjects.
+ */
+const std::vector<std::string> &RuleResearch::getDisabled() const
+{
+	return _disables;
+}
+
+/**
  * Get the points earned for this ResearchProject.
  * @return The points earned for this ResearchProject.
  */
@@ -133,6 +154,15 @@ int RuleResearch::getPoints() const
 const std::vector<std::string> &RuleResearch::getGetOneFree() const
 {
 	return _getOneFree;
+}
+
+/**
+ * Gets the list(s) of ResearchProjects granted at random for free by this research (if a defined prerequisite is met).
+ * @return The list(s) of ResearchProjects.
+ */
+const std::map<std::string, std::vector<std::string> > &RuleResearch::getGetOneFreeProtected() const
+{
+	return _getOneFreeProtected;
 }
 
 /**
