@@ -48,13 +48,13 @@ ManufactureDependenciesTreeState::ManufactureDependenciesTreeState(const std::st
 	_btnOk = new TextButton(100, 16, 163, 153);
 
 	// Set palette
-	setInterface("sellMenu");
+	setInterface("dependencyTree");
 
-	add(_window, "window", "sellMenu");
-	add(_txtTitle, "text", "sellMenu");
-	add(_btnShowAll, "button", "sellMenu");
-	add(_btnOk, "button", "sellMenu");
-	add(_lstTopics, "list", "sellMenu");
+	add(_window, "window", "dependencyTree");
+	add(_txtTitle, "text", "dependencyTree");
+	add(_btnShowAll, "button", "dependencyTree");
+	add(_btnOk, "button", "dependencyTree");
+	add(_lstTopics, "list", "dependencyTree");
 
 	centerAllSurfaces();
 
@@ -150,14 +150,14 @@ void ManufactureDependenciesTreeState::initList()
 	if (firstLevel.empty())
 	{
 		_lstTopics->addRow(1, tr("STR_NO_DEPENDENCIES").c_str());
-		_lstTopics->setRowColor(row, 241); // pink
+		_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 		++row;
 		return;
 	}
 
 	// first level
 	_lstTopics->addRow(1, tr("STR_DIRECT_DEPENDENCIES").c_str());
-	_lstTopics->setRowColor(row, 241); // pink
+	_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 	++row;
 
 	for (std::vector<std::string>::const_iterator i = firstLevel.begin(); i != firstLevel.end(); ++i)
@@ -188,14 +188,14 @@ void ManufactureDependenciesTreeState::initList()
 	if (secondLevel.empty())
 	{
 		_lstTopics->addRow(1, tr("STR_END_OF_SEARCH").c_str());
-		_lstTopics->setRowColor(row, 241); // pink
+		_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 		++row;
 		return;
 	}
 
 	// second level
 	_lstTopics->addRow(1, tr("STR_LEVEL_2_DEPENDENCIES").c_str());
-	_lstTopics->setRowColor(row, 241); // pink
+	_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 	++row;
 
 	for (std::vector<std::string>::const_iterator i = secondLevel.begin(); i != secondLevel.end(); ++i)
@@ -226,14 +226,14 @@ void ManufactureDependenciesTreeState::initList()
 	if (thirdLevel.empty())
 	{
 		_lstTopics->addRow(1, tr("STR_END_OF_SEARCH").c_str());
-		_lstTopics->setRowColor(row, 241); // pink
+		_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 		++row;
 		return;
 	}
 
 	// third level
 	_lstTopics->addRow(1, tr("STR_LEVEL_3_DEPENDENCIES").c_str());
-	_lstTopics->setRowColor(row, 241); // pink
+	_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 	++row;
 
 	for (std::vector<std::string>::const_iterator i = thirdLevel.begin(); i != thirdLevel.end(); ++i)
@@ -264,14 +264,14 @@ void ManufactureDependenciesTreeState::initList()
 	if (fourthLevel.empty())
 	{
 		_lstTopics->addRow(1, tr("STR_END_OF_SEARCH").c_str());
-		_lstTopics->setRowColor(row, 241); // pink
+		_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 		++row;
 		return;
 	}
 
 	// fourth level
 	_lstTopics->addRow(1, tr("STR_LEVEL_4_DEPENDENCIES").c_str());
-	_lstTopics->setRowColor(row, 241); // pink
+	_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 	++row;
 
 	for (std::vector<std::string>::const_iterator i = fourthLevel.begin(); i != fourthLevel.end(); ++i)
@@ -302,13 +302,13 @@ void ManufactureDependenciesTreeState::initList()
 	if (fifthLevel.empty())
 	{
 		_lstTopics->addRow(1, tr("STR_END_OF_SEARCH").c_str());
-		_lstTopics->setRowColor(row, 241); // pink
+		_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 		++row;
 		return;
 	}
 
 	_lstTopics->addRow(1, tr("STR_MORE_DEPENDENCIES").c_str());
-	_lstTopics->setRowColor(row, 241); // pink
+	_lstTopics->setRowColor(row, _lstTopics->getSecondaryColor());
 	++row;
 }
 

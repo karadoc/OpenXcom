@@ -28,13 +28,13 @@ ChangeHeadquartersState::ChangeHeadquartersState(Base *base) : _base(base)
 	_txtBase = new Text(142, 9, 25, 85);
 
 	// Set palette
-	setInterface("dismantleFacility");
+	setInterface("changeHeadquarters");
 
-	add(_window, "window", "dismantleFacility");
-	add(_btnOk, "button", "dismantleFacility");
-	add(_btnCancel, "button", "dismantleFacility");
-	add(_txtTitle, "text", "dismantleFacility");
-	add(_txtBase, "text", "dismantleFacility");
+	add(_window, "window", "changeHeadquarters");
+	add(_btnOk, "button", "changeHeadquarters");
+	add(_btnCancel, "button", "changeHeadquarters");
+	add(_txtTitle, "text", "changeHeadquarters");
+	add(_txtBase, "text", "changeHeadquarters");
 
 	centerAllSurfaces();
 
@@ -50,7 +50,7 @@ ChangeHeadquartersState::ChangeHeadquartersState(Base *base) : _base(base)
 	_btnCancel->onKeyboardPress((ActionHandler)&ChangeHeadquartersState::btnCancelClick, Options::keyCancel);
 
 	_txtTitle->setAlign(ALIGN_CENTER);
-	_txtTitle->setText(tr("New HQ"));
+	_txtTitle->setText(tr("STR_MOVE_HQ_TO"));
 
 	_txtBase->setAlign(ALIGN_CENTER);
 	_txtBase->setText(_base->getName());

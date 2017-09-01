@@ -1030,6 +1030,18 @@
     <ClCompile Include="Geoscape\TrainingFinishedState.cpp">
       <Filter>Geoscape</Filter>
     </ClCompile>
+    <ClCompile Include="Basescape\CraftEquipmentLoadState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Basescape\CraftEquipmentSaveState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Menu\TestPaletteState.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="Geoscape\SelectMusicTrackState.cpp">
+      <Filter>Geoscape</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
@@ -2102,6 +2114,18 @@
       <Filter>Geoscape</Filter>
     </ClInclude>
     <ClInclude Include="Geoscape\TrainingFinishedState.h">
+      <Filter>Geoscape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\CraftEquipmentLoadState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\CraftEquipmentSaveState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Menu\TestPaletteState.h">
+      <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="Geoscape\SelectMusicTrackState.h">
       <Filter>Geoscape</Filter>
     </ClInclude>
   </ItemGroup>

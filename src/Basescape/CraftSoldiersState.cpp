@@ -86,7 +86,7 @@ CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
 	_btnOk->setText(tr("STR_OK"));
 	_btnOk->onMouseClick((ActionHandler)&CraftSoldiersState::btnOkClick);
 	_btnOk->onKeyboardPress((ActionHandler)&CraftSoldiersState::btnOkClick, Options::keyCancel);
-	_btnOk->onKeyboardPress((ActionHandler)&CraftSoldiersState::btnDeassignAllSoldiersClick, Options::keyInvClear);
+	_btnOk->onKeyboardPress((ActionHandler)&CraftSoldiersState::btnDeassignAllSoldiersClick, Options::keyResetAll);
 
 	_txtTitle->setBig();
 	Craft *c = _base->getCrafts()->at(_craft);
@@ -107,8 +107,8 @@ CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
 	sortOptions.push_back(tr(strId)); \
 	_sortFunctors.push_back(new SortFunctor(_game, functor));
 
-	PUSH_IN("ID", idStat);
-	PUSH_IN("FIRST LETTER", nameStat);
+	PUSH_IN("STR_ID", idStat);
+	PUSH_IN("STR_FIRST_LETTER", nameStat);
 	PUSH_IN("STR_RANK", rankStat);
 	PUSH_IN("STR_MISSIONS2", missionsStat);
 	PUSH_IN("STR_KILLS2", killsStat);

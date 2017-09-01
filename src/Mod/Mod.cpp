@@ -276,6 +276,7 @@ public:
  */
 Mod::Mod() :
 	_maxViewDistance(20), _maxDarknessToSeeUnits(9), _maxStaticLightDistance(16), _maxDynamicLightDistance(24), _enhancedLighting(0),
+	_costHireEngineer(0), _costHireScientist(0),
 	_costEngineer(0), _costScientist(0), _timePersonnel(0), _initialFunding(0),
 	_aiUseDelayBlaster(3), _aiUseDelayFirearm(0), _aiUseDelayGrenade(3), _aiUseDelayMelee(0), _aiUseDelayPsionic(0),
 	_maxLookVariant(0), _tooMuchSmokeThreshold(10), _customTrainingFactor(100), _minReactionAccuracy(0), _chanceToStopRetaliation(0),
@@ -287,6 +288,7 @@ Mod::Mod() :
 	_soldiersPerSergeant(5), _soldiersPerCaptain(11), _soldiersPerColonel(23), _soldiersPerCommander(30),
 	_pilotAccuracyZeroPoint(55), _pilotAccuracyRange(40), _pilotReactionsZeroPoint(55), _pilotReactionsRange(60),
 	_performanceBonusFactor(0), _useCustomCategories(false), _showDogfightDistanceInKm(false),
+	_theMostUselessOptionEver(0), _theBiggestRipOffEver(0),
 	_defeatScore(0), _defeatFunds(0), _startingTime(6, 1, 1, 1999, 12, 0, 0),
 	_baseDefenseMapFromLocation(0),
 	_facilityListOrder(0), _craftListOrder(0), _itemCategoryListOrder(0), _itemListOrder(0),
@@ -689,6 +691,16 @@ Music *Mod::getMusic(const std::string &name, bool error) const
 	{
 		return getRule(name, "Music", _musics, error);
 	}
+}
+
+/**
+ * Returns the list of all music tracks
+ * provided by the mod.
+ * @return List of music tracks.
+ */
+const std::map<std::string, Music*> &Mod::getMusicTrackList() const
+{
+	return _musics;
 }
 
 /**
@@ -1351,12 +1363,15 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	}
 	_maxViewDistance = doc["maxViewDistance"].as<int>(_maxViewDistance);
 	_maxDarknessToSeeUnits = doc["maxDarknessToSeeUnits"].as<int>(_maxDarknessToSeeUnits);
+	_costHireEngineer = doc["costHireEngineer"].as<int>(_costHireEngineer);
+	_costHireScientist = doc["costHireScientist"].as<int>(_costHireScientist);
 	_costEngineer = doc["costEngineer"].as<int>(_costEngineer);
 	_costScientist = doc["costScientist"].as<int>(_costScientist);
 	_timePersonnel = doc["timePersonnel"].as<int>(_timePersonnel);
 	_initialFunding = doc["initialFunding"].as<int>(_initialFunding);
 	_alienFuel = doc["alienFuel"].as<std::pair<std::string, int> >(_alienFuel);
 	_fontName = doc["fontName"].as<std::string>(_fontName);
+	_psiUnlockResearch = doc["psiUnlockResearch"].as<std::string>(_psiUnlockResearch);
 
 	_aiUseDelayGrenade = doc["turnAIUseGrenade"].as<int>(_aiUseDelayGrenade);
 	_aiUseDelayBlaster = doc["turnAIUseBlaster"].as<int>(_aiUseDelayBlaster);
@@ -1416,6 +1431,8 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	_performanceBonusFactor = doc["performanceBonusFactor"].as<int>(_performanceBonusFactor);
 	_useCustomCategories = doc["useCustomCategories"].as<bool>(_useCustomCategories);
 	_showDogfightDistanceInKm = doc["showDogfightDistanceInKm"].as<bool>(_showDogfightDistanceInKm);
+	_theMostUselessOptionEver = doc["theMostUselessOptionEver"].as<int>(_theMostUselessOptionEver);
+	_theBiggestRipOffEver = doc["theBiggestRipOffEver"].as<int>(_theBiggestRipOffEver);
 	_baseDefenseMapFromLocation = doc["baseDefenseMapFromLocation"].as<int>(_baseDefenseMapFromLocation);
 	_missionRatings = doc["missionRatings"].as<std::map<int, std::string> >(_missionRatings);
 	_monthlyRatings = doc["monthlyRatings"].as<std::map<int, std::string> >(_monthlyRatings);
@@ -1541,7 +1558,7 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 		RuleInterface *rule = loadRule(*i, &_interfaces);
 		if (rule != 0)
 		{
-			rule->load(*i);
+			rule->load(*i, this);
 		}
 	}
 	for (YAML::const_iterator i = doc["soundDefs"].begin(); i != doc["soundDefs"].end(); ++i)
@@ -1658,6 +1675,12 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 			_psiRequirements = rule->getRequirements();
 			break;
 		}
+	}
+	// override the default (used when you want to separate screening and training)
+	if (!_psiUnlockResearch.empty())
+	{
+		_psiRequirements.clear();
+		_psiRequirements.push_back(_psiUnlockResearch);
 	}
 
 	for (YAML::const_iterator i = doc["cutscenes"].begin(); i != doc["cutscenes"].end(); ++i)
@@ -1832,17 +1855,6 @@ SavedGame *Mod::newSave() const
 		save->getId((*i)->getRules()->getType());
 	}
 
-	// Determine starting transport craft
-	Craft *transportCraft = 0;
-	for (std::vector<Craft*>::iterator c = base->getCrafts()->begin(); c != base->getCrafts()->end(); ++c)
-	{
-		if ((*c)->getRules()->getSoldiers() > 0)
-		{
-			transportCraft = (*c);
-			break;
-		}
-	}
-
 	// Determine starting soldier types
 	std::vector<std::string> soldierTypes = _soldiersIndex;
 	for (std::vector<std::string>::iterator i = soldierTypes.begin(); i != soldierTypes.end();)
@@ -1886,10 +1898,6 @@ SavedGame *Mod::newSave() const
 		for (size_t i = 0; i < randomTypes.size(); ++i)
 		{
 			Soldier *soldier = genSoldier(save, randomTypes[i]);
-			if (transportCraft != 0 && i < (unsigned)transportCraft->getRules()->getSoldiers())
-			{
-				soldier->setCraft(transportCraft);
-			}
 			base->getSoldiers()->push_back(soldier);
 			// Award soldier a special 'original eigth' commendation
 			SoldierDiary *diary = soldier->getDiary();
@@ -1897,6 +1905,46 @@ SavedGame *Mod::newSave() const
 			for (std::vector<SoldierCommendations*>::iterator comm = diary->getSoldierCommendations()->begin(); comm != diary->getSoldierCommendations()->end(); ++comm)
 			{
 				(*comm)->makeOld();
+			}
+		}
+		// Assign pilots to craft (interceptors first, transport last) and non-pilots to transports only
+		for (auto& soldier : *base->getSoldiers())
+		{
+			if (soldier->getArmor()->getSize() > 1)
+			{
+				// "Large soldiers" just stay in the base
+			}
+			else if (soldier->getRules()->getAllowPiloting())
+			{
+				Craft *found = 0;
+				for (auto& craft : *base->getCrafts())
+				{
+					if (!found && craft->getRules()->getAllowLanding() && craft->getNumSoldiers() < craft->getRules()->getSoldiers())
+					{
+						// Remember transporter as fall-back, but search further for interceptors
+						found = craft;
+					}
+					if (!craft->getRules()->getAllowLanding() && craft->getNumSoldiers() < craft->getRules()->getPilots())
+					{
+						// Fill interceptors with minimum amount of pilots necessary
+						found = craft;
+					}
+				}
+				soldier->setCraft(found);
+			}
+			else
+			{
+				Craft *found = 0;
+				for (auto& craft : *base->getCrafts())
+				{
+					if (craft->getRules()->getAllowLanding() && craft->getNumSoldiers() < craft->getRules()->getSoldiers())
+					{
+						// First available transporter will do
+						found = craft;
+						break;
+					}
+				}
+				soldier->setCraft(found);
 			}
 		}
 	}
@@ -2254,8 +2302,25 @@ const std::vector<std::string> &Mod::getArmorsList() const
 }
 
 /**
- * Returns the cost of an individual engineer
- * for purchase/maintenance.
+ * Returns the hiring cost of an individual engineer.
+ * @return Cost.
+ */
+int Mod::getHireEngineerCost() const
+{
+	return _costHireEngineer != 0 ? _costHireEngineer : _costEngineer * 2;
+}
+
+/**
+* Returns the hiring cost of an individual scientist.
+* @return Cost.
+*/
+int Mod::getHireScientistCost() const
+{
+	return _costHireScientist != 0 ? _costHireScientist: _costScientist * 2;
+}
+
+/**
+ * Returns the monthly cost of an individual engineer.
  * @return Cost.
  */
 int Mod::getEngineerCost() const
@@ -2264,8 +2329,7 @@ int Mod::getEngineerCost() const
 }
 
 /**
- * Returns the cost of an individual scientist
- * for purchase/maintenance.
+ * Returns the monthly cost of an individual scientist.
  * @return Cost.
  */
 int Mod::getScientistCost() const
@@ -3866,9 +3930,6 @@ void Mod::modResources()
 			_surfaces["UNIBORD.PCK"]->setPixel(x, y, _surfaces["UNIBORD.PCK"]->getPixel(x, y - 8));
 			_surfaces["UNIBORD.PCK"]->setPixel(x, y - 8, 0);
 		}
-
-	// handob2 is used for all the left handed sprites.
-	_sets["HANDOB2.PCK"] = new SurfaceSet(*_sets["HANDOB.PCK"]);
 }
 
 /**

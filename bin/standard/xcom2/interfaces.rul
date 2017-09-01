@@ -18,6 +18,22 @@ interfaces: #done
         color: 48
         color2: 48
         border: 48
+  - type: tests
+    elements:
+      - id: palette
+        color: 6
+      - id: window
+        color: 1
+      - id: heading
+        color: 1
+      - id: text
+        color: 239
+      - id: frames
+        color: 239
+      - id: button1
+        color: 1
+      - id: button2
+        color: 1
   - type: newBattleMenu
     elements:
       - id: palette
@@ -44,6 +60,21 @@ interfaces: #done
         color: 1
       - id: ironman
         color: 239
+      - id: button
+        color: 1
+  - type: endGameStatistics
+    elements:
+      - id: palette
+        color: 4
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+        color2: 239
+      - id: list
+        color: 1
+        color2: 239
+        border: 1
       - id: button
         color: 1
   - type: optionsMenu
@@ -94,6 +125,8 @@ interfaces: #done
         color: 1
         color2: 239
         border: 239
+      - id: disabledUserOption
+        color: 3
   - type: modsMenu
     elements:
       - id: optionLists
@@ -142,7 +175,7 @@ interfaces: #done
         color: 1
       - id: battlescapeColor
         color: 0
-  - type: geoCraftScreens
+  - type: geoCraft
     elements:
       - id: palette
         color: 1
@@ -164,6 +197,100 @@ interfaces: #done
       - id: list
         color: 1
         color2: 239
+        border: 1
+      - id: button
+        color: 1
+  - type: selectMusicTrack
+    elements:
+      - id: palette
+        color: 4
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+      - id: list
+        color: 1
+        border: 1
+      - id: button
+        color: 1
+  - type: intercept
+    elements:
+      - id: palette
+        color: 1
+        color2: 6    # oxide
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 244
+        border: 1
+      - id: text2
+        color: 1
+        color2: 244
+        border: 133  # minty green
+      - id: list
+        color: 1
+        color2: 239
+        border: 1
+      - id: button
+        color: 1
+  - type: ufoTracker
+    elements:
+      - id: palette
+        color: 1
+        color2: 6    # oxide
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 244
+        border: 1
+      - id: text2
+        color: 1
+        color2: 244
+        border: 133  # minty green
+      - id: list
+        color: 1
+        color2: 239
+        border: 1
+      - id: button
+        color: 1
+  - type: craftPatrol
+    elements:
+      - id: palette
+        color: 1
+        color2: 6    # oxide
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 244
+        border: 1
+      - id: button
+        color: 1
+  - type: craftError
+    elements:
+      - id: palette
+        color: 1
+        color2: 6    # oxide
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 244
+        border: 1
+      - id: button
+        color: 1
+  - type: craftPilotError
+    elements:
+      - id: palette
+        color: 1
+        color2: 6    # oxide
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 244
         border: 1
       - id: button
         color: 1
@@ -224,6 +351,45 @@ interfaces: #done
       - id: button
         color: 1
   - type: UFOInfo
+    elements:
+      - id: palette
+        color: 1     # aqua
+        color2: 1    # aqua
+      - id: window
+        color: 1     # white
+      - id: text
+        color: 1     # white
+        color2: 244  # minty green
+      - id: button
+        color: 1     # white
+        color2: 1    # white  
+  - type: UFOLost
+    elements:
+      - id: palette
+        color: 1     # aqua
+        color2: 1    # aqua
+      - id: window
+        color: 1     # white
+      - id: text
+        color: 1     # white
+        color2: 244  # minty green
+      - id: button
+        color: 1     # white
+        color2: 1    # white  
+  - type: multipleTargets
+    elements:
+      - id: palette
+        color: 1     # aqua
+        color2: 1    # aqua
+      - id: window
+        color: 1     # white
+      - id: text
+        color: 1     # white
+        color2: 244  # minty green
+      - id: button
+        color: 1     # white
+        color2: 1    # white  
+  - type: baseDestroyed
     elements:
       - id: palette
         color: 1     # aqua
@@ -302,7 +468,91 @@ interfaces: #done
         color: 1   # yellow
       - id: button
         color: 1   # minty green
+  - type: geoResearchComplete
+    elements:
+      - id: palette
+        color: 0     # green
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: geoResearchRequired
+    elements:
+      - id: palette
+        color: 0     # green
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: trainingFinished
+    elements:
+      - id: palette
+        color: 2     # oxide
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: geoNewCraft
+    elements:
+      - id: palette
+        color: 2     # oxide
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: geoNewFacility
+    elements:
+      - id: palette
+        color: 2     # oxide
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: geoNewItem
+    elements:
+      - id: palette
+        color: 2     # oxide
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
   - type: geoManufacture
+    elements:
+      - id: palette
+        color: 2     # oxide
+      - id: window
+        color: 1   # bright green
+      - id: text1
+        color: 1   # bright green
+      - id: text2
+        color: 1   # yellow
+      - id: button
+        color: 1   # minty green
+  - type: geoManufactureComplete
     elements:
       - id: palette
         color: 2     # oxide
@@ -375,6 +625,9 @@ interfaces: #done
         color2: 2
       - id: disabledAmmo
         color: 20
+      - id: shieldRange
+        color: 224
+        color2: 229
       - id: previewTop
         pos: [0, 96]
         size: [160, 17]
@@ -421,7 +674,36 @@ interfaces: #done
         color: 1   # purple
       - id: button2
         color: 1   # light blue
+  - type: martialTraining
+    palette: PAL_GEOSCAPE
+    elements:
+      - id: palette
+        color: 4     # violet
+      - id: window
+        color: 1   # purple
+      - id: text
+        color: 1   # light blue
+      - id: button1
+        color: 1   # purple
+      - id: button2
+        color: 1   # light blue
   - type: allocatePsi
+    palette: PAL_GEOSCAPE
+    elements:
+      - id: palette
+        color: 4     # violet
+      - id: window
+        color: 1   # blue
+      - id: text
+        color: 1   # blue
+        color2: 1  # white
+      - id: list
+        color: 239   # purple
+        color2: 239  # yellow
+        border: 1  # blue
+      - id: button
+        color: 1   # blue
+  - type: allocateMartial
     palette: PAL_GEOSCAPE
     elements:
       - id: palette
@@ -480,6 +762,7 @@ interfaces: #done
         color: 1
       - id: list
         color: 1
+        color2: 239
         border: 1
       - id: button1
         color: 1
@@ -557,6 +840,23 @@ interfaces: #done
         color2: 239   # yellow
       - id: button
         color: 1   # bright green
+  - type: commendationsLate
+    music: GMDEBPOR
+    palette: PAL_BASESCAPE
+    elements:
+      - id: palette
+        color: 1     # violet
+      - id: window
+        color: 1     # blue
+      - id: text
+        color: 1   # blue
+        color2: 244  # white
+      - id: list
+        color: 244   # purple
+        color2: 1    # blue
+        border: 1  # blue
+      - id: button
+        color: 1   # blue
   - type: geoscape
     elements:
       - id: palette
@@ -606,6 +906,22 @@ interfaces: #done
         border: 1
       - id: ammoColor
         color: 1
+      - id: button
+        color: 1
+  - type: dependencyTree
+    palette: PAL_GEOSCAPE
+    elements:
+      - id: palette
+        color: 6
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+        color2: 244
+      - id: list
+        color: 244
+        color2: 239
+        border: 1
       - id: button
         color: 1
   - type: buyMenu
@@ -748,6 +1064,18 @@ interfaces: #done
         color: 1
       - id: text
         color: 1
+        color2: 81
+  - type: changeHeadquarters
+    palette: PAL_BASESCAPE
+    elements:
+      - id: palette
+        color: 6     # oxide
+      - id: window
+        color: 1
+      - id: button
+        color: 1
+      - id: text
+        color: 1
   - type: manufactureMenu
     elements:
       - id: palette
@@ -772,8 +1100,12 @@ interfaces: #done
       - id: text
         color: 1   # pink
       - id: list
-        color: 239   # white
+        color: 1
+        color2: 239
         border: 1  # pink
+      - id: listExtended
+        color: 156
+        color2: 244
       - id: button
         color: 1   # blue
       - id: catBox
@@ -829,6 +1161,7 @@ interfaces: #done
         color: 1   # blue
       - id: list
         color: 1   # white
+        color2: 239
         border: 1  # blue
       - id: button
         color: 1   # purple
@@ -843,6 +1176,37 @@ interfaces: #done
       - id: button1
         color: 1   # gold
       - id: button2
+        color: 1   # blue
+  - type: techTreeViewer
+    elements:
+      - id: palette
+        color: 0     # green
+      - id: window
+        color: 1     # blue
+      - id: text
+        color: 1   # blue
+        color2: 244  # white
+      - id: list
+        color: 3
+        color2: 239
+        border: 1
+      - id: listExtended
+        color: 244
+        color2: 146
+      - id: button
+        color: 1   # purple
+  - type: techTreeSelect
+    parent: techTreeViewer
+    elements:
+      - id: window
+        color: 1   # gold
+      - id: text
+        color: 1   # gold
+        color2: 1  # white
+      - id: list
+        color: 239   # purple
+        border: 1  # blue
+      - id: button
         color: 1   # blue
   - type: baseInfo
     elements:
@@ -996,6 +1360,20 @@ interfaces: #done
         border: 1  # white
       - id: button
         color: 1   # white
+  - type: soldierAvatar
+    elements:
+      - id: palette
+        color: 4     # green
+      - id: window
+        color: 1     # white
+      - id: text
+        color: 1     # white
+        color2: 239  # blue
+      - id: list
+        color: 1   # white
+        border: 1  # white
+      - id: button
+        color: 1   # white
   - type: soldierMemorial
     music: GMDEBPOR
     palette: PAL_BASESCAPE
@@ -1030,7 +1408,24 @@ interfaces: #done
         border: 1
       - id: button
         color: 1
-  - type: soldierMission
+  - type: soldierDiaryPerformance
+    elements:
+      - id: palette
+        color: 6
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+      - id: text2
+        color: 1
+        color2: 244
+      - id: list
+        color: 244
+        color2: 1
+        border: 1
+      - id: button
+        color: 1
+  - type: soldierDiaryMission
     elements:
       - id: palette
         color: 4     # burgundy
@@ -1065,6 +1460,34 @@ interfaces: #done
         color: 2
       - id: errorMessage
         color: 1
+  - type: craftEquipmentSave
+    parent: craftEquipment
+    elements:
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+        color2: 244
+      - id: button
+        color: 1
+      - id: list
+        color: 244
+        color2: 239
+        border: 1
+  - type: craftEquipmentLoad
+    parent: craftEquipment
+    elements:
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+        color2: 244
+      - id: button
+        color: 1
+      - id: list
+        color: 244
+        color2: 239
+        border: 1
   - type: craftArmor
     elements:
       - id: palette
@@ -1104,6 +1527,7 @@ interfaces: #done
         color: 1
       - id: text
         color: 1
+        color2: 244
       - id: list
         color: 244
       - id: button
@@ -1123,6 +1547,37 @@ interfaces: #done
         color: 244
         color2: 239
         border: 1
+      - id: button
+        color: 1
+  - type: craftPilots
+    elements:
+      - id: palette
+        color: 3
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 1
+      - id: text2
+        color: 1
+      - id: list
+        color: 244
+        color2: 1
+      - id: button
+        color: 1
+  - type: craftPilotsSelect
+    parent: craftPilots
+    elements:
+      - id: window
+        color: 1
+      - id: text1
+        color: 1
+        color2: 1
+      - id: text2
+        color: 1
+      - id: list
+        color: 244
+        color2: 1
       - id: button
         color: 1
   - type: craftSelect
@@ -1167,6 +1622,7 @@ interfaces: #done
       - id: miniBase
         color: 8
         color2: 80
+        border: 159
   - type: battlescape
     palette: PAL_BATTLESCAPE
     elements:
@@ -1311,6 +1767,12 @@ interfaces: #done
       - id: visibleUnits
         pos: [300, -16]
         color: 1
+      - id: squadsightUnits
+        color: 86
+      - id: woundedUnits
+        color: 246
+      - id: passingOutUnits
+        color: 158
       - id: icons
         size: [320, 56]
         TFTDMode: true
@@ -1338,6 +1800,20 @@ interfaces: #done
         color: -1
         color2: 80
         border: -1
+      - id: disabledUserOption
+        color: 240
+      - id: medikitRed
+        color: 11
+      - id: medikitGreen
+        color: 5
+      - id: medikitBlue
+        color: 15
+      - id: medikitOrange
+        color: 8
+      - id: twoHandedRed
+        color: 9
+      - id: twoHandedGreen
+        color: 83
   - type: briefing
     elements:
       - id: window
@@ -1398,6 +1874,7 @@ interfaces: #done
         color2: 176    # red (overweight)
       - id: numStack
         color: 82
+        color2: 0
   - type: stats
     elements:
       - id: textName
@@ -1467,6 +1944,8 @@ interfaces: #done
         pos: [282, 28]
         color: 80
         TFTDMode: true
+      - id: emptySpace
+        color: 180
   - type: medikit
     elements:
       - id: textPK

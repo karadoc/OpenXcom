@@ -22,33 +22,24 @@
 namespace OpenXcom
 {
 
+class Surface;
 class TextButton;
-class Window;
-class Text;
-class Craft;
-class Base;
 
 /**
- * Briefing screen which displays info
- * about a Crash Site mission.
+ * A state for preview of text color code per palette and contrast.
  */
-class BriefingState : public State
+class TestPaletteState : public State
 {
 private:
-	TextButton *_btnOk;
-	Window *_window;
-	Text *_txtTitle, *_txtTarget, *_txtCraft, *_txtBriefing;
-	std::string _cutsceneId, _musicId;
-	bool _infoOnly;
+	Surface *_bg;
+	TextButton *_btnCancel;
 public:
-	/// Creates the Briefing state.
-	BriefingState(Craft *craft = 0, Base *base = 0, bool infoOnly = false);
-	/// Cleans up the Briefing state.
-	~BriefingState();
-	/// Initialization
-	void init();
-	/// Handler for clicking the Ok button.
-	void btnOkClick(Action *action);
+	/// Creates the Test state.
+	TestPaletteState(const std::string &palette, bool highContrast = false);
+	/// Cleans up the Test state.
+	~TestPaletteState();
+	/// Handler for clicking the Cancel button.
+	void btnCancelClick(Action *action);
 };
 
 }

@@ -71,7 +71,7 @@ namespace OpenXcom
 		_btnOk->setText(tr("STR_OK"));
 		_btnOk->onMouseClick((ActionHandler)&UfopaediaSelectState::btnOkClick);
 		_btnOk->onKeyboardPress((ActionHandler)&UfopaediaSelectState::btnOkClick,Options::keyCancel);
-		_btnOk->onKeyboardPress((ActionHandler)&UfopaediaSelectState::btnMarkAllAsSeenClick, Options::keyInvClear);
+		_btnOk->onKeyboardPress((ActionHandler)&UfopaediaSelectState::btnMarkAllAsSeenClick, Options::keyMarkAllAsSeen);
 
 		_btnShowOnlyNew->setText(tr("STR_SHOW_ONLY_NEW"));
 		_btnShowOnlyNew->onMouseClick((ActionHandler)&UfopaediaSelectState::btnShowOnlyNewClick);
@@ -135,7 +135,7 @@ namespace OpenXcom
 
 		if (newState == ArticleDefinition::PEDIA_STATUS_NEW)
 		{
-			_lstSelection->setRowColor(_lstSelection->getSelectedRow(), 90); // light green
+			_lstSelection->setRowColor(_lstSelection->getSelectedRow(), _lstSelection->getSecondaryColor());
 		}
 		else
 		{
@@ -236,7 +236,7 @@ namespace OpenXcom
 			else if (_game->getSavedGame()->getUfopediaRuleStatus((*it)->id) == ArticleDefinition::PEDIA_STATUS_NEW)
 			{
 				// highlight as new
-				_lstSelection->setCellColor(row, 0, 90); // light green
+				_lstSelection->setCellColor(row, 0, _lstSelection->getSecondaryColor());
 				hasUnseen = true;
 			}
 			row++;

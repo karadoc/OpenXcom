@@ -151,6 +151,7 @@ private:
 	ModScriptGlobal *_scriptGlobal;
 	int _maxViewDistance, _maxDarknessToSeeUnits;
 	int _maxStaticLightDistance, _maxDynamicLightDistance, _enhancedLighting;
+	int _costHireEngineer, _costHireScientist;
 	int _costEngineer, _costScientist, _timePersonnel, _initialFunding;
 	int _aiUseDelayBlaster, _aiUseDelayFirearm, _aiUseDelayGrenade, _aiUseDelayMelee, _aiUseDelayPsionic;
 	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor, _minReactionAccuracy;
@@ -166,9 +167,10 @@ private:
 	int _pilotBraveryThresholds[3];
 	int _performanceBonusFactor;
 	bool _useCustomCategories, _showDogfightDistanceInKm;
+	int _theMostUselessOptionEver, _theBiggestRipOffEver;
 	int _defeatScore, _defeatFunds;
 	std::pair<std::string, int> _alienFuel;
-	std::string _fontName, _finalResearch;
+	std::string _fontName, _finalResearch, _psiUnlockResearch;
 	YAML::Node _startingBase;
 	GameTime _startingTime;
 	int _baseDefenseMapFromLocation;
@@ -279,6 +281,8 @@ public:
 	SurfaceSet *getSurfaceSet(const std::string &name, bool error = true) const;
 	/// Gets a particular music.
 	Music *getMusic(const std::string &name, bool error = true) const;
+	/// Gets the available music tracks.
+	const std::map<std::string, Music*> &getMusicTrackList() const;
 	/// Plays a particular music.
 	void playMusic(const std::string &name, int id = 0);
 	/// Gets a particular sound.
@@ -394,9 +398,13 @@ public:
 	const RuleDamageType *getDamageType(ItemDamageType type) const;
 	/// Gets the cost of a soldier.
 	int getSoldierCost() const;
-	/// Gets the cost of an engineer.
+	/// Gets the cost of hiring an engineer.
+	int getHireEngineerCost() const;
+	/// Gets the cost of hiring a scientist.
+	int getHireScientistCost() const;
+	/// Gets the monthly cost of an engineer.
 	int getEngineerCost() const;
-	/// Gets the cost of a scientist.
+	/// Gets the monthly cost of a scientist.
 	int getScientistCost() const;
 	/// Gets the transfer time of personnel.
 	int getPersonnelTime() const;
@@ -478,6 +486,10 @@ public:
 	bool getUseCustomCategories() const { return _useCustomCategories; }
 	/// Should distance in dogfight GUI be shown in kilometers?
 	bool getShowDogfightDistanceInKm() const { return _showDogfightDistanceInKm; }
+	/// Self-explanatory
+	int getTheMostUselessOptionEver() const { return _theMostUselessOptionEver; }
+	/// Shame on you!
+	int getTheBiggestRipOffEver() const { return _theBiggestRipOffEver; }
 	/// Gets whether or not to load base defense terrain from globe texture
 	int getBaseDefenseMapFromLocation() const { return _baseDefenseMapFromLocation; }
 	/// Gets the ruleset for a specific research project.

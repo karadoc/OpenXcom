@@ -17,38 +17,46 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <vector>
 #include "../Engine/State.h"
 
 namespace OpenXcom
 {
 
-class TextButton;
+enum SelectMusicTrackOrigin
+{
+	SMT_GEOSCAPE,
+	SMT_BATTLESCAPE
+};
+
 class Window;
 class Text;
-class Craft;
-class Base;
+class TextButton;
+class TextList;
+class Music;
 
 /**
- * Briefing screen which displays info
- * about a Crash Site mission.
+ * Select Music Track window that allows changing
+ * of the currently played music track.
  */
-class BriefingState : public State
+class SelectMusicTrackState : public State
 {
 private:
-	TextButton *_btnOk;
+	SelectMusicTrackOrigin _origin;
 	Window *_window;
-	Text *_txtTitle, *_txtTarget, *_txtCraft, *_txtBriefing;
-	std::string _cutsceneId, _musicId;
-	bool _infoOnly;
+	Text *_txtTitle;
+	TextButton *_btnCancel;
+	TextList *_lstTracks;
+	std::vector<Music*> _tracks;
 public:
-	/// Creates the Briefing state.
-	BriefingState(Craft *craft = 0, Base *base = 0, bool infoOnly = false);
-	/// Cleans up the Briefing state.
-	~BriefingState();
-	/// Initialization
-	void init();
-	/// Handler for clicking the Ok button.
-	void btnOkClick(Action *action);
+	/// Creates the Select Music Track state.
+	SelectMusicTrackState(SelectMusicTrackOrigin origin);
+	/// Cleans up the Select Music Track state.
+	~SelectMusicTrackState();
+	/// Handler for clicking the Cancel button.
+	void btnCancelClick(Action *action);
+	/// Handler for clicking the Weapons list.
+	void lstTrackClick(Action *action);
 };
 
 }

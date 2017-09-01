@@ -56,16 +56,16 @@ CraftPilotSelectState::CraftPilotSelectState(Base *base, size_t craft) : _base(b
 	_txtBravery = new Text(20, 9, 230, 52);
 	_lstPilot = new TextList(200, 80, 53, 68);
 
-	setInterface("costsInfo");
+	setInterface("craftPilotsSelect");
 
-	add(_window, "window", "costsInfo");
-	add(_btnCancel, "button", "costsInfo");
-	add(_txtTitle, "text2", "costsInfo");
-	add(_txtName, "text1", "costsInfo");
-	add(_txtFiringAcc, "text1", "costsInfo");
-	add(_txtReactions, "text1", "costsInfo");
-	add(_txtBravery, "text1", "costsInfo");
-	add(_lstPilot, "list", "costsInfo");
+	add(_window, "window", "craftPilotsSelect");
+	add(_btnCancel, "button", "craftPilotsSelect");
+	add(_txtTitle, "text2", "craftPilotsSelect");
+	add(_txtName, "text1", "craftPilotsSelect");
+	add(_txtFiringAcc, "text1", "craftPilotsSelect");
+	add(_txtReactions, "text1", "craftPilotsSelect");
+	add(_txtBravery, "text1", "craftPilotsSelect");
+	add(_lstPilot, "list", "craftPilotsSelect");
 
 	centerAllSurfaces();
 
@@ -83,9 +83,9 @@ CraftPilotSelectState::CraftPilotSelectState(Base *base, size_t craft) : _base(b
 
 	_txtName->setText(tr("STR_NAME"));
 
-	_txtFiringAcc->setText(tr("ACC"));
-	_txtReactions->setText(tr("REA"));
-	_txtBravery->setText(tr("BRA"));
+	_txtFiringAcc->setText(tr("STR_FIRING_ACCURACY_ABBREVIATION"));
+	_txtReactions->setText(tr("STR_REACTIONS_ABBREVIATION"));
+	_txtBravery->setText(tr("STR_BRAVERY_ABBREVIATION"));
 
 	_lstPilot->setColumns(4, 124, 20, 20, 20);
 	_lstPilot->setAlign(ALIGN_RIGHT);

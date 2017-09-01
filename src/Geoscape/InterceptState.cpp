@@ -72,17 +72,17 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 	_lstCrafts = new TextList(290, 64, 12, 78);
 
 	// Set palette
-	setInterface("geoCraftScreens");
+	setInterface("intercept");
 
-	add(_window, "window", "geoCraftScreens");
-	add(_btnCancel, "button", "geoCraftScreens");
-	add(_btnGotoBase, "button", "geoCraftScreens");
-	add(_txtTitle, "text1", "geoCraftScreens");
-	add(_txtCraft, "text2", "geoCraftScreens");
-	add(_txtStatus, "text2", "geoCraftScreens");
-	add(_txtBase, "text2", "geoCraftScreens");
-	add(_txtWeapons, "text2", "geoCraftScreens");
-	add(_lstCrafts, "list", "geoCraftScreens");
+	add(_window, "window", "intercept");
+	add(_btnCancel, "button", "intercept");
+	add(_btnGotoBase, "button", "intercept");
+	add(_txtTitle, "text1", "intercept");
+	add(_txtCraft, "text2", "intercept");
+	add(_txtStatus, "text2", "intercept");
+	add(_txtBase, "text2", "intercept");
+	add(_txtWeapons, "text2", "intercept");
+	add(_lstCrafts, "list", "intercept");
 
 	centerAllSurfaces();
 
@@ -130,6 +130,7 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 			std::wostringstream ssStatus;
 			std::string status = (*j)->getStatus();
 
+			bool hasEnoughPilots = (*j)->arePilotsOnboard();
 			if (status == "STR_OUT")
 			{
 				// QoL: let's give the player a bit more info
@@ -140,6 +141,7 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 				else if ((*j)->getLowFuel() || (*j)->getMissionComplete() || (*j)->getDestination() == (Target*)(*j)->getBase())
 				{
 					ssStatus << tr("STR_RETURNING");
+					//ssStatus << tr("STR_RETURNING_TO_BASE"); // vanilla craft info
 				}
 				else
 				{
@@ -148,9 +150,14 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 					AlienBase *b = dynamic_cast<AlienBase*>((*j)->getDestination());
 					if (u != 0)
 					{
-						if ((*j)->isInDogfight() || u->getStatus() == Ufo::FLYING)
+						if ((*j)->isInDogfight())
+						{
+							ssStatus << tr("STR_TAILING_UFO");
+						}
+						else if (u->getStatus() == Ufo::FLYING)
 						{
 							ssStatus << tr("STR_INTERCEPTING");
+							//ssStatus << tr("STR_INTERCEPTING_UFO").arg(u->getId()); // vanilla craft info
 						}
 						else
 						{
@@ -169,7 +176,14 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 			}
 			else
 			{
-				ssStatus << tr(status);
+				if (!hasEnoughPilots && status == "STR_READY")
+				{
+					ssStatus << tr("STR_PILOT_MISSING");
+				}
+				else
+				{
+					ssStatus << tr(status);
+				}
 			}
 			if (status != "STR_READY" && status != "STR_OUT")
 			{
@@ -226,7 +240,7 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 			}
 			_crafts.push_back(*j);
 			_lstCrafts->addRow(4, (*j)->getName(_game->getLanguage()).c_str(), ssStatus.str().c_str(), (*i)->getName().c_str(), ss.str().c_str());
-			if (status == "STR_READY")
+			if (hasEnoughPilots && status == "STR_READY")
 			{
 				_lstCrafts->setCellColor(row, 1, _lstCrafts->getSecondaryColor());
 			}

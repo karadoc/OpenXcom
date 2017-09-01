@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "TestState.h"
+#include "TestPaletteState.h"
 #include "../Engine/Game.h"
 #include "../Engine/LocalizedText.h"
 #include "../Interface/ComboBox.h"
@@ -44,24 +45,34 @@ TestState::TestState()
 	// Create objects
 	_window = new Window(this, 320, 200, 0, 0);
 	_txtTitle = new Text(300, 17, 10, 7);
-	_txtTestCase = new Text(86, 9, 10, 30);
-	_cbxTestCase = new ComboBox(this, 214, 16, 98, 26);
-	_txtDescription = new Text(300, 25, 10, 46);
-	_lstOutput = new TextList(284, 96, 10, 74);
+	_txtPalette = new Text(86, 9, 10, 30);
+	_cbxPalette = new ComboBox(this, 114, 16, 98, 26);
+	_btnLowContrast = new TextButton(42, 16, 220, 26);
+	_btnHighContrast = new TextButton(42, 16, 270, 26);
+	_btnPreview = new TextButton(92, 16, 220, 26);
+	_txtTestCase = new Text(86, 9, 10, 50);
+	_cbxTestCase = new ComboBox(this, 214, 16, 98, 46);
+	_txtDescription = new Text(300, 25, 10, 66);
+	_lstOutput = new TextList(284, 80, 10, 94);
 	_btnRun = new TextButton(146, 16, 10, 176);
 	_btnCancel = new TextButton(146, 16, 164, 176);
 
 	// Set palette
-	setInterface("newBattleMenu");
+	setInterface("tests");
 
-	add(_window, "window", "newBattleMenu");
-	add(_txtTitle, "heading", "newBattleMenu");
-	add(_txtTestCase, "text", "newBattleMenu");
-	add(_txtDescription, "heading", "newBattleMenu");
-	add(_lstOutput, "text", "newBattleMenu");
-	add(_btnRun, "button2", "newBattleMenu");
-	add(_btnCancel, "button2", "newBattleMenu");
-	add(_cbxTestCase, "button1", "newBattleMenu"); // add as last (display over all other components)
+	add(_window, "window", "tests");
+	add(_txtTitle, "heading", "tests");
+	add(_txtPalette, "text", "tests");
+	add(_btnLowContrast, "button2", "tests");
+	add(_btnHighContrast, "button2", "tests");
+	add(_btnPreview, "button2", "tests");
+	add(_txtTestCase, "text", "tests");
+	add(_txtDescription, "heading", "tests");
+	add(_lstOutput, "text", "tests");
+	add(_btnRun, "button2", "tests");
+	add(_btnCancel, "button2", "tests");
+	add(_cbxTestCase, "button1", "tests"); // add as last (display over all other components)
+	add(_cbxPalette, "button1", "tests"); // add as last (display over all other components)
 
 	centerAllSurfaces();
 
@@ -71,6 +82,52 @@ TestState::TestState()
 	_txtTitle->setBig();
 	_txtTitle->setAlign(ALIGN_CENTER);
 	_txtTitle->setText(tr("STR_TEST_SCREEN"));
+
+	_txtPalette->setText(tr("STR_PALETTE"));
+
+	bool isTFTD = false;
+	for (std::vector< std::pair<std::string, bool> >::const_iterator i = Options::mods.begin(); i != Options::mods.end(); ++i)
+	{
+		if (i->second)
+		{
+			if (i->first == "xcom2")
+			{
+				isTFTD = true;
+				break;
+			}
+		}
+	}
+
+	_paletteList.push_back("PAL_GEOSCAPE");
+	_paletteList.push_back("PAL_BASESCAPE");
+	_paletteList.push_back("PAL_GRAPHS");
+	if (!isTFTD)
+	{
+		_paletteList.push_back("PAL_UFOPAEDIA");
+		_paletteList.push_back("PAL_BATTLEPEDIA");
+	}
+	_paletteList.push_back("PAL_BATTLESCAPE");
+	if (isTFTD)
+	{
+		_paletteList.push_back("PAL_BATTLESCAPE_1");
+		_paletteList.push_back("PAL_BATTLESCAPE_2");
+		_paletteList.push_back("PAL_BATTLESCAPE_3");
+	}
+
+	_cbxPalette->setOptions(_paletteList);
+	_cbxPalette->onChange((ActionHandler)&TestState::cbxPaletteChange);
+
+	_btnLowContrast->setText(tr("STR_LOW_CONTRAST"));
+	_btnLowContrast->onMouseClick((ActionHandler)&TestState::btnLowContrastClick);
+	_btnLowContrast->setVisible(false);
+
+	_btnHighContrast->setText(tr("STR_HIGH_CONTRAST"));
+	_btnHighContrast->onMouseClick((ActionHandler)&TestState::btnHighContrastClick);
+	_btnHighContrast->setVisible(false);
+
+	_btnPreview->setText(tr("STR_PREVIEW"));
+	_btnPreview->onMouseClick((ActionHandler)&TestState::btnLowContrastClick);
+	_btnPreview->setVisible(true);
 
 	_txtTestCase->setText(tr("STR_TEST_CASE"));
 
@@ -133,10 +190,53 @@ void TestState::btnCancelClick(Action *action)
 	_game->popState();
 }
 
+/**
+* Updates the UI buttons.
+* @param action Pointer to an action.
+*/
+void TestState::cbxPaletteChange(Action *)
+{
+	size_t index = _cbxPalette->getSelected();
+	if (_paletteList[index].find("PAL_BATTLESCAPE") != std::string::npos)
+	{
+		_btnPreview->setVisible(false);
+		_btnLowContrast->setVisible(true);
+		_btnHighContrast->setVisible(true);
+	}
+	else
+	{
+		_btnPreview->setVisible(true);
+		_btnLowContrast->setVisible(false);
+		_btnHighContrast->setVisible(false);
+	}
+}
+
+/**
+* Shows palette preview with low contrast.
+* @param action Pointer to an action.
+*/
+void TestState::btnLowContrastClick(Action *action)
+{
+	size_t index = _cbxPalette->getSelected();
+	const std::string palette = _paletteList[index];
+	_game->pushState(new TestPaletteState(palette, false));
+}
+
+/**
+* Shows palette preview with high contrast.
+* @param action Pointer to an action.
+*/
+void TestState::btnHighContrastClick(Action *action)
+{
+	size_t index = _cbxPalette->getSelected();
+	const std::string palette = _paletteList[index];
+	_game->pushState(new TestPaletteState(palette, true));
+}
+
 void TestState::testCase0()
 {
-	_lstOutput->addRow(1, tr("Starting...").c_str());
-	_lstOutput->addRow(1, tr("Checking terrain...").c_str());
+	_lstOutput->addRow(1, tr("STR_TESTS_STARTING").c_str());
+	_lstOutput->addRow(1, tr("STR_BAD_NODES_CHECKING_TERRAIN").c_str());
 	int total = 0;
 	for (std::vector<std::string>::const_iterator i = _game->getMod()->getTerrainList().begin(); i != _game->getMod()->getTerrainList().end(); ++i)
 	{
@@ -146,7 +246,7 @@ void TestState::testCase0()
 			total += checkRMP((*j));
 		}
 	}
-	_lstOutput->addRow(1, tr("Checking UFOs...").c_str());
+	_lstOutput->addRow(1, tr("STR_BAD_NODES_CHECKING_UFOS").c_str());
 	for (std::vector<std::string>::const_iterator i = _game->getMod()->getUfosList().begin(); i != _game->getMod()->getUfosList().end(); ++i)
 	{
 		RuleUfo *ufoRule = _game->getMod()->getUfo((*i));
@@ -158,7 +258,7 @@ void TestState::testCase0()
 			}
 		}
 	}
-	_lstOutput->addRow(1, tr("Checking craft...").c_str());
+	_lstOutput->addRow(1, tr("STR_BAD_NODES_CHECKING_CRAFT").c_str());
 	for (std::vector<std::string>::const_iterator i = _game->getMod()->getCraftsList().begin(); i != _game->getMod()->getCraftsList().end(); ++i)
 	{
 		RuleCraft *craftRule = _game->getMod()->getCraft((*i));
@@ -172,14 +272,14 @@ void TestState::testCase0()
 	}
 	if (total > 0)
 	{
-		_lstOutput->addRow(1, tr("Total errors found (there may be duplicates): {0}").arg(total).c_str());
-		_lstOutput->addRow(1, tr("Detailed info about bad nodes has been saved into openxcom.log").c_str());
+		_lstOutput->addRow(1, tr("STR_TESTS_ERRORS_FOUND").arg(total).c_str());
+		_lstOutput->addRow(1, tr("STR_BAD_NODES_DETAILED_INFO").c_str());
 	}
 	else
 	{
-		_lstOutput->addRow(1, tr("No errors found.").c_str());
+		_lstOutput->addRow(1, tr("STR_TESTS_NO_ERRORS_FOUND").c_str());
 	}
-	_lstOutput->addRow(1, tr("Finished.").c_str());
+	_lstOutput->addRow(1, tr("STR_TESTS_FINISHED").c_str());
 }
 
 int TestState::checkRMP(MapBlock *mapblock)

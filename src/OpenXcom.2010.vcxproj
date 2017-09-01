@@ -233,6 +233,8 @@
     <ClCompile Include="Basescape\BuildFacilitiesState.cpp" />
     <ClCompile Include="Basescape\ChangeHeadquartersState.cpp" />
     <ClCompile Include="Basescape\CraftArmorState.cpp" />
+    <ClCompile Include="Basescape\CraftEquipmentLoadState.cpp" />
+    <ClCompile Include="Basescape\CraftEquipmentSaveState.cpp" />
     <ClCompile Include="Basescape\CraftEquipmentState.cpp" />
     <ClCompile Include="Basescape\CraftInfoState.cpp" />
     <ClCompile Include="Basescape\CraftPilotSelectState.cpp" />
@@ -408,6 +410,7 @@
     <ClCompile Include="Geoscape\MonthlyReportState.cpp" />
     <ClCompile Include="Geoscape\MultipleTargetsState.cpp" />
     <ClCompile Include="Geoscape\SelectDestinationState.cpp" />
+    <ClCompile Include="Geoscape\SelectMusicTrackState.cpp" />
     <ClCompile Include="Geoscape\TargetInfoState.cpp" />
     <ClCompile Include="Geoscape\TrainingFinishedState.cpp" />
     <ClCompile Include="Geoscape\TrainingState.cpp" />
@@ -463,6 +466,7 @@
     <ClCompile Include="Menu\SlideshowState.cpp" />
     <ClCompile Include="Menu\StartState.cpp" />
     <ClCompile Include="Menu\StatisticsState.cpp" />
+    <ClCompile Include="Menu\TestPaletteState.cpp" />
     <ClCompile Include="Menu\TestState.cpp" />
     <ClCompile Include="Menu\VideoState.cpp" />
     <ClCompile Include="Mod\CustomPalettes.cpp" />
@@ -583,6 +587,8 @@
     <ClInclude Include="Basescape\BuildFacilitiesState.h" />
     <ClInclude Include="Basescape\ChangeHeadquartersState.h" />
     <ClInclude Include="Basescape\CraftArmorState.h" />
+    <ClInclude Include="Basescape\CraftEquipmentLoadState.h" />
+    <ClInclude Include="Basescape\CraftEquipmentSaveState.h" />
     <ClInclude Include="Basescape\CraftEquipmentState.h" />
     <ClInclude Include="Basescape\CraftInfoState.h" />
     <ClInclude Include="Basescape\CraftPilotSelectState.h" />
@@ -772,6 +778,7 @@
     <ClInclude Include="Geoscape\PsiTrainingState.h" />
     <ClInclude Include="Geoscape\ResearchCompleteState.h" />
     <ClInclude Include="Geoscape\SelectDestinationState.h" />
+    <ClInclude Include="Geoscape\SelectMusicTrackState.h" />
     <ClInclude Include="Geoscape\TargetInfoState.h" />
     <ClInclude Include="Geoscape\TrainingFinishedState.h" />
     <ClInclude Include="Geoscape\TrainingState.h" />
@@ -826,6 +833,7 @@
     <ClInclude Include="Menu\SlideshowState.h" />
     <ClInclude Include="Menu\StartState.h" />
     <ClInclude Include="Menu\StatisticsState.h" />
+    <ClInclude Include="Menu\TestPaletteState.h" />
     <ClInclude Include="Menu\TestState.h" />
     <ClInclude Include="Menu\VideoState.h" />
     <ClInclude Include="Mod\CustomPalettes.h" />

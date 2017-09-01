@@ -428,8 +428,8 @@ void TileEngine::calculateLighting(LightLayers layer, Position position, int eve
 						cache.height = 24;
 					}
 				}
-				cache.smoke = tile->getSmoke();
-				cache.fire = tile->getFire();
+				cache.smoke = (tile->getSmoke() > 0);
+				cache.fire = (tile->getFire() > 0);
 				cache.blockUp = (verticalBlockage(tile, _save->getTile(currPos + Position{ 0, 0, 1 }), DT_NONE) > 127);
 				cache.blockDown = (verticalBlockage(tile, _save->getTile(currPos + Position{ 0, 0, -1 }), DT_NONE) > 127);
 				for (int dir = 0; dir < 8; ++dir)
@@ -518,6 +518,7 @@ void TileEngine::addLight(GraphSubset gs, Position center, int power, LightLayer
 	const auto offsetTarget = (accuracy / 2 + Position(-1, -1, 0));
 	const auto clasicLighting = !(getEnhancedLighting() & ((fire ? 1 : 0) | (items ? 2 : 0) | (units ? 4 : 0)));
 	const auto topVoxel = (_blockVisibility[_save->getTileIndex(center)].blockUp ? (center.z + 1) : _save->getMapSizeZ()) * accuracy.z - 1;
+	const auto maxFirePower = std::min(15, getMaxStaticLightDistance() - 1);
 
 	iterateTiles(
 		_save,
@@ -618,17 +619,17 @@ void TileEngine::addLight(GraphSubset gs, Position center, int power, LightLayer
 				}
 				if (steps > 1)
 				{
-					if (height < cache.height)
+					if (cache.fire && fire && light <= maxFirePower) //some tile on path have fire, skip further calculation because destionation tile should be lighted by this fire.
 					{
-						light -= 2;
+						result = true;
 					}
-					if (cache.smoke)
+					else if (cache.smoke)
 					{
 						light -= 1;
 					}
-					if (fire && cache.fire && light <= 15)
+					if (height < cache.height)
 					{
-						result = false;
+						light -= 2;
 					}
 				}
 				++steps;
@@ -1029,7 +1030,11 @@ bool TileEngine::visible(BattleUnit *currentUnit, Tile *tile)
 	// during day (or if enough other light) both see 20 tiles ... unless overridden by armor
 	else
 	{
-		visibleDistanceMaxVoxel = std::min(visibleDistanceMaxVoxel, currentUnit->getMaxViewDistanceAtDay(tile->getUnit()->getArmor()) * 16);
+		// Note: fire cancels enemy's camouflage
+		visibleDistanceMaxVoxel = std::min(
+			visibleDistanceMaxVoxel,
+			currentUnit->getMaxViewDistanceAtDay(tile->getUnit()->getFire() > 0 ? 0 : tile->getUnit()->getArmor()) * 16
+		);
 	}
 
 	// oxce 3.3 workaround, remove when fixed? http://openxcom.org/forum/index.php/topic,4822.msg73841.html#msg73841
@@ -1517,8 +1522,8 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 				(*i)->getReactionScore() >= threshold &&
 				// not a friend
 				(*i)->getFaction() != _save->getSide() &&
-				// not a civilian
-				(*i)->getFaction() != FACTION_NEUTRAL &&
+				// not a civilian, or a civilian shooting at bad guys
+				((*i)->getFaction() != FACTION_NEUTRAL || unit->getFaction() == FACTION_HOSTILE) &&
 				// closer than 20 tiles
 				distanceSq(unit->getPosition(), (*i)->getPosition(), false) <= getMaxViewDistanceSq())
 			{
@@ -1736,7 +1741,7 @@ bool TileEngine::tryReaction(BattleUnit *unit, BattleUnit *target, BattleActionT
 				_save->hitLog.str(L"");
 				_save->hitLog.clear();
 				// log weapon?
-				_save->hitLog << "Reaction fire...\n\n";
+				_save->hitLog << _save->getBattleState()->tr("STR_HIT_LOG_REACTION_FIRE") << L"\n\n";
 
 				if (action.type == BA_HIT)
 				{
@@ -1975,18 +1980,21 @@ bool TileEngine::hitUnit(BattleActionAttack attack, BattleUnit *target, const Po
 	const int totalDamage = adjustedDamage + (target->getStunlevel() - stunLevelOrig);
 
 	// hit log
-	const int damagePercent = (totalDamage * 100) / target->getBaseStats()->health;
-	if (damagePercent <= 0)
+	if (_save->getBattleState())
 	{
-		_save->hitLog << "0 ";
-	}
-	else if (damagePercent <= 20)
-	{
-		_save->hitLog << "hit ";
-	}
-	else
-	{
-		_save->hitLog << "hit! ";
+		const int damagePercent = (totalDamage * 100) / target->getBaseStats()->health;
+		if (damagePercent <= 0)
+		{
+			_save->hitLog << _save->getBattleState()->tr("STR_HIT_LOG_NO_DAMAGE");
+		}
+		else if (damagePercent <= 20)
+		{
+			_save->hitLog << _save->getBattleState()->tr("STR_HIT_LOG_SMALL_DAMAGE");
+		}
+		else
+		{
+			_save->hitLog << _save->getBattleState()->tr("STR_HIT_LOG_BIG_DAMAGE");
+		}
 	}
 
 	if (attack.attacker && target->getFaction() != FACTION_PLAYER)
@@ -2174,20 +2182,17 @@ BattleUnit *TileEngine::hit(BattleActionAttack attack, Position center, int powe
 	if (terrainChanged || effectGenerated)
 	{
 		applyGravity(tile);
-	}
-	if (terrainChanged) //part of tile destroyed
-	{
 		auto layer = LL_ITEMS;
-		if (part == V_FLOOR && _save->getTile(tilePos - Position(0, 0, 1))) {
+		if (part == V_FLOOR && _save->getTile(tilePos - Position(0, 0, 1)))
+		{
 			layer = LL_AMBIENT; // roof destroyed, update sunlight in this tile column
 		}
+		else if (effectGenerated)
+		{
+			layer = LL_FIRE; // spawned fire or smoke that can block light.
+		}
 		calculateLighting(layer, tilePos, 1, true);
-		calculateFOV(tilePos, 1, true, true); //append any new units or tiles revealed by the terrain change
-	}
-	else if (effectGenerated)
-	{
-		calculateLighting(LL_FIRE, tilePos, 1);
-		calculateFOV(tilePos, 1, false); //skip updating of tiles
+		calculateFOV(tilePos, 1, true, terrainChanged); //append any new units or tiles revealed by the terrain change
 	}
 	else
 	{
@@ -3527,52 +3532,51 @@ int TileEngine::psiAttackCalculate(BattleActionType type, BattleUnit *attacker, 
  * @param action Pointer to an action.
  * @return Whether it failed or succeeded.
  */
-bool TileEngine::psiAttack(BattleAction *action)
+bool TileEngine::psiAttack(BattleActionAttack attack, BattleUnit *victim)
 {
-	BattleUnit *victim = _save->getTile(action->target)->getUnit();
 	if (!victim)
 		return false;
 
-	action->actor->addPsiSkillExp();
+	attack.attacker->addPsiSkillExp();
 	if (Options::allowPsiStrengthImprovement) victim->addPsiStrengthExp();
-	if (psiAttackCalculate(action->type, action->actor, victim, action->weapon) > 0)
+	if (psiAttackCalculate(attack.type, attack.attacker, victim, attack.weapon_item) > 0)
 	{
-		action->actor->addPsiSkillExp();
-		action->actor->addPsiSkillExp();
+		attack.attacker->addPsiSkillExp();
+		attack.attacker->addPsiSkillExp();
 
 		BattleUnitKills killStat;
 		killStat.setUnitStats(victim);
 		killStat.setTurn(_save->getTurn(), _save->getSide());
-		killStat.weapon = action->weapon->getRules()->getName();
-		killStat.weaponAmmo = action->weapon->getRules()->getName(); //Psi weapons got no ammo, just filling up the field
+		killStat.weapon = attack.weapon_item->getRules()->getName();
+		killStat.weaponAmmo = attack.weapon_item->getRules()->getName(); //Psi weapons got no ammo, just filling up the field
 		killStat.faction = victim->getFaction();
 		killStat.mission = _save->getGeoscapeSave()->getMissionStatistics()->size();
 		killStat.id = victim->getId();
 
-		if (action->type == BA_PANIC)
+		if (attack.type == BA_PANIC)
 		{
 			int moraleLoss = victim->reduceByBravery(100);
 			if (moraleLoss > 0)
 				victim->moraleChange(-moraleLoss);
-			victim->setMindControllerId(action->actor->getId());
+			victim->setMindControllerId(attack.attacker->getId());
 
 			// Award Panic battle unit kill
-			if (!action->actor->getStatistics()->duplicateEntry(STATUS_PANICKING, victim->getId()))
+			if (!attack.attacker->getStatistics()->duplicateEntry(STATUS_PANICKING, victim->getId()))
 			{
 				killStat.status = STATUS_PANICKING;
-				action->actor->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
+				attack.attacker->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
 			}
 		}
-		else if (action->type == BA_MINDCONTROL)
+		else if (attack.type == BA_MINDCONTROL)
 		{
 			// Award MC battle unit kill
-			if (!action->actor->getStatistics()->duplicateEntry(STATUS_TURNING, victim->getId()))
+			if (!attack.attacker->getStatistics()->duplicateEntry(STATUS_TURNING, victim->getId()))
 			{
 				killStat.status = STATUS_TURNING;
-				action->actor->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
+				attack.attacker->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
 			}
-			victim->setMindControllerId(action->actor->getId());
-			victim->convertToFaction(action->actor->getFaction());
+			victim->setMindControllerId(attack.attacker->getId());
+			victim->convertToFaction(attack.attacker->getFaction());
 			calculateLighting(LL_UNITS, victim->getPosition());
 			calculateFOV(victim->getPosition()); //happens fairly rarely, so do a full recalc for units in range to handle the potential unit visible cache issues.
 			victim->recoverTimeUnits();
@@ -3601,35 +3605,29 @@ bool TileEngine::psiAttack(BattleAction *action)
  * @param action Pointer to an action.
  * @return Whether it failed or succeeded.
  */
-bool TileEngine::meleeAttack(BattleAction *action)
+bool TileEngine::meleeAttack(BattleActionAttack attack, BattleUnit *victim)
 {
-	BattleUnit *targetUnit = _save->getTile(action->target)->getUnit();
-	if (!targetUnit && action->target.z > 0)
-	{
-		targetUnit = _save->getTile(action->target - Position(0, 0, 1))->getUnit();
-	}
-
 	int hitChance;
-	if (action->type == BA_CQB)
+	if (attack.type == BA_CQB)
 	{
-		hitChance = action->actor->getFiringAccuracy(BA_CQB, action->weapon, _save->getBattleGame()->getMod());
+		hitChance = attack.attacker->getFiringAccuracy(BA_CQB, attack.weapon_item, _save->getBattleGame()->getMod());
 	}
 	else
 	{
-		hitChance = action->actor->getFiringAccuracy(BA_HIT, action->weapon, _save->getBattleGame()->getMod());
+		hitChance = attack.attacker->getFiringAccuracy(BA_HIT, attack.weapon_item, _save->getBattleGame()->getMod());
 	}
 
-	if (targetUnit)
+	if (victim)
 	{
-		int arc = _save->getTileEngine()->getArcDirection(_save->getTileEngine()->getDirectionTo(targetUnit->getPositionVexels(), action->actor->getPositionVexels()), targetUnit->getDirection());
-		float penalty = 1.0f - arc * targetUnit->getArmor()->getMeleeDodgeBackPenalty() / 4.0f;
+		int arc = _save->getTileEngine()->getArcDirection(_save->getTileEngine()->getDirectionTo(victim->getPositionVexels(), attack.attacker->getPositionVexels()), victim->getDirection());
+		float penalty = 1.0f - arc * victim->getArmor()->getMeleeDodgeBackPenalty() / 4.0f;
 		if (penalty > 0)
 		{
-			hitChance -= targetUnit->getArmor()->getMeleeDodge(targetUnit) * penalty;
+			hitChance -= victim->getArmor()->getMeleeDodge(victim) * penalty;
 		}
 	}
 	// hit log - new melee attack
-	_save->hitLog << "=> ";
+	_save->hitLog << _save->getBattleState()->tr("STR_HIT_LOG_NEW_BULLET");
 	if (!RNG::percent(hitChance))
 	{
 		return false;

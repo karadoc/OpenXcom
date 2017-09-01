@@ -20,6 +20,7 @@
 #include <sstream>
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
+#include "../Mod/RuleInterface.h"
 #include "../Engine/LocalizedText.h"
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
@@ -43,15 +44,27 @@ OptionsAdvancedState::OptionsAdvancedState(OptionsOrigin origin) : OptionsBaseSt
 	// Create objects
 	_lstOptions = new TextList(200, 136, 94, 8);
 
-	auto activeMaster = Options::getActiveMaster(); // FIXME: interface ruleset
+	_isTFTD = false;
+	for (std::vector< std::pair<std::string, bool> >::const_iterator i = Options::mods.begin(); i != Options::mods.end(); ++i)
+	{
+		if (i->second)
+		{
+			if (i->first == "xcom2")
+			{
+				_isTFTD = true;
+				break;
+			}
+		}
+	}
+
 	if (origin != OPT_BATTLESCAPE)
 	{
-		_greyedOutColor = activeMaster == "xcom2" ? 50 : 100;
+		_greyedOutColor = _game->getMod()->getInterface("advancedMenu")->getElement("disabledUserOption")->color;
 		add(_lstOptions, "optionLists", "advancedMenu");
 	}
 	else
 	{
-		_greyedOutColor = activeMaster == "xcom2" ? 240 : 238;
+		_greyedOutColor = _game->getMod()->getInterface("battlescape")->getElement("disabledUserOption")->color;
 		add(_lstOptions, "optionLists", "battlescape");
 	}
 	centerAllSurfaces();
@@ -273,7 +286,12 @@ void OptionsAdvancedState::lstOptionsClick(Action *action)
 		}
 		else if (i == &Options::nightVisionColor)
 		{
-			min = 1;
+			// UFO: 1-15, TFTD: 2-15 except 10
+			if (_isTFTD && (*i) == 10)
+			{
+				*i += increment;
+			}
+			min = _isTFTD ? 2 : 1;
 			max = 15;
 		}
 

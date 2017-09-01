@@ -35,12 +35,20 @@ OPT bool traceAI, sneakyAI, battleInstantGrenade, battleNotifyDeath, battleToolt
 	strafe, forceFire, showMoreStatsInInventoryView, allowPsionicCapture, skipNextTurnScreen, disableAutoEquip, battleDragScrollInvert,
 	battleUFOExtenderAccuracy, battleConfirmFireMode, battleSmoothCamera, noAlienPanicMessages, alienBleeding;
 OPT SDLKey keyBattleLeft, keyBattleRight, keyBattleUp, keyBattleDown, keyBattleLevelUp, keyBattleLevelDown, keyBattleCenterUnit, keyBattlePrevUnit, keyBattleNextUnit, keyBattleDeselectUnit,
-	keyBattleUseLeftHand, keyBattleUseRightHand, keyBattleInventory, keyBattleMap, keyBattleOptions, keyBattleEndTurn, keyBattleAbort, keyBattleStats, keyBattleKneel,
-	keyBattleReserveKneel, keyBattleReload, keyBattlePersonalLighting, keyBattleReserveNone, keyBattleReserveSnap, keyBattleReserveAimed, keyBattleReserveAuto,
-	keyBattleCenterEnemy1, keyBattleCenterEnemy2, keyBattleCenterEnemy3, keyBattleCenterEnemy4, keyBattleCenterEnemy5, keyBattleCenterEnemy6, keyBattleCenterEnemy7, keyBattleCenterEnemy8,
-	keyBattleCenterEnemy9, keyBattleCenterEnemy10, keyBattleVoxelView, keyBattleZeroTUs, keyInvCreateTemplate, keyInvApplyTemplate, keyInvClear, keyInvAutoEquip,
+keyBattleUseLeftHand, keyBattleUseRightHand, keyBattleInventory, keyBattleMap, keyBattleOptions, keyBattleEndTurn, keyBattleAbort, keyBattleStats, keyBattleKneel,
+keyBattleReserveKneel, keyBattleReload, keyBattlePersonalLighting, keyBattleReserveNone, keyBattleReserveSnap, keyBattleReserveAimed, keyBattleReserveAuto,
+keyBattleCenterEnemy1, keyBattleCenterEnemy2, keyBattleCenterEnemy3, keyBattleCenterEnemy4, keyBattleCenterEnemy5, keyBattleCenterEnemy6, keyBattleCenterEnemy7, keyBattleCenterEnemy8,
+keyBattleCenterEnemy9, keyBattleCenterEnemy10, keyBattleVoxelView, keyBattleZeroTUs, keyInvCreateTemplate, keyInvApplyTemplate, keyInvClear, keyInvAutoEquip;
+
+// Extra hotkeys (Meridian's build)
+OPT SDLKey keyGeoUfoTracker, keyGeoTechTreeViewer,
+	keyGraphsZoomIn, keyGraphsZoomOut,
+	keyToggleQuickSearch,
+	keyCraftLoadoutSave, keyCraftLoadoutLoad,
+	keyMarkAllAsSeen, keySelectAll, keyDeselectAll, keyResetAll,
+	keyInventoryArmor, keyInventoryAvatar, keyInventorySave, keyInventoryLoad,
 	keyBattleActionItem1, keyBattleActionItem2, keyBattleActionItem3, keyBattleActionItem4, keyBattleActionItem5,
-	keyToggleQuickSearch, keyNightVisionToggle, keyNightVisionHold;
+	keyNightVisionToggle, keyNightVisionHold, keySelectMusicTrack;
 
 // Extra options (Meridian's build)
 OPT bool executeUnconsciousEnemies, twoHandedIndicator, twoHandedIndicatorInventory, minimapBorderIndicator, everyoneFightsNobodyQuits;
@@ -55,6 +63,7 @@ OPT int nightVisionColor;
 OPT bool autoNightVision;
 OPT bool autoSell;
 OPT bool techTreeViewerSpoilerProtection;
+OPT bool playBriefingMusicDuringEquipment;
 
 OPT bool showBarOverflowLayers; // Karadoc's option for using different colours to represent overflow in status bars (such as the stamina bar in the battlescape).
 

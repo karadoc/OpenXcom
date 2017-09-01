@@ -69,7 +69,7 @@ NewResearchListState::NewResearchListState(Base *base) : _base(base)
 	_btnOK->setText(tr("STR_OK"));
 	_btnOK->onMouseClick((ActionHandler)&NewResearchListState::btnOKClick);
 	_btnOK->onKeyboardPress((ActionHandler)&NewResearchListState::btnOKClick, Options::keyCancel);
-	_btnOK->onKeyboardPress((ActionHandler)&NewResearchListState::btnMarkAllAsSeenClick, Options::keyInvClear);
+	_btnOK->onKeyboardPress((ActionHandler)&NewResearchListState::btnMarkAllAsSeenClick, Options::keyMarkAllAsSeen);
 
 	_btnShowOnlyNew->setText(tr("STR_SHOW_ONLY_NEW"));
 	_btnShowOnlyNew->onMouseClick((ActionHandler)&NewResearchListState::btnShowOnlyNewClick);
@@ -123,13 +123,13 @@ void NewResearchListState::onToggleProjectStatus(Action *)
 	{
 		// new -> normal
 		_game->getSavedGame()->setResearchRuleStatus(rule, RuleResearch::RESEARCH_STATUS_NORMAL);
-		_lstResearch->setRowColor(_lstResearch->getSelectedRow(), 208); // white
+		_lstResearch->setRowColor(_lstResearch->getSelectedRow(), _lstResearch->getColor());
 	}
 	else
 	{
 		// normal/disabled -> new
 		_game->getSavedGame()->setResearchRuleStatus(rule, RuleResearch::RESEARCH_STATUS_NEW);
-		_lstResearch->setRowColor(_lstResearch->getSelectedRow(), 241); // pink
+		_lstResearch->setRowColor(_lstResearch->getSelectedRow(), _lstResearch->getSecondaryColor());
 	}
 }
 
@@ -261,7 +261,7 @@ void NewResearchListState::fillProjectList(bool markAllAsSeen)
 			}
 			else if (_game->getSavedGame()->isResearchRuleStatusNew((*it)->getName()))
 			{
-				_lstResearch->setRowColor(row, 241); // pink
+				_lstResearch->setRowColor(row, _lstResearch->getSecondaryColor());
 				hasUnseen = true;
 			}
 			row++;

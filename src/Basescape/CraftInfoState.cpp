@@ -29,7 +29,6 @@
 #include "../Interface/TextEdit.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Action.h"
-#include "../Engine/Palette.h"
 #include "../Savegame/Craft.h"
 #include "../Mod/RuleCraft.h"
 #include "../Savegame/CraftWeapon.h"
@@ -43,6 +42,7 @@
 #include "CraftEquipmentState.h"
 #include "CraftArmorState.h"
 #include "CraftPilotsState.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -143,6 +143,7 @@ CraftInfoState::CraftInfoState(Base *base, size_t craftId) : _base(base), _craft
 	_btnOk->setText(tr("STR_OK"));
 	_btnOk->onMouseClick((ActionHandler)&CraftInfoState::btnOkClick);
 	_btnOk->onKeyboardPress((ActionHandler)&CraftInfoState::btnOkClick, Options::keyCancel);
+	_btnOk->onKeyboardPress((ActionHandler)&CraftInfoState::btnUfopediaClick, Options::keyGeoUfopedia);
 
 	for(int i = 0; i < _weaponNum; ++i)
 	{
@@ -167,15 +168,6 @@ CraftInfoState::CraftInfoState(Base *base, size_t craftId) : _base(base), _craft
 	_edtCraft->setBig();
 	_edtCraft->setAlign(ALIGN_CENTER);
 	_edtCraft->onChange((ActionHandler)&CraftInfoState::edtCraftChange);
-
-	_txtDamage->setColor(Palette::blockOffset(13)+10);
-	_txtDamage->setSecondaryColor(Palette::blockOffset(13));
-
-	_txtShield->setColor(Palette::blockOffset(13)+10);
-	_txtShield->setSecondaryColor(Palette::blockOffset(13));
-
-	_txtFuel->setColor(Palette::blockOffset(13)+10);
-	_txtFuel->setSecondaryColor(Palette::blockOffset(13));
 
 	for(int i =0; i < _weaponNum; ++i)
 	{
@@ -388,6 +380,19 @@ std::wstring CraftInfoState::formatTime(int total)
 void CraftInfoState::btnOkClick(Action *)
 {
 	_game->popState();
+}
+
+/**
+ * Opens the corresponding Ufopaedia craft article.
+ * @param action Pointer to an action.
+ */
+void CraftInfoState::btnUfopediaClick(Action *)
+{
+	if (_craft)
+	{
+		std::string articleId = _craft->getRules()->getType();
+		Ufopaedia::openArticle(_game, articleId);
+	}
 }
 
 /**

@@ -130,7 +130,6 @@ void AIModule::dont_think(BattleAction *action)
 	{
 		Log(LOG_INFO) << "LEEROY: Unit " << _unit->getId() << " of type " << _unit->getType() << " is Leeroy...";
 	}
-	Mod *mod = _save->getBattleState()->getGame()->getMod();
 	if (action->weapon)
 	{
 		const RuleItem *rule = action->weapon->getRules();
@@ -139,13 +138,11 @@ void AIModule::dont_think(BattleAction *action)
 			if (rule->getBattleType() == BT_MELEE)
 			{
 				_melee = true;
-				_reachableWithAttack = _save->getPathfinding()->findReachable(_unit, BattleActionCost(BA_HIT, _unit, action->weapon));
 			}
 		}
 		else
 		{
 			action->weapon = 0;
-			_reachableWithAttack.clear();
 		}
 	}
 	int visibleEnemiesToAttack = selectNearestTargetLeeroy();
@@ -159,7 +156,7 @@ void AIModule::dont_think(BattleAction *action)
 		{
 			Log(LOG_INFO) << "LEEROY: LEEROYIN' at someone!";
 		}
-		meleeAction();
+		meleeActionLeeroy();
 		action->type = _attackAction->type;
 		action->target = _attackAction->target;
 		// if this is a firepoint action, set our facing.
@@ -1827,6 +1824,52 @@ void AIModule::meleeAction()
 }
 
 /**
+ * Attempts to take a melee attack/charge an enemy we can see.
+ * Melee targetting: we can see an enemy, we can move to it so we're charging blindly toward an enemy.
+ * Note: Differs from meleeAction() in calling selectPointNearTargetLeeroy() and ignoring some more checks.
+ */
+void AIModule::meleeActionLeeroy()
+{
+	if (_aggroTarget != 0 && !_aggroTarget->isOut())
+	{
+		if (_save->getTileEngine()->validMeleeRange(_unit, _aggroTarget, _save->getTileEngine()->getDirectionTo(_unit->getPosition(), _aggroTarget->getPosition())))
+		{
+			meleeAttack();
+			return;
+		}
+	}
+	int distance = 1000;
+	_aggroTarget = 0;
+	for (std::vector<BattleUnit*>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+	{
+		int newDistance = _save->getTileEngine()->distance(_unit->getPosition(), (*i)->getPosition());
+		if (!validTarget(*i, true, _unit->getFaction() == FACTION_HOSTILE))
+			continue;
+		//pick closest living unit
+		if ((newDistance < distance || newDistance == 1) && !(*i)->isOut())
+		{
+			if (newDistance == 1 || selectPointNearTargetLeeroy(*i))
+			{
+				_aggroTarget = (*i);
+				_attackAction->type = BA_WALK;
+				_unit->setCharging(_aggroTarget);
+				distance = newDistance;
+			}
+
+		}
+	}
+	if (_aggroTarget != 0)
+	{
+		if (_save->getTileEngine()->validMeleeRange(_unit, _aggroTarget, _save->getTileEngine()->getDirectionTo(_unit->getPosition(), _aggroTarget->getPosition())))
+		{
+			meleeAttack();
+		}
+	}
+	if (_traceAI && _aggroTarget) { Log(LOG_INFO) << "AIModule::meleeAction:" << " [target]: " << (_aggroTarget->getId()) << " at: " << _attackAction->target; }
+	if (_traceAI && _aggroTarget) { Log(LOG_INFO) << "CHARGE!"; }
+}
+
+/**
  * Attempts to fire a waypoint projectile at an enemy we, or one of our teammates sees.
  *
  * Waypoint targeting: pick from any units currently spotted by our allies.
@@ -2181,7 +2224,7 @@ bool AIModule::psiAction()
 
 		if (!_aggroTarget || !weightToAttack) return false;
 
-		if (_visibleEnemies)
+		if (_visibleEnemies && _attackAction->weapon)
 		{
 			BattleActionType actions[] = {
 				BA_AIMEDSHOT,
