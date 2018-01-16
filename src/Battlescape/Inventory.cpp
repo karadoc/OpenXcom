@@ -41,7 +41,6 @@
 #include "WarningMessage.h"
 #include "../Savegame/Tile.h"
 #include "PrimeGrenadeState.h"
-#include <algorithm>
 #include "../Ufopaedia/Ufopaedia.h"
 #include <unordered_map>
 #include "../Engine/Screen.h"
@@ -266,9 +265,15 @@ void Inventory::drawGridLabels(bool showTuCost)
  */
 void Inventory::drawItems()
 {
+	const int Pulsate[8] = { 0, 1, 2, 3, 4, 3, 2, 1 };
+	Surface *tempSurface = _game->getMod()->getSurfaceSet("SCANG.DAT")->getFrame(6);
+	auto primers = [&](int x, int y, bool a)
+	{
+		tempSurface->blitNShade(_items, x, y, Pulsate[_animFrame % 8], false, a ? 0 : 32);
+	};
+
 	ScriptWorkerBlit work;
 	_items->clear();
-	_grenadeIndicators.clear();
 	_stunnedIndicators.clear();
 	_woundedIndicators.clear();
 	_burningIndicators.clear();
@@ -322,7 +327,7 @@ void Inventory::drawItems()
 			// grenade primer indicators
 			if ((*i)->getFuseTimer() >= 0)
 			{
-				_grenadeIndicators.push_back(std::make_pair(x, y));
+				primers(x, y, (*i)->isFuseEnabled());
 			}
 		}
 		Surface stackLayer(getWidth(), getHeight(), 0, 0);
@@ -345,7 +350,7 @@ void Inventory::drawItems()
 			// grenade primer indicators
 			if ((*i)->getFuseTimer() >= 0)
 			{
-				_grenadeIndicators.push_back(std::make_pair(x, y));
+				primers(x, y, (*i)->isFuseEnabled());
 			}
 
 			// fatal wounds
@@ -574,7 +579,7 @@ void Inventory::setSelectedItem(BattleItem *item)
 void Inventory::setSearchString(const std::wstring &searchString)
 {
 	_searchString = searchString;
-	for (auto & c : _searchString) c = towupper(c);
+	for (auto & c : _searchString) c = toupper(c, _myLocale);
 	arrangeGround(true);
 }
 
@@ -677,17 +682,10 @@ void Inventory::mouseClick(Action *action, State *state)
 					x += _groundOffset;
 				}
 				BattleItem *item = _selUnit->getItem(slot, x, y);
-				if (item != 0)
+				if (item != 0 && !item->getRules()->isFixed())
 				{
 					if ((SDL_GetModState() & KMOD_CTRL))
 					{
-						// cannot move fixed items with Ctrl+click
-						if (item->getRules()->isFixed())
-						{
-							_warning->showMessage(_game->getLanguage()->getString("STR_FIXED_ITEMS_CANNOT_BE_MOVED"));
-							return;
-						}
-
 						RuleInventory *newSlot = _inventorySlotGround;
 						std::string warning = "STR_NOT_ENOUGH_SPACE";
 						bool placed = false;
@@ -1186,7 +1184,7 @@ bool Inventory::isInSearchString(BattleItem *item)
 	{
 		itemLocalName = _game->getLanguage()->getString(item->getRules()->getName());
 	}
-	std::transform(itemLocalName.begin(), itemLocalName.end(), itemLocalName.begin(), towupper);
+	for (auto & c : itemLocalName) c = toupper(c, _myLocale);
 	if (itemLocalName.find(_searchString) != std::wstring::npos)
 	{
 		// Name match.
@@ -1201,7 +1199,7 @@ bool Inventory::isInSearchString(BattleItem *item)
 		for (std::vector<std::string>::iterator i = itemCategories.begin(); i != itemCategories.end(); ++i)
 		{
 			std::wstring catLocalName = _game->getLanguage()->getString((*i));
-			std::transform(catLocalName.begin(), catLocalName.end(), catLocalName.begin(), towupper);
+			for (auto & c : catLocalName) c = toupper(c, _myLocale);
 			if (catLocalName.find(_searchString) != std::wstring::npos)
 			{
 				// Category match
@@ -1217,7 +1215,7 @@ bool Inventory::isInSearchString(BattleItem *item)
 				for (std::vector<std::string>::iterator i = itemAmmoCategories.begin(); i != itemAmmoCategories.end(); ++i)
 				{
 					std::wstring catLocalName = _game->getLanguage()->getString((*i));
-					std::transform(catLocalName.begin(), catLocalName.end(), catLocalName.begin(), towupper);
+					for (auto & c : catLocalName) c = toupper(c, _myLocale);
 					if (catLocalName.find(_searchString) != std::wstring::npos)
 					{
 						// Category match
@@ -1512,19 +1510,11 @@ void Inventory::showWarning(const std::wstring &msg)
 }
 
 /**
- * Shows primer warnings on all live grenades.
- * Also shows stunned-indicator on unconscious units.
+ * Shows extra indicators on units.
  */
 void Inventory::drawPrimers()
 {
 	const int Pulsate[8] = { 0, 1, 2, 3, 4, 3, 2, 1 };
-
-	// grenades
-	Surface *tempSurface = _game->getMod()->getSurfaceSet("SCANG.DAT")->getFrame(6);
-	for (std::vector<std::pair<int, int> >::const_iterator i = _grenadeIndicators.begin(); i != _grenadeIndicators.end(); ++i)
-	{
-		tempSurface->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame % 8]);
-	}
 
 	// burning units
 	for (std::vector<std::pair<int, int> >::const_iterator i = _burningIndicators.begin(); i != _burningIndicators.end(); ++i)

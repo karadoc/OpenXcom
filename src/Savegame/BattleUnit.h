@@ -102,11 +102,12 @@ private:
 	AIModule *_currentAIState;
 	bool _visible;
 	int _expBravery, _expReactions, _expFiring, _expThrowing, _expPsiSkill, _expPsiStrength, _expMelee;
+	int _expBraveryTmp, _expReactionsTmp, _expFiringTmp, _expThrowingTmp, _expPsiSkillTmp, _expPsiStrengthTmp, _expMeleeTmp;
 	int improveStat(int exp) const;
 	int _motionPoints;
 	int _kills;
 	int _faceDirection; // used only during strafeing moves
-	bool _hitByFire;
+	bool _hitByFire, _hitByAnything;
 	int _fireMaxHit;
 	int _smokeMaxHit;
 	int _moraleRestored;
@@ -591,6 +592,14 @@ public:
 	int getSpotterDuration() const;
 	/// Is this unit capable of shooting beyond max. visual range?
 	bool isSniper() const;
+	/// Remembers the unit's XP (used for shotguns).
+	void rememberXP();
+	/// Artificially alter a unit's XP (used for shotguns).
+	void nerfXP();
+	/// Was this unit just hit?
+	bool getHitState();
+	/// reset the unit hit state.
+	void resetHitState();
 
 };
 

@@ -39,7 +39,6 @@
 #include "BriefingState.h"
 #include "../lodepng.h"
 #include "../fmath.h"
-#include "../Geoscape/GeoscapeState.h"
 #include "../Geoscape/SelectMusicTrackState.h"
 #include "../Engine/Game.h"
 #include "../Engine/Options.h"
@@ -67,6 +66,7 @@
 #include "../Mod/RuleItem.h"
 #include "../Mod/AlienDeployment.h"
 #include "../Mod/Armor.h"
+#include "../Mod/RuleUfo.h"
 #include "../Savegame/Node.h"
 #include "../Savegame/SavedGame.h"
 #include "../Savegame/SavedBattleGame.h"
@@ -75,6 +75,7 @@
 #include "../Savegame/Soldier.h"
 #include "../Savegame/BattleItem.h"
 #include "../Ufopaedia/Ufopaedia.h"
+#include "../Savegame/Ufo.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleInventory.h"
 #include "../Mod/RuleSoldier.h"
@@ -400,12 +401,10 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
 	_btnNextStop->onMouseOut((ActionHandler)&BattlescapeState::txtTooltipOut);
 
 	_btnShowLayers->onMouseClick((ActionHandler)&BattlescapeState::btnShowLayersClick);
-	//_btnShowLayers->onMouseClick((ActionHandler)&GeoscapeState::btnUfopaediaClick);
 	_btnShowLayers->setTooltip("STR_MULTI_LEVEL_VIEW");
-	//_btnShowLayers->setTooltip("STR_UFOPAEDIA_UC");
 	_btnShowLayers->onMouseIn((ActionHandler)&BattlescapeState::txtTooltipIn);
 	_btnShowLayers->onMouseOut((ActionHandler)&BattlescapeState::txtTooltipOut);
-	_btnShowLayers->onKeyboardPress((ActionHandler)&GeoscapeState::btnUfopaediaClick, Options::keyGeoUfopedia);
+	_btnShowLayers->onKeyboardPress((ActionHandler)&BattlescapeState::btnUfopaediaClick, Options::keyGeoUfopedia);
 
 	_btnHelp->onMouseClick((ActionHandler)&BattlescapeState::btnHelpClick);
 	_btnHelp->onKeyboardPress((ActionHandler)&BattlescapeState::btnHelpClick, Options::keyBattleOptions);
@@ -1059,9 +1058,7 @@ void BattlescapeState::btnInventoryClick(Action *)
 		updateSoldierInfo();
 	}
 	if (playableUnitSelected()
-		&& (_save->getSelectedUnit()->getArmor()->getSize() == 1 || _save->getDebugMode())
-		&& (_save->getSelectedUnit()->getOriginalFaction() == FACTION_PLAYER ||
-			_save->getSelectedUnit()->getRankString() != "STR_LIVE_TERRORIST"))
+		&& (_save->getSelectedUnit()->hasInventory() || _save->getDebugMode()))
 	{
 		// clean up the waypoints
 		if (_battleGame->getCurrentAction()->type == BA_LAUNCH)
@@ -1174,6 +1171,18 @@ void BattlescapeState::selectPreviousPlayerUnit(bool checkReselect, bool setRese
 void BattlescapeState::btnShowLayersClick(Action *)
 {
 	_numLayers->setValue(_map->getCamera()->toggleShowAllLayers());
+}
+
+/**
+ * Opens the Ufopaedia.
+ * @param action Pointer to an action.
+ */
+void BattlescapeState::btnUfopaediaClick(Action *)
+{
+	if (allowButtons())
+	{
+		Ufopaedia::open(_game);
+	}
 }
 
 /**
@@ -2528,6 +2537,17 @@ void BattlescapeState::finishBattle(bool abort, int inExitArea)
 		_game->getMod()->getSoundByDepth(0, _save->getAmbientSound())->stopLoop();
 	}
 	AlienDeployment *ruleDeploy = _game->getMod()->getDeployment(_save->getMissionType());
+	if (!ruleDeploy)
+	{
+		for (std::vector<Ufo*>::iterator ufo =_game->getSavedGame()->getUfos()->begin(); ufo != _game->getSavedGame()->getUfos()->end(); ++ufo)
+		{
+			if ((*ufo)->isInBattlescape())
+			{
+				ruleDeploy = _game->getMod()->getDeployment((*ufo)->getRules()->getType());
+				break;
+			}
+		}
+	}
 	std::string nextStage;
 	if (ruleDeploy)
 	{

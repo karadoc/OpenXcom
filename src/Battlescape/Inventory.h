@@ -18,6 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "../Engine/InteractiveSurface.h"
+#include <locale>
 #include <map>
 #include <string>
 
@@ -50,9 +51,10 @@ private:
 	int _groundOffset, _animFrame;
 	std::map<int, std::map<int, int> > _stackLevel;
 	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator;
-	std::vector<std::pair<int, int> > _grenadeIndicators, _stunnedIndicators, _woundedIndicators, _burningIndicators;
+	std::vector<std::pair<int, int> > _stunnedIndicators, _woundedIndicators, _burningIndicators;
 	NumberText *_stackNumber;
 	std::wstring _searchString;
+	std::locale _myLocale = std::locale("");
 	Timer *_animTimer;
 	int _depth;
 	RuleInventory *_inventorySlotRightHand = nullptr;
@@ -120,7 +122,7 @@ public:
 	static bool overlapItems(BattleUnit *unit, BattleItem *item, RuleInventory *slot, int x = 0, int y = 0);
 	/// Shows a warning message.
 	void showWarning(const std::wstring &msg);
-	/// Show priming warnings on grenades.
+	/// Show extra indicators on units.
 	void drawPrimers();
 	/// Animate surface.
 	void animate();

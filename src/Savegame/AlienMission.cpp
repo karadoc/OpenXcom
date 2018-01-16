@@ -662,13 +662,14 @@ void AlienMission::spawnAlienBase(Game &engine, const MissionArea &area, std::pa
 	const Mod &ruleset = *engine.getMod();
 	// Once the last UFO is spawned, the aliens build their base.
 	AlienDeployment *deployment;
+	Texture *texture = ruleset.getGlobe()->getTexture(area.texture);
 	if (ruleset.getDeployment(_rule.getSiteType()))
 	{
 		deployment = ruleset.getDeployment(_rule.getSiteType());
 	}
-	else if (ruleset.getGlobe()->getTexture(area.texture) && !ruleset.getGlobe()->getTexture(area.texture)->getDeployments().empty())
+	else if (texture && !texture->getDeployments().empty())
 	{
-		deployment = ruleset.getDeployment(ruleset.getGlobe()->getTexture(area.texture)->getRandomDeployment(), true);
+		deployment = ruleset.getDeployment(texture->getRandomDeployment(), true);
 	}
 	else
 	{
@@ -720,6 +721,10 @@ std::pair<double, double> AlienMission::getWaypoint(const UfoTrajectory &traject
 	{
 		waveNumber = _rule.getWaveCount() - 1;
 	}
+	if (trajectory.getZone(nextWaypoint) >= region.getMissionZones().size())
+	{
+		logMissionError(trajectory.getZone(nextWaypoint), region);
+	}
 
 	if (_missionSiteZone != -1 && _rule.getWave(waveNumber).objective && trajectory.getZone(nextWaypoint) == (size_t)(_rule.getSpawnZone()))
 	{
@@ -731,7 +736,6 @@ std::pair<double, double> AlienMission::getWaypoint(const UfoTrajectory &traject
 	{
 		return getLandPoint(globe, region, trajectory.getZone(nextWaypoint));
 	}
-
 	return region.getRandomPoint(trajectory.getZone(nextWaypoint));
 }
 
@@ -741,6 +745,10 @@ std::pair<double, double> AlienMission::getWaypoint(const UfoTrajectory &traject
  */
 std::pair<double, double> AlienMission::getLandPoint(const Globe &globe, const RuleRegion &region, size_t zone)
 {
+	if (zone >= region.getMissionZones().size())
+	{
+		logMissionError(zone, region);
+	}
 	int tries = 0;
 	std::pair<double, double> pos;
 	do
@@ -783,6 +791,10 @@ MissionSite *AlienMission::spawnMissionSite(SavedGame &game, const Mod &mod, con
 	}
 	else
 	{
+		if (!texture)
+		{
+			throw Exception("Error occurred while spawning mission site: " + _rule.getType());
+		}
 		deployment = mod.getDeployment(texture->getRandomDeployment(), true);
 	}
 
@@ -809,6 +821,21 @@ MissionSite *AlienMission::spawnMissionSite(SavedGame &game, const Mod &mod, con
 void AlienMission::setMissionSiteZone(int zone)
 {
 	_missionSiteZone = zone;
+}
+
+void AlienMission::logMissionError(int zone, const RuleRegion &region)
+{
+	if (region.getMissionZones().size() > 0)
+	{
+		std::stringstream ss, ss2;
+		ss << zone;
+		ss2 << region.getMissionZones().size() - 1;
+		throw Exception("Error occurred while trying to determine waypoint for mission type: " + _rule.getType() + " in region: " + region.getType() + ", mission tried to find a waypoint in zone " + ss.str() + " but this region only has zones valid up to " + ss2.str() + ".");
+	}
+	else
+	{
+		throw Exception("Error occurred while trying to determine waypoint for mission type: " + _rule.getType() + " in region: " + region.getType() + ", region has no valid zones.");
+	}
 }
 
 }

@@ -23,7 +23,6 @@
 #include "Inventory.h"
 #include "../Basescape/SoldierArmorState.h"
 #include "../Basescape/SoldierAvatarState.h"
-#include "../Geoscape/GeoscapeState.h"
 #include "../Engine/Game.h"
 #include "../Engine/FileMap.h"
 #include "../Mod/Mod.h"
@@ -177,7 +176,7 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base, bo
 	_btnOk->onMouseClick((ActionHandler)&InventoryState::btnOkClick);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnOkClick, Options::keyCancel);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnOkClick, Options::keyBattleInventory);
-	_btnOk->onKeyboardPress((ActionHandler)&GeoscapeState::btnUfopaediaClick, Options::keyGeoUfopedia);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnUfopaediaClick, Options::keyGeoUfopedia);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnArmorClick, Options::keyInventoryArmor);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnArmorClickRight, Options::keyInventoryAvatar);
 	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::btnInventoryLoadClick, Options::keyInventoryLoad);
@@ -764,6 +763,15 @@ void InventoryState::btnInventorySaveClick(Action *)
 }
 
 /**
+ * Opens the Ufopaedia.
+ * @param action Pointer to an action.
+ */
+void InventoryState::btnUfopaediaClick(Action *)
+{
+	Ufopaedia::open(_game);
+}
+
+/**
  * Returns to the previous screen.
  * @param action Pointer to an action.
  */
@@ -960,7 +968,6 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 	for (templateIt = inventoryTemplate.begin(); templateIt != inventoryTemplate.end(); ++templateIt)
 	{
 		// search for template item in ground inventory
-		std::vector<BattleItem*>::iterator groundItem;
 		bool found = false;
 
 		bool needsAmmo[RuleItem::AmmoSlotMax] = { };
@@ -975,18 +982,18 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 			matchedAmmo[slot] = nullptr;
 		}
 
-		for (groundItem = groundInv->begin(); groundItem != groundInv->end(); ++groundItem)
+		for (BattleItem* groundItem : *groundInv)
 		{
 			// if we find the appropriate ammo, remember it for later for if we find
 			// the right weapon but with the wrong ammo
-			const std::string groundItemName = (*groundItem)->getRules()->getType();
+			const std::string groundItemName = groundItem->getRules()->getType();
 
 			bool skipAmmo = false;
 			for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
 			{
 				if (needsAmmo[slot] && !matchedAmmo[slot] && targetAmmo[slot] == groundItemName)
 				{
-					matchedAmmo[slot] = *groundItem;
+					matchedAmmo[slot] = groundItem;
 					skipAmmo = true;
 				}
 			}
@@ -1002,25 +1009,25 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 				bool skipWeapon = false;
 				for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
 				{
-					if (!(*groundItem)->needsAmmoForSlot(slot))
+					if (!groundItem->needsAmmoForSlot(slot))
 					{
 						continue;
 					}
-					BattleItem *loadedAmmo = (*groundItem)->getAmmoForSlot(slot);
+					BattleItem *loadedAmmo = groundItem->getAmmoForSlot(slot);
 					if ((needsAmmo[slot] && (!loadedAmmo || targetAmmo[slot] != loadedAmmo->getRules()->getType()))
 						|| (!needsAmmo[slot] && loadedAmmo))
 					{
 						// remember the last matched weapon for simplicity (but prefer empty weapons if any are found)
 						if (!matchedWeapon || matchedWeapon->getAmmoForSlot(slot))
 						{
-							matchedWeapon = *groundItem;
+							matchedWeapon = groundItem;
 						}
 						skipWeapon = true;
 					}
 				}
 				if (!skipWeapon)
 				{
-					matchedWeapon = *groundItem;
+					matchedWeapon = groundItem;
 					found = true; // found = true, even if not equiped
 					break;
 				}
@@ -1041,7 +1048,7 @@ void InventoryState::_applyInventoryTemplate(std::vector<EquipmentLayoutItem*> &
 			{
 				for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
 				{
-					if ((*groundItem)->needsAmmoForSlot(slot) && (!needsAmmo[slot] || matchedAmmo[slot]))
+					if (matchedWeapon->needsAmmoForSlot(slot) && (!needsAmmo[slot] || matchedAmmo[slot]))
 					{
 						// unload the existing ammo (if any) from the weapon
 						BattleItem *loadedAmmo = matchedWeapon->setAmmoForSlot(slot, matchedAmmo[slot]);

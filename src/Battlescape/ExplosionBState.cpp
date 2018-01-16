@@ -180,12 +180,12 @@ void ExplosionBState::init()
 	}
 	else if (_attack.attacker && (_attack.attacker->getSpecialAbility() == SPECAB_EXPLODEONDEATH || _attack.attacker->getSpecialAbility() == SPECAB_BURN_AND_EXPLODE))
 	{
-		RuleItem* corpse = _parent->getMod()->getItem(_attack.attacker->getArmor()->getCorpseGeoscape(), true);
-		_power = corpse->getPowerBonus(_attack.attacker);
-		_damageType = corpse->getDamageType();
-		_radius = corpse->getExplosionRadius(_attack.attacker);
+		itemRule = _parent->getMod()->getItem(_attack.attacker->getArmor()->getCorpseGeoscape(), true);
+		_power = itemRule->getPowerBonus(_attack.attacker);
+		_damageType = itemRule->getDamageType();
+		_radius = itemRule->getExplosionRadius(_attack.attacker);
 		_areaOfEffect = true;
-		if (!RNG::percent(corpse->getSpecialChance()))
+		if (!RNG::percent(itemRule->getSpecialChance()))
 		{
 			_power = 0;
 		}
@@ -216,7 +216,8 @@ void ExplosionBState::init()
 			int frameDelay = 0;
 			int counter = std::max(1, (_power/5) / 5);
 			_parent->getMap()->setBlastFlash(true);
-			for (int i = 0; i < _power/5; i++)
+			int lowerLimit = std::max(1, _power/5);
+			for (int i = 0; i < lowerLimit; i++)
 			{
 				int X = RNG::generate(-_power/2,_power/2);
 				int Y = RNG::generate(-_power/2,_power/2);

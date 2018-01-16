@@ -980,17 +980,20 @@ void Map::drawTerrain(Surface *surface)
 							int part = 0;
 							part += ttile->getPosition().x - tunit->getPosition().x;
 							part += (ttile->getPosition().y - tunit->getPosition().y)*2;
-							Position offset;
-							calculateWalkingOffset(tunit, &offset);
-							offset += screenPosition;
-							offset += Position(0, 24, 0);
+							if (part != 1 && part != 2)
+							{
+								Position offset;
+								calculateWalkingOffset(tunit, &offset);
+								offset += screenPosition;
+								offset += Position(0, 24, 0);
 
-							unitSprite.draw(
-								tunit, part,
-								offset.x,
-								offset.y,
-								reShade(ttile)
-							);
+								unitSprite.draw(
+									tunit, part,
+									offset.x,
+									offset.y,
+									reShade(ttile)
+								);
+							}
 						}
 					}
 
@@ -1138,6 +1141,28 @@ void Map::drawTerrain(Surface *surface)
 									{
 										// no adjustment made? set it to green.
 										_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::green - 1) - 1);
+									}
+
+									// Include LOS penalty for tiles in the unit's current view range
+									// Don't recalculate LOS for outside of the current FOV
+									int noLOSAccuracyPenalty = action->weapon->getRules()->getNoLOSAccuracyPenalty(_game->getMod());
+									if (noLOSAccuracyPenalty != -1)
+									{
+										bool hasLOS = false;
+										if (unit && (unit->getVisible() || _save->getDebugMode()))
+										{
+											hasLOS = _save->getTileEngine()->visible(action->actor, tile);
+										}
+										else
+										{
+											hasLOS = _save->getTileEngine()->isTileInLOS(action->actor, tile);
+										}
+
+										if (!hasLOS)
+										{
+											accuracy = accuracy * noLOSAccuracyPenalty / 100;
+											_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::yellow - 1) - 1);
+										}
 									}
 
 									bool outOfRange = distance > weapon->getMaxRange();

@@ -18,11 +18,11 @@
  */
 #include "TransferItemsState.h"
 #include "ManufactureDependenciesTreeState.h"
-#include <algorithm>
 #include <sstream>
 #include <climits>
 #include <cfloat>
 #include <algorithm>
+#include <locale>
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -370,8 +370,9 @@ void TransferItemsState::btnQuickSearchApply(Action *)
 */
 void TransferItemsState::updateList()
 {
+	std::locale myLocale = std::locale("");
 	std::wstring searchString = _btnQuickSearch->getText();
-	for (auto & c : searchString) c = towupper(c);
+	for (auto & c : searchString) c = toupper(c, myLocale);
 
 	_lstItems->clearList();
 	_rows.clear();
@@ -398,7 +399,7 @@ void TransferItemsState::updateList()
 		if (searchString != L"")
 		{
 			std::wstring projectName = _items[i].name;
-			for (auto & c : projectName) c = towupper(c);
+			for (auto & c : projectName) c = toupper(c, myLocale);
 			if (projectName.find(searchString) == std::string::npos)
 			{
 				continue;
