@@ -446,7 +446,7 @@ void TransferItemsState::btnOkClick(Action *)
 		// But only check the base whose available space is decreasing.
 		double freeStoresTo = _baseTo->getAvailableStores() - _baseTo->getUsedStores() - _iQty;
 		double freeStoresFrom = _baseFrom->getAvailableStores() - _baseFrom->getUsedStores() + _iQty;
-		if (_iQty > 0 ? freeStoresTo < 0.0 : freeStoresFrom < 0.0)
+		if (_iQty >= 0 ? freeStoresTo < 0.0 : freeStoresFrom < 0.0)
 		{
 			RuleInterface *menuInterface = _game->getMod()->getInterface("transferMenu");
 			_game->pushState(new ErrorMessageState(tr("STR_NOT_ENOUGH_STORE_SPACE"), _palette, menuInterface->getElement("errorMessage")->color, "BACK13.SCR", menuInterface->getElement("errorPalette")->color));
@@ -778,11 +778,15 @@ void TransferItemsState::increaseByValue(int change)
 		break;
 	case TRANSFER_ITEM:
 		selItem = (RuleItem*)getRow().rule;
-		if (!selItem->isAlien() && _baseTo->storesOverfull(selItem->getSize() + _iQty))
+		if (selItem->getSize() > 0 && _baseTo->storesOverfull(selItem->getSize() + _iQty))
 		{
 			errorMessage = tr("STR_NOT_ENOUGH_STORE_SPACE");
 		}
-			else if (selItem->isAlien() && Options::storageLimitsEnforced * _aQty + 1 > _baseTo->getAvailableContainment(selItem->getPrisonType()) - Options::storageLimitsEnforced * _baseTo->getUsedContainment(selItem->getPrisonType()))
+		if (selItem->getSize() < 0 && _baseFrom->storesOverfull(-selItem->getSize() - _iQty))
+		{
+			errorMessage = tr("STR_NOT_ENOUGH_STORE_SPACE");
+		}
+		if (selItem->isAlien() && Options::storageLimitsEnforced * _aQty + 1 > _baseTo->getAvailableContainment(selItem->getPrisonType()) - Options::storageLimitsEnforced * _baseTo->getUsedContainment(selItem->getPrisonType()))
 		{
 			errorMessage = trAlt("STR_NO_ALIEN_CONTAINMENT_FOR_TRANSFER", selItem->getPrisonType());
 		}
@@ -811,28 +815,26 @@ void TransferItemsState::increaseByValue(int change)
 				_total += getRow().cost;
 			break;
 		case TRANSFER_ITEM:
-			if (!selItem->isAlien())
+			if (!AreSame(selItem->getSize(), 0))
 			{
-				double storesNeededPerItem = ((RuleItem*)getRow().rule)->getSize();
-				double freeStores = _baseTo->getAvailableStores() - _baseTo->getUsedStores() - _iQty;
+				double storesNeededPerItem = std::abs(selItem->getSize());
+				double freeStores = selItem->getSize() > 0
+				        ? (_baseTo->getAvailableStores() - _baseTo->getUsedStores() - _iQty)
+				        : (_baseFrom->getAvailableStores() - _baseFrom->getUsedStores() + _iQty);
 				double freeStoresForItem = (double)(INT_MAX);
-				if (!AreSame(storesNeededPerItem, 0.0) && storesNeededPerItem > 0.0)
-				{
-					freeStoresForItem = (freeStores + 0.05) / storesNeededPerItem;
-				}
+
+				freeStoresForItem = (freeStores + 0.005) / storesNeededPerItem;
 				change = std::min(std::min((int)freeStoresForItem, getRow().qtySrc - getRow().amount), change);
-				_iQty += change * storesNeededPerItem;
-				getRow().amount += change;
-				_total += getRow().cost * change;
+				_iQty += change * selItem->getSize();
 			}
-			else
+			if (selItem->isAlien())
 			{
 				int freeContainment = Options::storageLimitsEnforced ? _baseTo->getAvailableContainment(selItem->getPrisonType()) - _baseTo->getUsedContainment(selItem->getPrisonType()) - _aQty : INT_MAX;
 				change = std::min(std::min(freeContainment, getRow().qtySrc - getRow().amount), change);
 				_aQty += change;
-				getRow().amount += change;
-				_total += getRow().cost * change;
 			}
+			getRow().amount += change;
+			_total += getRow().cost * change;
 			break;
 		}
 		updateItemStrings();
@@ -880,11 +882,11 @@ void TransferItemsState::decreaseByValue(int change)
 		break;
 	case TRANSFER_ITEM:
 		const RuleItem *selItem = (RuleItem*)getRow().rule;
-		if (!selItem->isAlien())
+		if (!AreSame(selItem->getSize(), 0))
 		{
 			_iQty -= selItem->getSize() * change;
 		}
-		else
+		if (selItem->isAlien())
 		{
 			_aQty -= change;
 		}
