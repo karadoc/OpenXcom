@@ -1423,12 +1423,16 @@ void Craft::unload(const Mod *mod)
  */
 void Craft::reuseItem(const std::string& item)
 {
-	// Note: Craft status hierarchy is repair, rearm, refuel, ready.
+	// Note: Craft in-base status hierarchy is repair, rearm, refuel, ready.
 	// We only want to interrupt processes that are lower in the hierarachy.
+	// (And we don't want to interrupt any out-of-base status.)
 
-	// Don't let ammo or fuel interrupt repairs.
-	if (_status == "STR_REPAIRS")
+	// The only states we are willing to interrupt are "ready" and "refuelling"
+	if (_status != "STR_READY" &&
+        _status != "STR_REFUELLING")
+	{
 		return;
+	}
 
 	// Check if it's ammo to reload the craft
 	for (std::vector<CraftWeapon*>::iterator w = _weapons.begin(); w != _weapons.end(); ++w)
@@ -1440,8 +1444,8 @@ void Craft::reuseItem(const std::string& item)
 		}
 	}
 
-	// Don't let fuel interrupt rearming.
-	if (_status == "STR_REARMING")
+	// Only consider refuelling if everything else is complete
+	if (_status != "STR_READY")
 		return;
 
 	// Check if it's fuel to refuel the craft
