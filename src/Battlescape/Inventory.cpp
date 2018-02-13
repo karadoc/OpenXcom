@@ -1018,6 +1018,8 @@ void Inventory::mouseClick(Action *action, State *state)
 /**
  * Unloads the selected weapon, placing the gun
  * on the right hand and the ammo on the left hand.
+ * Or if only one hand is free, the gun is placed
+ * in the hand and the ammo is placed on the ground.
  * @return The success of the weapon being unloaded.
  */
 bool Inventory::unload()
@@ -1108,13 +1110,37 @@ bool Inventory::unload()
 		return false;
 	}
 
-	// Hands must be free
+	// Check which hands are free.
+	RuleInventory *FirstFreeHand = _inventorySlotRightHand;
+	RuleInventory *SecondFreeHand = _inventorySlotLeftHand;
+
 	for (std::vector<BattleItem*>::iterator i = _selUnit->getInventory()->begin(); i != _selUnit->getInventory()->end(); ++i)
 	{
 		if ((*i)->getSlot()->getType() == INV_HAND && (*i) != _selItem)
 		{
-			_warning->showMessage(_game->getLanguage()->getString("STR_BOTH_HANDS_MUST_BE_EMPTY"));
-			return false;
+			if (!Options::oneHandedUnloading)
+			{
+				_warning->showMessage(_game->getLanguage()->getString("STR_BOTH_HANDS_MUST_BE_EMPTY"));
+				return false;
+			}
+			else
+			{
+				if ((*i)->getSlot() == SecondFreeHand)
+				{
+					SecondFreeHand = nullptr;
+				}
+				if ((*i)->getSlot() == FirstFreeHand)
+				{
+					FirstFreeHand = SecondFreeHand;
+					SecondFreeHand = nullptr;
+					if (FirstFreeHand == nullptr)
+					{
+						_warning->showMessage(_game->getLanguage()->getString("STR_BOTH_HANDS_MUST_BE_EMPTY"));
+						// Note: currently there is no available message for "one hand must be free".
+						return false;
+					}
+				}
+			}
 		}
 	}
 
@@ -1131,13 +1157,13 @@ bool Inventory::unload()
 
 	if (cost.haveTU() && _selItem->getSlot()->getType() != INV_HAND)
 	{
-		cost.Time += _selItem->getSlot()->getCost(_inventorySlotRightHand);
+		cost.Time += _selItem->getSlot()->getCost(FirstFreeHand);
 	}
 
 	std::string err;
 	if (!_tu || cost.spendTU(&err))
 	{
-		moveItem(_selItem, _inventorySlotRightHand, 0, 0);
+		moveItem(_selItem, FirstFreeHand, 0, 0);
 		if (grenade)
 		{
 			_selItem->setFuseTimer(-1);
@@ -1146,7 +1172,15 @@ bool Inventory::unload()
 		else
 		{
 			auto oldAmmo = _selItem->setAmmoForSlot(slotForAmmoUnload, nullptr);
-			moveItem(oldAmmo, _inventorySlotLeftHand, 0, 0);
+			if (SecondFreeHand != nullptr)
+			{
+				moveItem(oldAmmo, SecondFreeHand, 0, 0);
+			}
+			else
+			{
+				moveItem(oldAmmo, _inventorySlotGround, 0, 0);
+				arrangeGround(false);
+			}
 		}
 		setSelectedItem(0);
 		return true;

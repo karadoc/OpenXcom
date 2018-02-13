@@ -64,9 +64,9 @@ OPT bool autoNightVision;
 OPT bool autoSell;
 OPT bool techTreeViewerSpoilerProtection;
 OPT bool playBriefingMusicDuringEquipment;
+OPT bool oneHandedUnloading; // allow weapons to be unloaded with just one hand free (ammo drops to the ground if necessary)
 
 OPT bool showBarOverflowLayers; // Karadoc's option for using different colours to represent overflow in status bars (such as the stamina bar in the battlescape).
-
 
 // Flags and other stuff that don't need OptionInfo's.
 OPT bool mute, reload, newOpenGL, newScaleFilter, newHQXFilter, newXBRZFilter, newRootWindowedMode, newFullscreen, newAllowResize, newBorderless;

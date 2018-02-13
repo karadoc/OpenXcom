@@ -222,6 +222,7 @@ void create()
 	_info.push_back(OptionInfo("techTreeViewerSpoilerProtection", &techTreeViewerSpoilerProtection, false, "STR_TECH_SPOILER_PROTECTION", "STR_OXCE"));
 	_info.push_back(OptionInfo("showBarOverflowLayers", &showBarOverflowLayers, true, "STR_SHOW_BAR_OVERFLOW", "STR_OXCE"));
 	_info.push_back(OptionInfo("playBriefingMusicDuringEquipment", &playBriefingMusicDuringEquipment, false, "STR_PLAY_BRIEFING_MUSIC_DURING_EQUIPMENT", "STR_OXCE"));
+	_info.push_back(OptionInfo("oneHandedUnloading", &oneHandedUnloading, false, "STR_ALLOW_ONE_HANDED_UNLOADING", "STR_OXCE"));
 
 	// controls
 	_info.push_back(OptionInfo("keyOk", &keyOk, SDLK_RETURN, "STR_OK", "STR_GENERAL"));
