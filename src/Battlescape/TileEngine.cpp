@@ -3605,7 +3605,7 @@ int TileEngine::voxelCheck(Position voxel, BattleUnit *excludeUnit, bool exclude
 		{
 			Position tilepos;
 			Position unitpos = unit->getPosition();
-			int tz = unitpos.z*24 + unit->getFloatHeight()+(-tile->getTerrainLevel());//bottom
+			int tz = unitpos.z*24 + unit->getFloatHeight()+(-unit->getTile()->getTerrainLevel());//bottom
 			if ((voxel.z > tz) && (voxel.z <= tz + unit->getHeight()) )
 			{
 				int x = voxel.x%16;
