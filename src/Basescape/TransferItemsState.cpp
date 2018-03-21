@@ -23,6 +23,7 @@
 #include <cfloat>
 #include <algorithm>
 #include <locale>
+#include "../Engine/CrossPlatform.h"
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -370,9 +371,9 @@ void TransferItemsState::btnQuickSearchApply(Action *)
 */
 void TransferItemsState::updateList()
 {
-	std::locale myLocale = std::locale("");
+	std::locale myLocale = CrossPlatform::testLocale();
 	std::wstring searchString = _btnQuickSearch->getText();
-	for (auto & c : searchString) c = toupper(c, myLocale);
+	CrossPlatform::upperCase(searchString, myLocale);
 
 	_lstItems->clearList();
 	_rows.clear();
@@ -399,7 +400,7 @@ void TransferItemsState::updateList()
 		if (searchString != L"")
 		{
 			std::wstring projectName = _items[i].name;
-			for (auto & c : projectName) c = toupper(c, myLocale);
+			CrossPlatform::upperCase(projectName, myLocale);
 			if (projectName.find(searchString) == std::string::npos)
 			{
 				continue;
@@ -498,6 +499,7 @@ void TransferItemsState::completeTransfer()
 					if ((*s)->getCraft() == craft)
 					{
 						if ((*s)->isInPsiTraining()) (*s)->setPsiTraining();
+						(*s)->setTraining(false);
 						if (craft->getStatus() == "STR_OUT") _baseTo->getSoldiers()->push_back(*s);
 						else
 						{

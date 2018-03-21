@@ -49,6 +49,7 @@
 #include "../Savegame/Region.h"
 #include "../Mod/RuleRegion.h"
 #include "../Savegame/AlienMission.h"
+#include "../Savegame/Waypoint.h"
 #include "DogfightErrorState.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/Mod.h"
@@ -236,10 +237,13 @@ const int DogfightState::_projectileBlobs[4][6][3] =
  * @param state Pointer to the Geoscape.
  * @param craft Pointer to the craft intercepting.
  * @param ufo Pointer to the UFO being intercepted.
+ * @param ufoIsAttacking Is UFO the aggressor?
  */
-DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
-	_state(state), _craft(craft), _ufo(ufo), _timeout(50), _currentDist(640), _targetDist(560),
-	_end(false), _endUfoHandled(false), _endCraftHandled(false), _ufoBreakingOff(false), _destroyUfo(false), _destroyCraft(false),
+DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo, bool ufoIsAttacking) :
+	_state(state), _craft(craft), _ufo(ufo),
+	_ufoIsAttacking(ufoIsAttacking), _disableDisengage(false), _disableCautious(false),
+	_timeout(50), _currentDist(640), _targetDist(560),
+	_end(false), _endUfoHandled(false), _endCraftHandled(false), _ufoBreakingOff(false), _hunterKillerBreakingOff(false), _destroyUfo(false), _destroyCraft(false),
 	_minimized(false), _endDogfight(false), _animatingHit(false), _waitForPoly(false), _waitForAltitude(false), _ufoSize(0), _craftHeight(0), _currentCraftDamageColor(0),
 	_interceptionNumber(0), _interceptionsCount(0), _x(0), _y(0), _minimizedIconX(0), _minimizedIconY(0), _firedAtLeastOnce(false)
 {
@@ -265,6 +269,19 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	if (!pilots.empty())
 	{
 		_craftAccelerationBonus = std::min(4, (_craft->getCraftStats().accel / 3) + 1);
+	}
+
+	// HK options
+	if (_ufoIsAttacking)
+	{
+		if (_ufo->getCraftStats().speedMax > _craft->getCraftStats().speedMax)
+		{
+			_disableDisengage = true;
+		}
+		if (_weaponNum == 0)
+		{
+			_disableCautious = true;
+		}
 	}
 
 	// Create objects
@@ -297,7 +314,7 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	_btnMinimizedIcon = new InteractiveSurface(32, 20, _minimizedIconX, _minimizedIconY);
 	_txtInterceptionNumber = new Text(16, 9, _minimizedIconX + 18, _minimizedIconY + 6);
 
-	_mode = _btnStandoff;
+	_mode = _ufoIsAttacking ? _btnAggressive : _btnStandoff;
 	_craftDamageAnimTimer = new Timer(500);
 
 	moveWindow();
@@ -352,6 +369,21 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	graphic->getCrop()->h = _window->getHeight();
 	_window->drawRect(graphic->getCrop(), 15);
 	graphic->blit(_window);
+	if (_ufoIsAttacking)
+	{
+		_window->drawRect(_btnStandoff->getX() + 2, _btnStandoff->getY() + 2, _btnStandoff->getWidth() - 4, _btnStandoff->getHeight() - 4, dogfightInterface->getElement("standoffButton")->color + 4);
+		if (_disableCautious)
+		{
+			_window->drawRect(_btnCautious->getX() + 2, _btnCautious->getY() + 2, _btnCautious->getWidth() - 4, _btnCautious->getHeight() - 4, dogfightInterface->getElement("cautiousButton")->color + 4);
+		}
+		_window->drawRect(_btnStandard->getX() + 2, _btnStandard->getY() + 2, _btnStandard->getWidth() - 4, _btnStandard->getHeight() - 4, dogfightInterface->getElement("standardButton")->color + 4);
+		if (_disableDisengage)
+		{
+			_window->drawRect(_btnDisengage->getX() + 2, _btnDisengage->getY() + 2, _btnDisengage->getWidth() - 4, _btnDisengage->getHeight() - 4, dogfightInterface->getElement("disengageButton")->color + 4);
+		}
+		int offset = dogfightInterface->getElement("minimizeButtonDummy")->TFTDMode ? 1 : 0;
+		_window->drawRect(_btnMinimize->getX() + 1 + offset, _btnMinimize->getY() + 1, _btnMinimize->getWidth() - 2 - offset, _btnMinimize->getHeight() - 2, dogfightInterface->getElement("minimizeButtonDummy")->color + 4);
+	}
 
 	_preview->drawRect(graphic->getCrop(), 15);
 	graphic->getCrop()->y = dogfightInterface->getElement("previewTop")->y;
@@ -377,33 +409,45 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	_preview->onMouseClick((ActionHandler)&DogfightState::previewClick);
 
 	_btnMinimize->onMouseClick((ActionHandler)&DogfightState::btnMinimizeClick);
+	_btnMinimize->setVisible(!_ufoIsAttacking);
 
 	_btnStandoff->copy(_window);
 	_btnStandoff->setGroup(&_mode);
 	_btnStandoff->onMousePress((ActionHandler)&DogfightState::btnStandoffPress);
+	_btnStandoff->setVisible(!_ufoIsAttacking);
 
 	_btnCautious->copy(_window);
 	_btnCautious->setGroup(&_mode);
 	_btnCautious->onMousePress((ActionHandler)&DogfightState::btnCautiousPress);
+	_btnCautious->setVisible(!_disableCautious);
 
 	_btnStandard->copy(_window);
 	_btnStandard->setGroup(&_mode);
 	_btnStandard->onMousePress((ActionHandler)&DogfightState::btnStandardPress);
+	_btnStandard->setVisible(!_ufoIsAttacking);
 
 	_btnAggressive->copy(_window);
 	_btnAggressive->setGroup(&_mode);
 	_btnAggressive->onMousePress((ActionHandler)&DogfightState::btnAggressivePress);
+	if (_ufoIsAttacking)
+	{
+		btnAggressivePress(0);
+	}
 
 	_btnDisengage->copy(_window);
 	_btnDisengage->onMousePress((ActionHandler)&DogfightState::btnDisengagePress);
 	_btnDisengage->setGroup(&_mode);
+	_btnDisengage->setVisible(!_disableDisengage);
 
 	_btnUfo->copy(_window);
 	_btnUfo->onMouseClick((ActionHandler)&DogfightState::btnUfoClick);
 
 	_txtDistance->setText(L"640");
 
-	_txtStatus->setText(tr("STR_STANDOFF"));
+	if (_ufoIsAttacking)
+		_txtStatus->setText(tr("STR_AGGRESSIVE_ATTACK"));
+	else
+		_txtStatus->setText(tr("STR_STANDOFF"));
 
 	SurfaceSet *set = _game->getMod()->getSurfaceSet("INTICON.PCK");
 
@@ -546,7 +590,14 @@ DogfightState::DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo) :
 	{
 		if (_craft->getWeapons()->at(i))
 		{
-			_weaponFireInterval[i] = _craft->getWeapons()->at(i)->getRules()->getStandardReload();
+			if (!_ufoIsAttacking)
+			{
+				_weaponFireInterval[i] = _craft->getWeapons()->at(i)->getRules()->getStandardReload();
+			}
+			else
+			{
+				_weaponFireInterval[i] = _craft->getWeapons()->at(i)->getRules()->getAggressiveReload();
+			}
 		}
 	}
 
@@ -659,6 +710,15 @@ DogfightState::~DogfightState()
 }
 
 /**
+ * Returns true if this is a hunter-killer dogfight. Otherwise returns false.
+ * @return Is this a hunter-killer dogfight?
+ */
+bool DogfightState::isUfoAttacking() const
+{
+	return _ufoIsAttacking;
+}
+
+/**
  * Runs the higher level dogfight functionality.
  */
 void DogfightState::think()
@@ -668,9 +728,12 @@ void DogfightState::think()
 		update();
 		_craftDamageAnimTimer->think(this, 0);
 	}
-	if (!_craft->isInDogfight() || _craft->getDestination() != _ufo || _ufo->getStatus() == Ufo::LANDED)
+	if (!_ufoIsAttacking)
 	{
-		endDogfight();
+		if (!_craft->isInDogfight() || _craft->getDestination() != _ufo || _ufo->getStatus() == Ufo::LANDED)
+		{
+			endDogfight();
+		}
 	}
 }
 
@@ -848,11 +911,14 @@ void DogfightState::update()
 	bool finalRun = false;
 	// Check if craft is not low on fuel when window minimized, and
 	// Check if crafts destination hasn't been changed when window minimized.
-	Ufo* u = dynamic_cast<Ufo*>(_craft->getDestination());
-	if (u != _ufo || !_craft->isInDogfight() || _craft->getLowFuel() || (_minimized && _ufo->isCrashed()))
+	if (!_ufoIsAttacking)
 	{
-		endDogfight();
-		return;
+		Ufo* u = dynamic_cast<Ufo*>(_craft->getDestination());
+		if (u != _ufo || !_craft->isInDogfight() || _craft->getLowFuel() || (_minimized && _ufo->isCrashed()))
+		{
+			endDogfight();
+			return;
+		}
 	}
 
 	if (!_minimized)
@@ -862,6 +928,25 @@ void DogfightState::update()
 		{
 			_ufo->setInterceptionProcessed(true);
 			int escapeCounter = _ufo->getEscapeCountdown();
+			if (_ufoIsAttacking)
+			{
+				// TODO: rethink: unhardcode run away thresholds?
+				if (_ufo->getDamage() > _ufo->getCraftStats().damageMax / 3 && _ufo->getHuntBehavior() != 1)
+				{
+					if (_craft->getDamage() > _craft->getDamageMax() / 2)
+					{
+						escapeCounter = 999; // it's gonna be tight, continue shooting...
+					}
+					else
+					{
+						escapeCounter = 1; // we're badly hurt and xcom isn't, abort immediately!
+					}
+				}
+				else
+				{
+					escapeCounter = 999; // we're still ok, continue shooting...
+				}
+			}
 
 			if (escapeCounter > 0 )
 			{
@@ -871,6 +956,13 @@ void DogfightState::update()
 				if (escapeCounter == 0)
 				{
 					_ufo->setSpeed(_ufo->getCraftStats().speedMax);
+					if (_ufoIsAttacking && !_hunterKillerBreakingOff)
+					{
+						// stop being a hunter-killer and run away!
+						_hunterKillerBreakingOff = true;
+						_ufo->resetOriginalDestination(_craft);
+						_ufo->setHunterKiller(false);
+					}
 				}
 			}
 			if (_ufo->getFireCountdown() > 0)
@@ -883,9 +975,12 @@ void DogfightState::update()
 	int speedMinusTractors = std::max(0, _ufo->getSpeed() - _ufo->getTractorBeamSlowdown());
 	if (speedMinusTractors > _craft->getCraftStats().speedMax)
 	{
-		_ufoBreakingOff = true;
-		finalRun = true;
-		setStatus("STR_UFO_OUTRUNNING_INTERCEPTOR");
+		if (!_ufoIsAttacking || _hunterKillerBreakingOff)
+		{
+			_ufoBreakingOff = true;
+			finalRun = true;
+			setStatus("STR_UFO_OUTRUNNING_INTERCEPTOR");
+		}
 	}
 	else
 	{
@@ -1073,16 +1168,13 @@ void DogfightState::update()
 					}
 				}
 				// Check if projectile passed it's maximum range.
-				if (p->getGlobalType() == CWPGT_MISSILE)
+				if (p->getGlobalType() == CWPGT_MISSILE && p->getPosition() / 8 >= p->getRange())
 				{
-					if (p->getPosition() / 8 >= p->getRange())
-					{
-						p->remove();
-					}
-					else if (!_ufo->isCrashed())
-					{
-						projectileInFlight = true;
-					}
+					p->remove();
+				}
+				else if (!_ufo->isCrashed())
+				{
+					projectileInFlight = true;
 				}
 			}
 			// Projectiles fired by UFO.
@@ -1094,6 +1186,12 @@ void DogfightState::update()
 					chancetoHit -= _craft->getCraftStats().avoidBonus;
 					chancetoHit += _ufo->getCraftStats().hitBonus;
 					chancetoHit -= _pilotDodgeBonus;
+					// evasive maneuvers
+					if (_ufoIsAttacking && _mode == _btnCautious)
+					{
+						// HK's chance to hit is halved, but craft's reload time is doubled too
+						chancetoHit = chancetoHit / 2;
+					}
 					if (RNG::percent(chancetoHit))
 					{
 						// Formula delivered by Volutar, altered by Extended version.
@@ -1117,7 +1215,7 @@ void DogfightState::update()
 							drawCraftDamage();
 							setStatus("STR_INTERCEPTOR_DAMAGED");
 							_game->getMod()->getSound("GEO.CAT", Mod::INTERCEPTOR_HIT)->play(); //10
-							if (_mode == _btnCautious && _craft->getDamagePercentage() >= 50)
+							if (_mode == _btnCautious && _craft->getDamagePercentage() >= 50 && !_ufoIsAttacking)
 							{
 								_targetDist = STANDOFF_DIST;
 							}
@@ -1156,7 +1254,11 @@ void DogfightState::update()
 			if (wTimer == 0 && _currentDist <= w->getRules()->getRange() * 8 && w->getAmmo() > 0 && _mode != _btnStandoff
 				&& _mode != _btnDisengage && !_ufo->isCrashed() && !_craft->isDestroyed())
 			{
-				fireWeapon(i);
+				if (_weaponEnabled[i])
+				{
+					fireWeapon(i);
+					projectileInFlight = true;
+				}
 			}
 			else if (wTimer > 0)
 			{
@@ -1195,7 +1297,7 @@ void DogfightState::update()
 			if (w->getAmmo() == 0 && !projectileInFlight && !_craft->isDestroyed())
 			{
 				// Handle craft distance according to option set by user and available ammo.
-				if (_mode == _btnCautious)
+				if (_mode == _btnCautious && !_ufoIsAttacking)
 				{
 					minimumDistance();
 				}
@@ -1233,11 +1335,20 @@ void DogfightState::update()
 		if (_ufoBreakingOff)
 		{
 			_ufo->move();
-			_craft->setDestination(_ufo);
+			// TODO: rethink: give hunter-killers opportunity to escape?
+			if (!_ufoIsAttacking)
+			{
+				_craft->setDestination(_ufo);
+			}
 		}
 		if (!_destroyCraft && (_destroyUfo || _mode == _btnDisengage))
 		{
 			_craft->returnToBase();
+			// Need to give the craft at least one step advantage over the hunter-killer (to be able to escape)
+			if (_ufoIsAttacking)
+			{
+				_craft->move();
+			}
 		}
 		if (_ufo->isCrashed())
 		{
@@ -1273,6 +1384,10 @@ void DogfightState::update()
 		{
 			// End dogfight if craft is destroyed.
 			setStatus("STR_INTERCEPTOR_DESTROYED");
+			if (_ufoIsAttacking)
+			{
+				_craft->evacuateCrew(_game->getMod());
+			}
 			_timeout += 30;
 			_game->getMod()->getSound("GEO.CAT", Mod::INTERCEPTOR_EXPLODE)->play();
 			finalRun = true;
@@ -1477,59 +1592,23 @@ void DogfightState::update()
  */
 void DogfightState::fireWeapon(int i)
 {
-	if (_weaponEnabled[i])
+	CraftWeapon *w1 = _craft->getWeapons()->at(i);
+	if (w1->setAmmo(w1->getAmmo() - 1))
 	{
-		CraftWeapon *w1 = _craft->getWeapons()->at(i);
-		if (w1->setAmmo(w1->getAmmo() - 1))
-		{
-			_weaponFireCountdown[i] = _weaponFireInterval[i];
+		_weaponFireCountdown[i] = _weaponFireInterval[i];
 
-			std::wostringstream ss;
-			ss << w1->getAmmo();
-			_txtAmmo[i]->setText(ss.str());
+		std::wostringstream ss;
+		ss << w1->getAmmo();
+		_txtAmmo[i]->setText(ss.str());
 
-			CraftWeaponProjectile *p = w1->fire();
-			p->setDirection(D_UP);
-			p->setHorizontalPosition((i % 2 ? HP_RIGHT : HP_LEFT) * (1 + 2 * (i / 2)));
-			_projectiles.push_back(p);
+		CraftWeaponProjectile *p = w1->fire();
+		p->setDirection(D_UP);
+		p->setHorizontalPosition((i % 2 ? HP_RIGHT : HP_LEFT) * (1 + 2 * (i / 2)));
+		_projectiles.push_back(p);
 
-			_game->getMod()->getSound("GEO.CAT", w1->getRules()->getSound())->play();
-			_firedAtLeastOnce = true;
-		}
+		_game->getMod()->getSound("GEO.CAT", w1->getRules()->getSound())->play();
+		_firedAtLeastOnce = true;
 	}
-}
-
-/**
- * Fires a shot from the first weapon
- * equipped on the craft.
- */
-void DogfightState::fireWeapon1()
-{
-	fireWeapon(0);
-}
-/**
- * Fires a shot from the second weapon
- * equipped on the craft.
- */
-void DogfightState::fireWeapon2()
-{
-	fireWeapon(1);
-}
-/**
- * Fires a shot from the third weapon
- * equipped on the craft.
- */
-void DogfightState::fireWeapon3()
-{
-	fireWeapon(2);
-}
-/**
- * Fires a shot from the fourth weapon
- * equipped on the craft.
- */
-void DogfightState::fireWeapon4()
-{
-	fireWeapon(3);
 }
 
 /**
@@ -1668,16 +1747,34 @@ void DogfightState::btnCautiousPress(Action *)
 	if (!_ufo->isCrashed() && !_craft->isDestroyed() && !_ufoBreakingOff)
 	{
 		_end = false;
-		setStatus("STR_CAUTIOUS_ATTACK");
-		for (int i = 0; i < _weaponNum; ++i)
+		if (!_ufoIsAttacking)
 		{
-			CraftWeapon* w = _craft->getWeapons()->at(i);
-			if (w != 0)
+			setStatus("STR_CAUTIOUS_ATTACK");
+			for (int i = 0; i < _weaponNum; ++i)
 			{
-				_weaponFireInterval[i] = w->getRules()->getCautiousReload();
+				CraftWeapon* w = _craft->getWeapons()->at(i);
+				if (w != 0)
+				{
+					_weaponFireInterval[i] = w->getRules()->getCautiousReload();
+				}
 			}
+			minimumDistance();
 		}
-		minimumDistance();
+		else
+		{
+			setStatus("STR_EVASIVE_MANEUVERS");
+			for (int i = 0; i < _weaponNum; ++i)
+			{
+				CraftWeapon* w = _craft->getWeapons()->at(i);
+				if (w != 0)
+				{
+					// double the craft's reload time to balance halving the HK's chance to hit
+					_weaponFireInterval[i] = w->getRules()->getAggressiveReload() * 2;
+				}
+			}
+			// same distance as aggressive (by design)
+			_targetDist = 64;
+		}
 	}
 }
 
@@ -1768,13 +1865,13 @@ void DogfightState::previewClick(Action *)
 {
 	_preview->setVisible(false);
 	// Reenable all other buttons to prevent misclicks
-	_btnStandoff->setVisible(true);
-	_btnCautious->setVisible(true);
-	_btnStandard->setVisible(true);
+	_btnStandoff->setVisible(!_ufoIsAttacking);
+	_btnCautious->setVisible(!_disableCautious);
+	_btnStandard->setVisible(!_ufoIsAttacking);
 	_btnAggressive->setVisible(true);
-	_btnDisengage->setVisible(true);
+	_btnDisengage->setVisible(!_disableDisengage);
 	_btnUfo->setVisible(true);
-	_btnMinimize->setVisible(true);
+	_btnMinimize->setVisible(!_ufoIsAttacking);
 	for (int i = 0; i < _weaponNum; ++i)
 	{
 		_weapon[i]->setVisible(true);

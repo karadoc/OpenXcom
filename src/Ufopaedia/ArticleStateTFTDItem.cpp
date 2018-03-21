@@ -70,12 +70,12 @@ namespace OpenXcom
 			if (item->getCostAuto().Time>0)
 			{
 				std::wstring tu = Text::formatPercentage(item->getCostAuto().Time);
-				if (item->getFlatUse().Time)
+				if (item->getFlatAuto().Time)
 				{
 					tu.erase(tu.end() - 1);
 				}
 				_lstInfo->addRow(3,
-								 tr("STR_SHOT_TYPE_AUTO").c_str(),
+								 tr("STR_SHOT_TYPE_AUTO").arg(item->getConfigAuto()->shots).c_str(),
 								 Text::formatPercentage(item->getAccuracyAuto()).c_str(),
 								 tu.c_str());
 				_lstInfo->setCellColor(current_row, 0, Palette::blockOffset(0)+2);
@@ -85,7 +85,7 @@ namespace OpenXcom
 			if (item->getCostSnap().Time>0)
 			{
 				std::wstring tu = Text::formatPercentage(item->getCostSnap().Time);
-				if (item->getFlatUse().Time)
+				if (item->getFlatSnap().Time)
 				{
 					tu.erase(tu.end() - 1);
 				}
@@ -100,7 +100,7 @@ namespace OpenXcom
 			if (item->getCostAimed().Time>0)
 			{
 				std::wstring tu = Text::formatPercentage(item->getCostAimed().Time);
-				if (item->getFlatUse().Time)
+				if (item->getFlatAimed().Time)
 				{
 					tu.erase(tu.end() - 1);
 				}

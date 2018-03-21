@@ -43,6 +43,7 @@
 #include "ArticleStateTFTDCraft.h"
 #include "ArticleStateTFTDCraftWeapon.h"
 #include "ArticleStateTFTDUso.h"
+#include "StatsForNerdsState.h"
 #include "../Engine/Game.h"
 
 namespace OpenXcom
@@ -182,6 +183,22 @@ namespace OpenXcom
 	}
 
 	/**
+	 * Checks if selected article_id is available -> if yes, open its (raw) details.
+	 * @param game Pointer to actual game.
+	 * @param article_id Article id to find.
+	 */
+	void Ufopaedia::openArticleDetail(Game *game, const std::string &article_id)
+	{
+		std::string id = article_id;
+		size_t tmpIndex = getArticleIndex(game->getSavedGame(), game->getMod(), id);
+		if (tmpIndex != (size_t)-1)
+		{
+			ArticleDefinition *article = game->getMod()->getUfopaediaArticle(id);
+			game->pushState(new StatsForNerdsState(article, tmpIndex, false, false, false));
+		}
+	}
+
+	/**
 	 * Open Ufopaedia start state, presenting the section selection buttons.
 	 * @param game Pointer to actual game.
 	 */
@@ -211,6 +228,26 @@ namespace OpenXcom
 	}
 
 	/**
+	 * Open the next article detail (Stats for Nerds) in the list. Loops to the first.
+	 * @param game Pointer to actual game.
+	 */
+	void Ufopaedia::nextDetail(Game *game, size_t currentDetailIndex, bool debug, bool ids, bool defaults)
+	{
+		ArticleDefinitionList articles = getAvailableArticles(game->getSavedGame(), game->getMod());
+		if (currentDetailIndex >= articles.size() - 1)
+		{
+			// goto first
+			currentDetailIndex = 0;
+		}
+		else
+		{
+			currentDetailIndex++;
+		}
+		game->popState();
+		game->pushState(new StatsForNerdsState(articles[currentDetailIndex], currentDetailIndex, debug, ids, defaults));
+	}
+
+	/**
 	 * Open the previous article in the list. Loops to the last.
 	 * @param game Pointer to actual game.
 	 */
@@ -228,6 +265,26 @@ namespace OpenXcom
 		}
 		game->popState();
 		game->pushState(createArticleState(articles[_current_index]));
+	}
+
+	/**
+	 * Open the previous article detail (Stats for Nerds) in the list. Loops to the last.
+	 * @param game Pointer to actual game.
+	 */
+	void Ufopaedia::prevDetail(Game *game, size_t currentDetailIndex, bool debug, bool ids, bool defaults)
+	{
+		ArticleDefinitionList articles = getAvailableArticles(game->getSavedGame(), game->getMod());
+		if (currentDetailIndex == 0 || currentDetailIndex > articles.size() - 1)
+		{
+			// goto last
+			currentDetailIndex = articles.size() - 1;
+		}
+		else
+		{
+			currentDetailIndex--;
+		}
+		game->popState();
+		game->pushState(new StatsForNerdsState(articles[currentDetailIndex], currentDetailIndex, debug, ids, defaults));
 	}
 
 	/**

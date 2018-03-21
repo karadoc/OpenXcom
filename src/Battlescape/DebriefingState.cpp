@@ -64,7 +64,6 @@
 #include "../Engine/Screen.h"
 #include "../Basescape/SellState.h"
 #include "../Menu/SaveGameState.h"
-#include "../Mod/RuleStartingCondition.h"
 #include "../Mod/AlienDeployment.h"
 #include "../Mod/RuleInterface.h"
 #include "../Savegame/MissionStatistics.h"
@@ -1443,11 +1442,19 @@ void DebriefingState::prepareDebriefing()
 						}
 					}
 				}
-				recoverAlien(*j, base);
+				if (!(*j)->getArmor()->getCorpseBattlescape().empty())
+				{
+					RuleItem *corpseRule = _game->getMod()->getItem((*j)->getArmor()->getCorpseBattlescape().front());
+					if (corpseRule && corpseRule->isRecoverable())
+					{
+						recoverAlien(*j, base);
+					}
+				}
 			}
 			else if (oldFaction == FACTION_HOSTILE && !aborted && !_destroyBase
 				// surrendered units may as well count as unconscious too
-				&& playersSurvived > 0 && faction != FACTION_PLAYER && !(*j)->isOut())
+				&& playersSurvived > 0 && faction != FACTION_PLAYER && (!(*j)->isOut() || (*j)->getStatus() == STATUS_IGNORE_ME)
+				&& ((*j)->isSurrendering() || battle->getChronoTrigger() == FORCE_WIN_SURRENDER))
 			{
 				if ((*j)->getTile())
 				{
@@ -1459,7 +1466,14 @@ void DebriefingState::prepareDebriefing()
 						}
 					}
 				}
-				recoverAlien(*j, base);
+				if (!(*j)->getArmor()->getCorpseBattlescape().empty())
+				{
+					RuleItem *corpseRule = _game->getMod()->getItem((*j)->getArmor()->getCorpseBattlescape().front());
+					if (corpseRule && corpseRule->isRecoverable())
+					{
+						recoverAlien(*j, base);
+					}
+				}
 			}
 			else if (oldFaction == FACTION_NEUTRAL)
 			{
@@ -1478,14 +1492,26 @@ void DebriefingState::prepareDebriefing()
 	}
 	if (craft != 0 && ((playersInExitArea == 0 && aborted) || (playersSurvived == 0)))
 	{
-		addStat("STR_XCOM_CRAFT_LOST", 1, -craft->getRules()->getScore());
-		// Since this is not a base defense mission, we can safely erase the craft,
-		// without worrying it's vehicles' destructor calling double (on base defense missions
-		// all vehicle object in the craft is also referenced by base->getVehicles() !!)
-		delete craft;
-		craft = 0; // To avoid a crash down there!!
-		base->getCrafts()->erase(craftIterator);
-		_txtTitle->setText(tr("STR_CRAFT_IS_LOST"));
+		if (craft->getRules()->keepCraftAfterFailedMission())
+		{
+			// craft was not even on the battlescape (e.g. paratroopers)
+		}
+		else if (ruleDeploy->keepCraftAfterFailedMission())
+		{
+			// craft didn't wait for you (e.g. escape/extraction missions)
+		}
+		else
+		{
+			addStat("STR_XCOM_CRAFT_LOST", 1, -craft->getRules()->getScore());
+			// Since this is not a base defense mission, we can safely erase the craft,
+			// without worrying it's vehicles' destructor calling double (on base defense missions
+			// all vehicle object in the craft is also referenced by base->getVehicles() !!)
+			_game->getSavedGame()->stopHuntingXcomCraft(craft); // lost during ground mission
+			delete craft;
+			craft = 0; // To avoid a crash down there!!
+			base->getCrafts()->erase(craftIterator);
+			_txtTitle->setText(tr("STR_CRAFT_IS_LOST"));
+		}
 		playersSurvived = 0; // assuming you aborted and left everyone behind
 		success = false;
 	}
@@ -1693,6 +1719,7 @@ void DebriefingState::prepareDebriefing()
 			{
 				if ((*i) == base)
 				{
+					_game->getSavedGame()->stopHuntingXcomCrafts((*i)); // destroyed together with the base
 					delete (*i);
 					base = 0; // To avoid similar (potential) problems as with the deleted craft
 					_game->getSavedGame()->getBases()->erase(i);
@@ -1746,17 +1773,6 @@ void DebriefingState::prepareDebriefing()
 			}
 			(*i)->setReplacedArmor(0);
 			(*i)->setTransformedArmor(0);
-		}
-
-		// clean up automagically spawned items
-		const RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(battle->getStartingConditionType());
-		if (startingCondition != 0)
-		{
-			const std::map<std::string, int> *defaultItems = startingCondition->getDefaultItems();
-			for (std::map<std::string, int>::const_iterator i = defaultItems->begin(); i != defaultItems->end(); ++i)
-			{
-				base->getStorageItems()->removeItem(i->first, i->second);
-			}
 		}
 	}
 
@@ -1972,7 +1988,7 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 					}
 				}
 				// only add recovery points for unresearched items
-				else if (!_game->getSavedGame()->isResearched(rule->getType()))
+				else if (!_game->getSavedGame()->isResearched(rule->getRequirements()))
 				{
 					addStat("STR_ALIEN_ARTIFACTS_RECOVERED", 1, rule->getRecoveryPoints());
 				}
@@ -2175,15 +2191,17 @@ void DebriefingState::recoverAlien(BattleUnit *from, Base *base)
 	else
 	{
 		RuleResearch *research = _game->getMod()->getResearch(type);
+		bool surrendered = (!from->isOut() || from->getStatus() == STATUS_IGNORE_ME)
+			&& (from->isSurrendering() || _game->getSavedGame()->getSavedBattle()->getChronoTrigger() == FORCE_WIN_SURRENDER);
 		if (research != 0 && !_game->getSavedGame()->isResearched(type))
 		{
 			// more points if it's not researched
-			addStat(from->isOut() ? "STR_LIVE_ALIENS_RECOVERED" : "STR_LIVE_ALIENS_SURRENDERED", 1, from->getValue() * 2);
+			addStat(surrendered ? "STR_LIVE_ALIENS_SURRENDERED" : "STR_LIVE_ALIENS_RECOVERED", 1, from->getValue() * 2);
 		}
 		else
 		{
 			// 10 points for recovery
-			addStat(from->isOut() ? "STR_LIVE_ALIENS_RECOVERED" : "STR_LIVE_ALIENS_SURRENDERED", 1, 10);
+			addStat(surrendered ? "STR_LIVE_ALIENS_SURRENDERED" : "STR_LIVE_ALIENS_RECOVERED", 1, 10);
 		}
 
 		base->getStorageItems()->addItem(type, 1);

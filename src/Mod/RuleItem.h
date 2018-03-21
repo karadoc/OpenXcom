@@ -159,8 +159,8 @@ private:
 	int _clipSize, _specialChance, _tuLoad[AmmoSlotMax], _tuUnload[AmmoSlotMax];
 	BattleType _battleType;
 	BattleFuseType _fuseType;
-	bool _hiddenOnMinimap;
 	RuleItemFuseTrigger _fuseTriggerEvents;
+	bool _hiddenOnMinimap;
 	std::string _psiAttackName, _primeActionName, _unprimeActionName, _primeActionMessage, _unprimeActionMessage;
 	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _allowSelfHeal, _isConsumable, _isFireExtinguisher, _isExplodingInHands;
 	std::string _defaultInventorySlot;
@@ -276,35 +276,44 @@ public:
 	int getBulletSprite() const;
 	/// Gets the item's fire sound.
 	int getFireSound() const;
+	const std::vector<int> &getFireSoundRaw() const { return _fireSound; }
 
 	/// Gets the item's hit sound.
 	int getHitSound() const;
+	const std::vector<int> &getHitSoundRaw() const { return _hitSound; }
 	/// Gets the item's hit animation.
 	int getHitAnimation() const;
 	/// Gets the item's hit sound.
 	int getHitMissSound() const;
+	const std::vector<int> &getHitMissSoundRaw() const { return _hitMissSound; }
 	/// Gets the item's hit animation.
 	int getHitMissAnimation() const;
 
 	/// What sound does this weapon make when you swing this at someone?
 	int getMeleeSound() const;
+	const std::vector<int> &getMeleeSoundRaw() const { return _meleeSound; }
 	/// Get the melee animation starting frame (comes from hit.pck).
 	int getMeleeAnimation() const;
 	/// What sound does this weapon make when you miss a swing?
 	int getMeleeMissSound() const;
+	const std::vector<int> &getMeleeMissSoundRaw() const { return _meleeMissSound; }
 	/// Get the melee miss animation starting frame (comes from hit.pck).
 	int getMeleeMissAnimation() const;
 	/// What sound does this weapon make when you punch someone in the face with it?
 	int getMeleeHitSound() const;
+	const std::vector<int> &getMeleeHitSoundRaw() const { return _meleeHitSound; }
 	/// What sound does explosion sound?
 	int getExplosionHitSound() const;
+	const std::vector<int> &getExplosionHitSoundRaw() const { return _explosionHitSound; }
 
 	/// Gets the item's psi hit sound.
 	int getPsiSound() const;
+	const std::vector<int> &getPsiSoundRaw() const { return _psiSound; }
 	/// Get the psi animation starting frame (comes from hit.pck).
 	int getPsiAnimation() const;
 	/// Gets the item's psi miss sound.
 	int getPsiMissSound() const;
+	const std::vector<int> &getPsiMissSoundRaw() const { return _psiMissSound; }
 	/// Get the psi miss animation starting frame (comes from hit.pck).
 	int getPsiMissAnimation() const;
 
@@ -312,22 +321,30 @@ public:
 	int getPower() const;
 	/// Get additional power from unit statistics
 	int getPowerBonus(const BattleUnit *unit) const;
+	const RuleStatBonus *getDamageBonusRaw() const { return &_damageBonus; }
 	/// Ok, so this isn't a melee type weapon but we're using it for melee... how much damage should it do?
 	int getMeleePower() const;
 	/// Get additional power for melee attack in range weapon from unit statistics.
 	int getMeleeBonus(const BattleUnit *unit) const;
+	const RuleStatBonus *getMeleeBonusRaw() const { return &_meleeBonus; }
 	/// Gets amount of power dropped for range in voxels.
 	float getPowerRangeReduction(float range) const;
+	float getPowerRangeReductionRaw() const { return _powerRangeReduction; }
+	float getPowerRangeThresholdRaw() const { return _powerRangeThreshold; }
 	/// Gets amount of psi accuracy dropped for range in voxels.
 	float getPsiAccuracyRangeReduction(float range) const;
 	/// Get multiplier of accuracy form unit statistics
 	int getAccuracyMultiplier(const BattleUnit *unit) const;
+	const RuleStatBonus *getAccuracyMultiplierRaw() const { return &_accuracyMulti; }
 	/// Get multiplier of melee hit chance form unit statistics
 	int getMeleeMultiplier(const BattleUnit *unit) const;
+	const RuleStatBonus *getMeleeMultiplierRaw() const { return &_meleeMulti; }
 	/// Get multiplier of throwing form unit statistics
 	int getThrowMultiplier(const BattleUnit *unit) const;
+	const RuleStatBonus *getThrowMultiplierRaw() const { return &_throwMulti; }
 	/// Get multiplier of close quarters combat from unit statistics
 	int getCloseQuartersMultiplier(const BattleUnit *unit) const;
+	const RuleStatBonus *getCloseQuartersMultiplierRaw() const { return &_closeQuartersMulti; }
 
 	/// Get configuration of aimed shot action.
 	const RuleItemAction *getConfigAimed() const;
@@ -565,6 +582,7 @@ public:
 	/// Gets script.
 	template<typename Script>
 	const typename Script::Container &getScript() const { return _battleItemScripts.get<Script>(); }
+	const ScriptValues<RuleItem> &getScriptValuesRaw() const { return _scriptValues; }
 };
 
 }

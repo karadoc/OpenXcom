@@ -100,9 +100,9 @@ struct PromotionInfo
 };
 
 /**
- *The game data that gets written to disk when the game is saved.
- *A saved game holds all the variable info in a game like funds,
- *game time, current bases and contents, world activities, score, etc.
+ * The game data that gets written to disk when the game is saved.
+ * A saved game holds all the variable info in a game like funds,
+ * game time, current bases and contents, world activities, score, etc.
  */
 class SavedGame
 {
@@ -158,6 +158,8 @@ public:
 	SavedGame();
 	/// Cleans up the saved game.
 	~SavedGame();
+	/// Sanitizies a mod name in a save.
+	static std::string sanitizeModName(const std::string &name);
 	/// Gets list of saves in the user directory.
 	static std::vector<SaveInfo> getList(Language *lang, bool autoquick);
 	/// Loads a saved game from YAML.
@@ -226,6 +228,8 @@ public:
 	int getBaseMaintenance() const;
 	/// Gets the list of UFOs.
 	std::vector<Ufo*> *getUfos();
+	/// Gets the list of UFOs.
+	const std::vector<Ufo*> *getUfos() const;
 	/// Gets the list of waypoints.
 	std::vector<Waypoint*> *getWaypoints();
 	/// Gets the list of mission sites.
@@ -380,6 +384,10 @@ public:
 	void setAutosell(const RuleItem *itype, const bool enabled);
 	/// get autosell state for an item type
 	bool getAutosell(const RuleItem *) const;
+	/// Stop hunting the given xcom craft.
+	void stopHuntingXcomCraft(Craft *target);
+	/// Stop hunting all xcom craft from a given xcom base.
+	void stopHuntingXcomCrafts(Base *base);
 };
 
 }

@@ -75,6 +75,8 @@ public:
 	void time5Seconds();
 	/// Trigger whenever 10 minutes pass.
 	void time10Minutes();
+	void ufoHuntingAndEscorting();
+	void baseHunting();
 	/// Trigger whenever 30 minutes pass.
 	void time30Minutes();
 	/// Trigger whenever 1 hour passes.
@@ -99,6 +101,8 @@ public:
 	void btnTechTreeViewerClick(Action *action);
 	/// Handler for clicking the [SelectMusicTrack] button.
 	void btnSelectMusicTrackClick(Action *action);
+	/// Handler for clicking the [GlobalResearch] key.
+	void btnGlobalResearchClick(Action *action);
 	/// Handler for clicking the Bases button.
 	void btnBasesClick(Action *action);
 	/// Handler for clicking the Graph button.

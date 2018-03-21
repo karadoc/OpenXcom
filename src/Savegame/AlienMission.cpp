@@ -247,6 +247,12 @@ void AlienMission::think(Game &engine, const Globe &globe)
 	{
 		size_t spawnTimer = _rule.getWave(_nextWave).spawnTimer / 30;
 		_spawnCountdown = (spawnTimer/2 + RNG::generate(0, spawnTimer)) * 30;
+
+		if (_spawnCountdown == 0)
+		{
+			// spawn more UFOs immediately
+			think(engine, globe);
+		}
 	}
 }
 
@@ -264,6 +270,21 @@ void AlienMission::think(Game &engine, const Globe &globe)
 Ufo *AlienMission::spawnUfo(const SavedGame &game, const Mod &mod, const Globe &globe, const MissionWave &wave, const UfoTrajectory &trajectory)
 {
 	RuleUfo *ufoRule = mod.getUfo(wave.ufoType);
+	int hunterKillerPercentage = wave.hunterKillerPercentage;
+	if (hunterKillerPercentage == -1 && ufoRule)
+	{
+		hunterKillerPercentage = ufoRule->getHunterKillerPercentage();
+	}
+	int huntMode = wave.huntMode;
+	if (huntMode == -1 && ufoRule)
+	{
+		huntMode = ufoRule->getHuntMode();
+	}
+	int huntBehavior = wave.huntBehavior;
+	if (huntBehavior == -1 && ufoRule)
+	{
+		huntBehavior = ufoRule->getHuntBehavior();
+	}
 	if (_rule.getObjective() == OBJECTIVE_RETALIATION)
 	{
 		const RuleRegion &regionRules = *mod.getRegion(_region, true);
@@ -305,7 +326,15 @@ Ufo *AlienMission::spawnUfo(const SavedGame &game, const Mod &mod, const Globe &
 			return 0;
 		}
 		// Our destination is always an alien base.
-		Ufo *ufo = new Ufo(ufoRule);
+		Ufo *ufo = 0;
+		if (wave.objective)
+		{
+			ufo = new Ufo(ufoRule);
+		}
+		else
+		{
+			ufo = new Ufo(ufoRule, hunterKillerPercentage, huntMode, huntBehavior);
+		}
 		ufo->setMissionInfo(this, &trajectory);
 		const RuleRegion &regionRules = *mod.getRegion(_region, true);
 		std::pair<double, double> pos;
@@ -343,12 +372,34 @@ Ufo *AlienMission::spawnUfo(const SavedGame &game, const Mod &mod, const Globe &
 		wp->setLongitude(pos.first);
 		wp->setLatitude(pos.second);
 		ufo->setDestination(wp);
+
+		// Only hunter-killers can escort
+		if (ufo->isHunterKiller() && wave.escort && !wave.objective)
+		{
+			ufo->setEscort(true);
+			// Find a UFO to escort
+			for (std::vector<Ufo*>::const_iterator u = game.getUfos()->begin(); u != game.getUfos()->end(); ++u)
+			{
+				// From the same mission
+				if ((*u)->getMission()->getId() == ufo->getMission()->getId())
+				{
+					// But not another hunter-killer, we escort only normal UFOs
+					if (!(*u)->isHunterKiller())
+					{
+						ufo->setLongitude((*u)->getLongitude());
+						ufo->setLatitude((*u)->getLatitude());
+						ufo->setEscortedUfo((*u));
+						break;
+					}
+				}
+			}
+		}
 		return ufo;
 	}
 	if (ufoRule == 0)
 		return 0;
 	// Spawn according to sequence.
-	Ufo *ufo = new Ufo(ufoRule);
+	Ufo *ufo = new Ufo(ufoRule, hunterKillerPercentage, huntMode, huntBehavior);
 	ufo->setMissionInfo(this, &trajectory);
 	const RuleRegion &regionRules = *mod.getRegion(_region, true);
 	std::pair<double, double> pos = getWaypoint(trajectory, 0, globe, regionRules);
@@ -360,11 +411,39 @@ Ufo *AlienMission::spawnUfo(const SavedGame &game, const Mod &mod, const Globe &
 	ufo->setSpeed(trajectory.getSpeedPercentage(0) * ufo->getCraftStats().speedMax);
 	ufo->setLongitude(pos.first);
 	ufo->setLatitude(pos.second);
+	if (_base && _rule.getObjective() != OBJECTIVE_SUPPLY)
+	{
+		// override starting location for hunt missions
+		ufo->setLongitude(_base->getLongitude());
+		ufo->setLatitude(_base->getLatitude());
+	}
 	Waypoint *wp = new Waypoint();
 	pos = getWaypoint(trajectory, 1, globe, regionRules);
 	wp->setLongitude(pos.first);
 	wp->setLatitude(pos.second);
 	ufo->setDestination(wp);
+
+	// Only hunter-killers can escort
+	if (ufo->isHunterKiller() && wave.escort)
+	{
+		ufo->setEscort(true);
+		// Find a UFO to escort
+		for (std::vector<Ufo*>::const_iterator u = game.getUfos()->begin(); u != game.getUfos()->end(); ++u)
+		{
+			// From the same mission
+			if ((*u)->getMission()->getId() == ufo->getMission()->getId())
+			{
+				// But not another hunter-killer, we escort only normal UFOs
+				if (!(*u)->isHunterKiller())
+				{
+					ufo->setLongitude((*u)->getLongitude());
+					ufo->setLatitude((*u)->getLatitude());
+					ufo->setEscortedUfo((*u));
+					break;
+				}
+			}
+		}
+	}
 	return ufo;
 }
 

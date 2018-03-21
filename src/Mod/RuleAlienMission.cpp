@@ -32,6 +32,10 @@ namespace YAML
 			node["trajectory"] = rhs.trajectory;
 			node["timer"] = rhs.spawnTimer;
 			node["objective"] = rhs.objective;
+			node["hunterKillerPercentage"] = rhs.hunterKillerPercentage;
+			node["huntMode"] = rhs.huntMode;
+			node["huntBehavior"] = rhs.huntBehavior;
+			node["escort"] = rhs.escort;
 			return node;
 		}
 
@@ -45,6 +49,10 @@ namespace YAML
 			rhs.trajectory = node["trajectory"].as<std::string>();
 			rhs.spawnTimer = node["timer"].as<size_t>();
 			rhs.objective = node["objective"].as<bool>(false);
+			rhs.hunterKillerPercentage = node["hunterKillerPercentage"].as<int>(-1);
+			rhs.huntMode = node["huntMode"].as<int>(-1);
+			rhs.huntBehavior = node["huntBehavior"].as<int>(-1);
+			rhs.escort = node["escort"].as<bool>(false);
 			return true;
 		}
 	};

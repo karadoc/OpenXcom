@@ -279,7 +279,7 @@ Mod::Mod() :
 	_costHireEngineer(0), _costHireScientist(0),
 	_costEngineer(0), _costScientist(0), _timePersonnel(0), _initialFunding(0),
 	_aiUseDelayBlaster(3), _aiUseDelayFirearm(0), _aiUseDelayGrenade(3), _aiUseDelayMelee(0), _aiUseDelayPsionic(0),
-	_aiFireChoiceIntelCoeff(5), _aiFireChoiceAggroCoeff(5),
+	_aiFireChoiceIntelCoeff(5), _aiFireChoiceAggroCoeff(5), _aiExtendedFireModeChoice(false), _aiRespectMaxRange(false),
 	_maxLookVariant(0), _tooMuchSmokeThreshold(10), _customTrainingFactor(100), _minReactionAccuracy(0), _chanceToStopRetaliation(0),
 	_kneelBonusGlobal(115), _oneHandedPenaltyGlobal(80),
 	_enableCloseQuartersCombat(0), _closeQuartersAccuracyGlobal(100), _closeQuartersTuCostGlobal(12), _closeQuartersEnergyCostGlobal(8),
@@ -287,11 +287,12 @@ Mod::Mod() :
 	_surrenderMode(0),
 	_bughuntMinTurn(20), _bughuntMaxEnemies(2), _bughuntRank(0), _bughuntLowMorale(40), _bughuntTimeUnitsLeft(60),
 	_ufoGlancingHitThreshold(0), _ufoBeamWidthParameter(1000),
+	_escortRange(20), _escortsJoinFightAgainstHK(true), _crewEmergencyEvacuationSurvivalChance(100), _pilotsEmergencyEvacuationSurvivalChance(100),
 	_soldiersPerSergeant(5), _soldiersPerCaptain(11), _soldiersPerColonel(23), _soldiersPerCommander(30),
 	_pilotAccuracyZeroPoint(55), _pilotAccuracyRange(40), _pilotReactionsZeroPoint(55), _pilotReactionsRange(60),
 	_performanceBonusFactor(0), _useCustomCategories(false), _showDogfightDistanceInKm(false),
 	_theMostUselessOptionEver(0), _theBiggestRipOffEver(0),
-	_defeatScore(0), _defeatFunds(0), _startingTime(6, 1, 1, 1999, 12, 0, 0),
+	_defeatScore(0), _defeatFunds(0), _startingTime(6, 1, 1, 1999, 12, 0, 0), _startingDifficulty(0),
 	_baseDefenseMapFromLocation(0),
 	_facilityListOrder(0), _craftListOrder(0), _itemCategoryListOrder(0), _itemListOrder(0),
 	_researchListOrder(0),  _manufactureListOrder(0), _ufopaediaListOrder(0), _invListOrder(0), _modOffset(0)
@@ -307,14 +308,6 @@ Mod::Mod() :
 
 	dmg = new RuleDamageType();
 	dmg->ResistType = DT_NONE;
-	dmg->RandomType = DRT_NONE;
-	dmg->IgnoreOverKill = true;
-	dmg->ToHealth = 0.0f;
-	dmg->ToArmor = 0.0f;
-	dmg->ToWound = 0.0f;
-	dmg->ToItem = 0.0f;
-	dmg->ToTile = 0.0f;
-	dmg->ToStun = 0.0f;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	dmg = new RuleDamageType();
@@ -928,6 +921,7 @@ int Mod::getSoundOffset(int sound, const std::string& set) const
  */
 void Mod::loadAll(const std::vector< std::pair< std::string, std::vector<std::string> > > &mods)
 {
+	Log(LOG_INFO) << "Loading rulesets...";
 	ModScript parser{ _scriptGlobal, this };
 
 	std::vector<size_t> modOffsets(mods.size());
@@ -1370,6 +1364,7 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	{
 		_startingTime.load(doc["startingTime"]);
 	}
+	_startingDifficulty = doc["startingDifficulty"].as<int>(_startingDifficulty);
 	_maxViewDistance = doc["maxViewDistance"].as<int>(_maxViewDistance);
 	_maxDarknessToSeeUnits = doc["maxDarknessToSeeUnits"].as<int>(_maxDarknessToSeeUnits);
 	_costHireEngineer = doc["costHireEngineer"].as<int>(_costHireEngineer);
@@ -1394,6 +1389,8 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 
 		_aiFireChoiceIntelCoeff = nodeAI["fireChoiceIntelCoeff"].as<int>(_aiFireChoiceIntelCoeff);
 		_aiFireChoiceAggroCoeff = nodeAI["fireChoiceAggroCoeff"].as<int>(_aiFireChoiceAggroCoeff);
+		_aiExtendedFireModeChoice = nodeAI["extendedFireModeChoice"].as<bool>(_aiExtendedFireModeChoice);
+		_aiRespectMaxRange = nodeAI["respectMaxRange"].as<bool>(_aiRespectMaxRange);
 	}
 	_maxLookVariant = doc["maxLookVariant"].as<int>(_maxLookVariant);
 	_tooMuchSmokeThreshold = doc["tooMuchSmokeThreshold"].as<int>(_tooMuchSmokeThreshold);
@@ -1424,6 +1421,10 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 			index++;
 		}
 	}
+	_escortRange = doc["escortRange"].as<int>(_escortRange);
+	_escortsJoinFightAgainstHK = doc["escortsJoinFightAgainstHK"].as<bool>(_escortsJoinFightAgainstHK);
+	_crewEmergencyEvacuationSurvivalChance = doc["crewEmergencyEvacuationSurvivalChance"].as<int>(_crewEmergencyEvacuationSurvivalChance);
+	_pilotsEmergencyEvacuationSurvivalChance = doc["pilotsEmergencyEvacuationSurvivalChance"].as<int>(_pilotsEmergencyEvacuationSurvivalChance);
 	_soldiersPerSergeant = doc["soldiersPerSergeant"].as<int>(_soldiersPerSergeant);
 	_soldiersPerCaptain = doc["soldiersPerCaptain"].as<int>(_soldiersPerCaptain);
 	_soldiersPerColonel = doc["soldiersPerColonel"].as<int>(_soldiersPerColonel);
@@ -2364,6 +2365,15 @@ int Mod::getPersonnelTime() const
 }
 
 /**
+ * Gets the escort range.
+ * @return Escort range (converted from nautical miles into radians).
+ */
+double Mod::getEscortRange() const
+{
+	return _escortRange * (1 / 60.0) * (M_PI / 180);
+}
+
+/**
  * Returns the article definition for a given name.
  * @param name Article name.
  * @return Article definition.
@@ -2593,7 +2603,7 @@ MCDPatch *Mod::getMCDPatch(const std::string &id) const
  * Gets the list of external sprites.
  * @return The list of external sprites.
  */
-std::vector<std::pair<std::string, ExtraSprites *> > Mod::getExtraSprites() const
+const std::vector<std::pair<std::string, ExtraSprites *> > &Mod::getExtraSprites() const
 {
 	return _extraSprites;
 }
@@ -2611,7 +2621,7 @@ const std::vector<std::string> &Mod::getCustomPalettes() const
  * Gets the list of external sounds.
  * @return The list of external sounds.
  */
-std::vector<std::pair<std::string, ExtraSounds *> > Mod::getExtraSounds() const
+const std::vector<std::pair<std::string, ExtraSounds *> > &Mod::getExtraSounds() const
 {
 	return _extraSounds;
 }
@@ -2620,7 +2630,7 @@ std::vector<std::pair<std::string, ExtraSounds *> > Mod::getExtraSounds() const
  * Gets the list of external strings.
  * @return The list of external strings.
  */
-std::map<std::string, ExtraStrings *> Mod::getExtraStrings() const
+const std::map<std::string, ExtraStrings *> &Mod::getExtraStrings() const
 {
 	return _extraStrings;
 }
@@ -2629,7 +2639,7 @@ std::map<std::string, ExtraStrings *> Mod::getExtraStrings() const
  * Gets the list of StatStrings.
  * @return The list of StatStrings.
  */
-std::vector<StatString *> Mod::getStatStrings() const
+const std::vector<StatString *> &Mod::getStatStrings() const
 {
 	return _statStrings;
 }
@@ -2771,7 +2781,7 @@ void Mod::sortLists()
 /**
  * Gets the research-requirements for Psi-Lab (it's a cache for psiStrengthEval)
  */
-std::vector<std::string> Mod::getPsiRequirements() const
+const std::vector<std::string> &Mod::getPsiRequirements() const
 {
 	return _psiRequirements;
 }

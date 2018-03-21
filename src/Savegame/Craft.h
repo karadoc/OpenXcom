@@ -67,6 +67,8 @@ public:
 	~Craft();
 	/// Loads the craft from YAML.
 	void load(const YAML::Node& node, const Mod *mod, SavedGame *save);
+	/// Finishes loading the craft from YAML (called after all other XCOM craft are loaded too).
+	void finishLoading(const YAML::Node& node, SavedGame *save);
 	/// Saves the craft to YAML.
 	YAML::Node save() const;
 	/// Saves the craft's ID to YAML.
@@ -108,7 +110,7 @@ public:
 	/// Sets the auto patrol latitude.
 	void setLatitudeAuto(double lat);
 	/// Gets the craft's amount of weapons.
-	int getNumWeapons() const;
+	int getNumWeapons(bool onlyLoaded = false) const;
 	/// Gets the craft's amount of soldiers.
 	int getNumSoldiers() const;
 	/// Gets the craft's amount of equipment.
@@ -160,23 +162,25 @@ public:
 	/// Gets the craft's distance from its base.
 	double getDistanceFromBase() const;
 	/// Gets the craft's fuel consumption.
-	int getFuelConsumption() const;
+	int getFuelConsumption(int escortSpeed) const;
 	/// Gets the craft's minimum fuel limit.
 	int getFuelLimit() const;
 	/// Gets the craft's minimum fuel limit to go to a base.
 	int getFuelLimit(Base *base) const;
 	/// Returns the craft to its base.
 	void returnToBase();
+	/// Returns the crew to their base (using transfers).
+	void evacuateCrew(const Mod *mod);
 	/// Checks if a target is detected by the craft's radar.
 	bool detect(Target *target) const;
 	/// Checks if a target is inside the craft's radar range.
 	bool insideRadarRange(Target *target) const;
 	/// Handles craft logic.
-	void think();
+	bool think();
 	/// Does a craft full checkup.
 	void checkup();
 	/// Consumes the craft's fuel.
-	void consumeFuel();
+	void consumeFuel(int escortSpeed);
 	/// Calculates the time to repair
 	unsigned int calcRepairTime();
 	/// Calculates the time to refuel
@@ -231,6 +235,8 @@ public:
 	void unload(const Mod *mod);
 	/// Reuses a base item.
 	void reuseItem(const std::string &item);
+	/// Gets the attraction value of the craft for alien hunter-killers.
+	int getHunterKillerAttraction(int huntMode) const;
 };
 
 }

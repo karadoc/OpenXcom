@@ -27,6 +27,7 @@ namespace OpenXcom
 {
 
 class Mod;
+class Position;
 
 /**
  * Represents a specific type of base facility.
@@ -52,6 +53,11 @@ private:
 	int _prisonType;
 	int _rightClickActionType;
 	std::vector<VerticalLevel> _verticalLevels;
+	std::vector<std::string> _leavesBehindOnSell;
+	int _removalTime;
+	bool _canBeBuiltOver;
+	std::vector<std::string> _buildOverFacilities;
+	std::vector<Position> _storageTiles;
 public:
 	/// Creates a blank facility ruleset.
 	RuleBaseFacility(const std::string &type);
@@ -137,6 +143,16 @@ public:
 	int getRightClickActionType() const;
 	/// Gets the vertical levels for this facility map generation.
 	const std::vector<VerticalLevel> &getVerticalLevels() const;
+	/// Gets the facility left behind when this one is sold
+	const std::vector<std::string> &getLeavesBehindOnSell() const;
+	/// Gets how long facilities left behind when this one is sold should take to build
+	int getRemovalTime() const;
+	/// Gets whether or not this facility can be built over by other ones
+	bool getCanBeBuiltOver() const;
+	/// Gets which facilities are allowed to be replaced by this building
+	const std::vector<std::string> &getBuildOverFacilities() const;
+	/// Gets a list of which tiles are used to place items stored in this facility
+	const std::vector<Position> &getStorageTiles() const;
 };
 
 }

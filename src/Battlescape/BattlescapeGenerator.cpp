@@ -409,6 +409,38 @@ void BattlescapeGenerator::nextStage()
 	_terrain = _game->getMod()->getTerrain(ruleDeploy->getTerrains().at(pick), true);
 	_worldShade = ruleDeploy->getShade();
 
+	RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(ruleDeploy->getStartingCondition());
+	RuleStartingCondition *temp = _game->getMod()->getStartingCondition(_terrain->getStartingCondition());
+	if (temp != 0)
+	{
+		startingCondition = temp;
+	}
+	_save->setStartingConditionType(startingCondition != 0 ? startingCondition->getType() : "");
+
+	// starting conditions - armor transformation (no armor replacement! that is done only before the 1st stage)
+	if (startingCondition != 0)
+	{
+		for (std::vector<BattleUnit*>::iterator j = _save->getUnits()->begin(); j != _save->getUnits()->end(); ++j)
+		{
+			if ((*j)->getOriginalFaction() == FACTION_PLAYER && (*j)->getGeoscapeSoldier())
+			{
+				std::string transformedArmor = startingCondition->getArmorTransformation((*j)->getArmor()->getType());
+				if (!transformedArmor.empty())
+				{
+					// remember the original armor (i.e. only if there were no transformations in earlier stage(s)!)
+					if (!(*j)->getGeoscapeSoldier()->getTransformedArmor())
+					{
+						(*j)->getGeoscapeSoldier()->setTransformedArmor(_game->getMod()->getArmor((*j)->getArmor()->getType()));
+					}
+					// change soldier's armor (needed for inventory view!)
+					(*j)->getGeoscapeSoldier()->setArmor(_game->getMod()->getArmor(transformedArmor));
+					// change battleunit's armor
+					(*j)->updateArmorFromSoldier((*j)->getGeoscapeSoldier(), _game->getMod()->getArmor(transformedArmor), _save->getDepth(), _game->getMod()->getMaxViewDistance());
+				}
+			}
+		}
+	}
+
 	const std::vector<MapScript*> *script = _game->getMod()->getMapScript(_terrain->getScript());
 	if (_game->getMod()->getMapScript(ruleDeploy->getScript()))
 	{
@@ -672,7 +704,6 @@ void BattlescapeGenerator::run()
  */
 void BattlescapeGenerator::deployXCOM(const RuleStartingCondition *startingCondition)
 {
-	// we will need this during debriefing for some cleanup
 	_save->setStartingConditionType(startingCondition != 0 ? startingCondition->getType() : "");
 
 	RuleInventory *ground = _game->getMod()->getInventory("STR_GROUND", true);
@@ -815,18 +846,6 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition *startingCondi
 				_base->getStorageItems()->addItem(i->first, i->second);
 			}
 			else
-			{
-				for (int count = 0; count < i->second; count++)
-				{
-					_save->createItemForTile(i->first, _craftInventoryTile);
-				}
-			}
-		}
-		// add automagically spawned items
-		if (startingCondition != 0)
-		{
-			const std::map<std::string, int> *defaultItems = startingCondition->getDefaultItems();
-			for (std::map<std::string, int>::const_iterator i = defaultItems->begin(); i != defaultItems->end(); ++i)
 			{
 				for (int count = 0; count < i->second; count++)
 				{
@@ -2590,11 +2609,14 @@ void BattlescapeGenerator::generateBaseMap()
 	// add modules based on the base's layout
 	for (std::vector<BaseFacility*>::const_iterator i = _base->getFacilities()->begin(); i != _base->getFacilities()->end(); ++i)
 	{
-		if ((*i)->getBuildTime() == 0)
+		if ((*i)->getBuildTime() == 0 || (*i)->getIfHadPreviousFacility())
 		{
 			int num = 0;
 			int xLimit = (*i)->getX() + (*i)->getRules()->getSize() -1;
 			int yLimit = (*i)->getY() + (*i)->getRules()->getSize() -1;
+
+			// Do we use the normal method for placing items on the ground or an explicit definition?
+			bool storageCheckerboard = ((*i)->getRules()->getStorageTiles().size() == 0);
 
 			// If the facility lacks a verticalLevels ruleset definition, use this original code
 			if ((*i)->getRules()->getVerticalLevels().size() == 0)
@@ -2613,10 +2635,19 @@ void BattlescapeGenerator::generateBaseMap()
 					mapnum += num;
 					if (mapnum < 10) newname << 0;
 					newname << mapnum;
-					addBlock(x, y, _terrain->getMapBlock(newname.str()), true);
+					auto block = _terrain->getMapBlock(newname.str());
+					if (!block)
+					{
+						throw Exception("Map generator encountered an error: map block "
+							+ newname.str()
+							+ " is not defined in terrain "
+							+ _terrain->getName()
+							+ ".");
+					}
+					addBlock(x, y, block, true);
 					_drillMap[x][y] = MD_NONE;
 					num++;
-					if ((*i)->getRules()->getStorage() > 0)
+					if ((*i)->getRules()->getStorage() > 0 && storageCheckerboard)
 					{
 						int groundLevel;
 						for (groundLevel = _mapsize_z -1; groundLevel >= 0; --groundLevel)
@@ -2740,7 +2771,7 @@ void BattlescapeGenerator::generateBaseMap()
 					for (int x = (*i)->getX(); x <= xLimit; ++x)
 					{
 						_drillMap[x][y] = MD_NONE;
-						if ((*i)->getRules()->getStorage() > 0)
+						if ((*i)->getRules()->getStorage() > 0 && storageCheckerboard)
 						{
 							int groundLevel;
 							for (groundLevel = _mapsize_z -1; groundLevel >= 0; --groundLevel)
@@ -2778,6 +2809,45 @@ void BattlescapeGenerator::generateBaseMap()
 					}
 				}
 			}
+
+			// Extended handling for placing storage tiles by ruleset definition
+			if ((*i)->getRules()->getStorage() > 0 && !storageCheckerboard)
+			{
+				int x = (*i)->getX();
+				int y = (*i)->getY();
+
+				for (std::vector<Position>::const_iterator j = (*i)->getRules()->getStorageTiles().begin(); j != (*i)->getRules()->getStorageTiles().end(); ++j)
+				{
+					if (j->x < 0 || j->x / 10 > (*i)->getRules()->getSize()
+						|| j->y < 0 || j->y / 10 > (*i)->getRules()->getSize()
+						|| j->z < 0 || j->z > _mapsize_z)
+					{
+						Log(LOG_ERROR) << "Tile position " << (*j) << " is outside the facility " << (*i)->getRules()->getType() << ", skipping placing items there.";
+						continue;
+					}
+
+					Position tilePos = Position((x * 10) + j->x, (y * 10) + j->y, j->z);
+					if (!_save->getTile(tilePos))
+					{
+						Log(LOG_ERROR) << "Tile position " << tilePos << ", from the facility " << (*i)->getRules()->getType() << ", is outside the map; skipping placing items there.";
+						continue;
+					}
+
+					_save->getStorageSpace().push_back(tilePos);
+
+					if (!_craftInventoryTile) // just to be safe, make sure we have a craft inventory tile
+					{
+						_craftInventoryTile = _save->getTile(tilePos);
+					}
+				}
+
+				// Crash gracefully with some information before we spawn a map where no items could be placed.
+				if (_save->getStorageSpace().size() == 0)
+				{
+					throw Exception("Could not place items on given tiles in storage facility " + (*i)->getRules()->getType());
+				}
+			}
+
 			for (int x = (*i)->getX(); x <= xLimit; ++x)
 			{
 				_drillMap[x][yLimit] = MD_VERTICAL;
@@ -3270,6 +3340,13 @@ bool BattlescapeGenerator::addCraft(MapBlock *craftMap, MapScript *command, SDL_
 				}
 			}
 		}
+	}
+
+	if (!placed)
+	{
+		throw Exception("Map generator encountered an error: UFO or craft (MapBlock: "
+			+ craftMap->getName()
+			+ ") could not be placed on the map. You may try turning on 'save scumming' to work around this issue.");
 	}
 
 	return placed;

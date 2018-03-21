@@ -20,6 +20,7 @@ set ( basescape_src
   Basescape/CraftWeaponsState.cpp
   Basescape/CraftsState.cpp
   Basescape/DismantleFacilityState.cpp
+  Basescape/GlobalResearchState.cpp
   Basescape/ManageAlienContainmentState.cpp
   Basescape/ManufactureDependenciesTreeState.cpp
   Basescape/ManufactureInfoState.cpp
@@ -369,6 +370,7 @@ set ( ufopedia_src
   Ufopaedia/ArticleStateTextImage.cpp
   Ufopaedia/ArticleStateUfo.cpp
   Ufopaedia/ArticleStateVehicle.cpp
+  Ufopaedia/StatsForNerdsState.cpp
   Ufopaedia/Ufopaedia.cpp
   Ufopaedia/UfopaediaSelectState.cpp
   Ufopaedia/UfopaediaStartState.cpp

@@ -55,8 +55,9 @@ private:
 	Text *_txtAmmo[RuleCraft::WeaponMax], *_txtDistance, *_txtStatus, *_txtInterceptionNumber;
 	Craft *_craft;
 	Ufo *_ufo;
+	bool _ufoIsAttacking, _disableDisengage, _disableCautious;
 	int _timeout, _currentDist, _targetDist, _weaponFireInterval[RuleCraft::WeaponMax], _weaponFireCountdown[RuleCraft::WeaponMax];
-	bool _end, _endUfoHandled, _endCraftHandled, _ufoBreakingOff, _destroyUfo, _destroyCraft, _weaponEnabled[RuleCraft::WeaponMax];
+	bool _end, _endUfoHandled, _endCraftHandled, _ufoBreakingOff, _hunterKillerBreakingOff, _destroyUfo, _destroyCraft, _weaponEnabled[RuleCraft::WeaponMax];
 	bool _minimized, _endDogfight, _animatingHit, _waitForPoly, _waitForAltitude;
 	std::vector<CraftWeaponProjectile*> _projectiles;
 	static const int _ufoBlobs[8][13][13];
@@ -75,9 +76,11 @@ private:
 
 public:
 	/// Creates the Dogfight state.
-	DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo);
+	DogfightState(GeoscapeState *state, Craft *craft, Ufo *ufo, bool ufoIsAttacking = false);
 	/// Cleans up the Dogfight state.
 	~DogfightState();
+	/// Returns true if this is a hunter-killer dogfight.
+	bool isUfoAttacking() const;
 	/// Runs the timers.
 	void think();
 	/// Animates the window.
@@ -86,14 +89,6 @@ public:
 	void update();
 	// Fires the weapons.
 	void fireWeapon(int i);
-	// Fires the first weapon.
-	void fireWeapon1();
-	// Fires the second weapon.
-	void fireWeapon2();
-	// Fires the third weapon.
-	void fireWeapon3();
-	// Fires the fourth weapon.
-	void fireWeapon4();
 	// Fires UFO weapon.
 	void ufoFireWeapon();
 	// Sets the craft to minimum distance.

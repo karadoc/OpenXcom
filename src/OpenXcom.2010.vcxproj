@@ -243,6 +243,7 @@
     <ClCompile Include="Basescape\CraftsState.cpp" />
     <ClCompile Include="Basescape\CraftWeaponsState.cpp" />
     <ClCompile Include="Basescape\DismantleFacilityState.cpp" />
+    <ClCompile Include="Basescape\GlobalResearchState.cpp" />
     <ClCompile Include="Basescape\ManageAlienContainmentState.cpp" />
     <ClCompile Include="Basescape\ManufactureDependenciesTreeState.cpp" />
     <ClCompile Include="Basescape\ManufactureState.cpp" />
@@ -576,6 +577,7 @@
     <ClCompile Include="Ufopaedia\ArticleStateTFTDVehicle.cpp" />
     <ClCompile Include="Ufopaedia\ArticleStateUfo.cpp" />
     <ClCompile Include="Ufopaedia\ArticleStateVehicle.cpp" />
+    <ClCompile Include="Ufopaedia\StatsForNerdsState.cpp" />
     <ClCompile Include="Ufopaedia\Ufopaedia.cpp" />
     <ClCompile Include="Ufopaedia\UfopaediaSelectState.cpp" />
     <ClCompile Include="Ufopaedia\UfopaediaStartState.cpp" />
@@ -597,6 +599,7 @@
     <ClInclude Include="Basescape\CraftsState.h" />
     <ClInclude Include="Basescape\CraftWeaponsState.h" />
     <ClInclude Include="Basescape\DismantleFacilityState.h" />
+    <ClInclude Include="Basescape\GlobalResearchState.h" />
     <ClInclude Include="Basescape\ManufactureDependenciesTreeState.h" />
     <ClInclude Include="Basescape\NewManufactureListState.h" />
     <ClInclude Include="Basescape\ManageAlienContainmentState.h" />
@@ -941,6 +944,7 @@
     <ClInclude Include="Ufopaedia\ArticleStateTFTDVehicle.h" />
     <ClInclude Include="Ufopaedia\ArticleStateUfo.h" />
     <ClInclude Include="Ufopaedia\ArticleStateVehicle.h" />
+    <ClInclude Include="Ufopaedia\StatsForNerdsState.h" />
     <ClInclude Include="Ufopaedia\Ufopaedia.h" />
     <ClInclude Include="Ufopaedia\UfopaediaSelectState.h" />
     <ClInclude Include="Ufopaedia\UfopaediaStartState.h" />

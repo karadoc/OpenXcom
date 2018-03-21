@@ -155,6 +155,7 @@ private:
 	int _costEngineer, _costScientist, _timePersonnel, _initialFunding;
 	int _aiUseDelayBlaster, _aiUseDelayFirearm, _aiUseDelayGrenade, _aiUseDelayMelee, _aiUseDelayPsionic;
 	int _aiFireChoiceIntelCoeff, _aiFireChoiceAggroCoeff;
+	bool _aiExtendedFireModeChoice, _aiRespectMaxRange;
 	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor, _minReactionAccuracy;
 	int _chanceToStopRetaliation;
 	int _kneelBonusGlobal, _oneHandedPenaltyGlobal;
@@ -164,6 +165,9 @@ private:
 	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
 	int _ufoGlancingHitThreshold, _ufoBeamWidthParameter;
 	int _ufoTractorBeamSizeModifiers[5];
+	int _escortRange;
+	bool _escortsJoinFightAgainstHK;
+	int _crewEmergencyEvacuationSurvivalChance, _pilotsEmergencyEvacuationSurvivalChance;
 	int _soldiersPerSergeant, _soldiersPerCaptain, _soldiersPerColonel, _soldiersPerCommander;
 	int _pilotAccuracyZeroPoint, _pilotAccuracyRange, _pilotReactionsZeroPoint, _pilotReactionsRange;
 	int _pilotBraveryThresholds[3];
@@ -175,6 +179,7 @@ private:
 	std::string _fontName, _finalResearch, _psiUnlockResearch;
 	YAML::Node _startingBase;
 	GameTime _startingTime;
+	int _startingDifficulty;
 	int _baseDefenseMapFromLocation;
 	std::map<int, std::string> _missionRatings, _monthlyRatings;
 	std::map<std::string, std::string> _fixedUserOptions;
@@ -229,8 +234,6 @@ private:
 	void modResources();
 	/// Sorts all our lists according to their weight.
 	void sortLists();
-
-	void exportResources();
 public:
 	static int DOOR_OPEN;
 	static int SLIDING_DOOR_OPEN;
@@ -430,6 +433,10 @@ public:
 	int getAIFireChoiceIntelCoeff() const {return _aiFireChoiceIntelCoeff;}
 	/// Gets how much AI aggression should be used to determine firing mode for sniping.
 	int getAIFireChoiceAggroCoeff() const {return _aiFireChoiceAggroCoeff;}
+	/// Gets whether or not to use extended firing mode scoring for determining which attack the AI should use
+	bool getAIExtendedFireModeChoice() const {return _aiExtendedFireModeChoice;}
+	/// Gets whether or not the AI should try to shoot beyond a weapon's max range, true = don't shoot if you can't
+	bool getAIRespectMaxRange() const {return _aiRespectMaxRange;}
 	/// Gets maximum supported lookVariant (0-15)
 	int getMaxLookVariant() const  {return abs(_maxLookVariant) % 16;}
 	/// Gets the threshold for too much smoke (vanilla default = 10).
@@ -472,6 +479,14 @@ public:
 	int getUfoBeamWidthParameter() const { return _ufoBeamWidthParameter; }
 	/// Gets the modifier to a tractor beam's power based on a ufo's size
 	int getUfoTractorBeamSizeModifier(int ufoSize) const { return _ufoTractorBeamSizeModifiers[ufoSize]; }
+	/// Gets the escort range
+	double getEscortRange() const;
+	/// Should escorts join the fight against HK (automatically)? Or is only fighting one-on-one allowed?
+	int getEscortsJoinFightAgainstHK() const { return _escortsJoinFightAgainstHK; }
+	/// Gets the crew emergency evacuation survival chance
+	int getCrewEmergencyEvacuationSurvivalChance() const { return _crewEmergencyEvacuationSurvivalChance; }
+	/// Gets the pilots emergency evacuation survival chance
+	int getPilotsEmergencyEvacuationSurvivalChance() const { return _pilotsEmergencyEvacuationSurvivalChance; }
 	/// Gets how many soldiers are needed for one sergeant promotion
 	int getSoldiersPerSergeant() const { return _soldiersPerSergeant; }
 	/// Gets how many soldiers are needed for one captain promotion
@@ -530,20 +545,22 @@ public:
 	const YAML::Node &getStartingBase() const;
 	/// Gets the game starting time.
 	const GameTime &getStartingTime() const;
+	/// Gets the game starting difficulty.
+	int getStartingDifficulty() const { return _startingDifficulty; }
 	/// Gets an MCDPatch.
-	MCDPatch *getMCDPatch(const std::string &name) const;
+	MCDPatch *getMCDPatch(const std::string &id) const;
 	/// Gets the list of external Sprites.
-	std::vector<std::pair<std::string, ExtraSprites *> > getExtraSprites() const;
+	const std::vector<std::pair<std::string, ExtraSprites *> > &getExtraSprites() const;
 	/// Gets the list of custom palettes.
 	const std::vector<std::string> &getCustomPalettes() const;
 	/// Gets the list of external Sounds.
-	std::vector<std::pair<std::string, ExtraSounds *> > getExtraSounds() const;
+	const std::vector<std::pair<std::string, ExtraSounds *> > &getExtraSounds() const;
 	/// Gets the list of external Strings.
-	std::map<std::string, ExtraStrings *> getExtraStrings() const;
+	const std::map<std::string, ExtraStrings *> &getExtraStrings() const;
 	/// Gets the list of StatStrings.
-	std::vector<StatString *> getStatStrings() const;
+	const std::vector<StatString *> &getStatStrings() const;
 	/// Gets the research-requirements for Psi-Lab (it's a cache for psiStrengthEval)
-	std::vector<std::string> getPsiRequirements() const;
+	const std::vector<std::string> &getPsiRequirements() const;
 	/// Returns the sorted list of inventories.
 	const std::vector<std::string> &getInvsList() const;
 	/// Generates a new soldier.

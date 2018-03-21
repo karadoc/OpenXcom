@@ -20,6 +20,7 @@
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <climits>
 #include <functional>
 #include "../Engine/RNG.h"
 #include "../Engine/Game.h"
@@ -54,6 +55,7 @@
 #include "../Basescape/BasescapeState.h"
 #include "../Basescape/SellState.h"
 #include "../Basescape/TechTreeViewerState.h"
+#include "../Basescape/GlobalResearchState.h"
 #include "../Menu/CutsceneState.h"
 #include "../Menu/ErrorMessageState.h"
 #include "GraphsState.h"
@@ -241,6 +243,7 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_btnIntercept->onKeyboardPress((ActionHandler)&GeoscapeState::btnUfoTrackerClick, Options::keyGeoUfoTracker);
 	_btnIntercept->onKeyboardPress((ActionHandler)&GeoscapeState::btnTechTreeViewerClick, Options::keyGeoTechTreeViewer);
 	_btnIntercept->onKeyboardPress((ActionHandler)&GeoscapeState::btnSelectMusicTrackClick, Options::keySelectMusicTrack);
+	_btnIntercept->onKeyboardPress((ActionHandler)&GeoscapeState::btnGlobalResearchClick, Options::keyGeoGlobalResearch);
 	_btnIntercept->setGeoscapeButton(true);
 
 	_btnBases->initText(_game->getMod()->getFont("FONT_GEO_BIG"), _game->getMod()->getFont("FONT_GEO_SMALL"), _game->getLanguage());
@@ -472,6 +475,7 @@ void GeoscapeState::handle(Action *action)
 					for (auto& facility : *base->getFacilities())
 					{
 						facility->setBuildTime(0);
+						facility->setIfHadPreviousFacility(false);
 					}
 				}
 			}
@@ -783,6 +787,12 @@ void GeoscapeState::timeAdvance()
  */
 void GeoscapeState::time5Seconds()
 {
+	// If in "slow mode", handle UFO hunting and escorting logic every 5 seconds, not only every 10 minutes
+	if (_timeSpeed == _btn5Secs || _timeSpeed == _btn1Min)
+	{
+		ufoHuntingAndEscorting();
+	}
+
 	// Game over if there are no more bases.
 	if (_game->getSavedGame()->getBases()->empty())
 	{
@@ -799,18 +809,101 @@ void GeoscapeState::time5Seconds()
 	}
 
 	// Handle UFO logic
+	bool ufoIsAttacking = false;
 	for (std::vector<Ufo*>::iterator i = _game->getSavedGame()->getUfos()->begin(); i != _game->getSavedGame()->getUfos()->end(); ++i)
 	{
 		switch ((*i)->getStatus())
 		{
 		case Ufo::FLYING:
 			(*i)->think();
-			if ((*i)->reachedDestination())
+			if ((*i)->reachedDestination() && !(*i)->isEscorting())
 			{
+				Craft* c = dynamic_cast<Craft*>((*i)->getDestination());
+				if (c != 0 && !c->isDestroyed() && (*i)->isHunting())
+				{
+					// Check if some other HK already attacked before us (at the very same moment)
+					int hkDogfights = 0;
+					for (auto f : _dogfights) if (f->isUfoAttacking()) { hkDogfights++; }
+					for (auto g : _dogfightsToBeStarted) if (g->isUfoAttacking()) { hkDogfights++; }
+
+					// If yes, wait... not more than 1 HK interception allowed at a time.
+					if (hkDogfights >= 1)
+					{
+						continue;
+					}
+
+					// If not, interrupt all other (regular) interceptions to prevent a dead-lock (and other possible side effects)
+					std::list<DogfightState*>::iterator it = _dogfights.begin();
+					for (; it != _dogfights.end();)
+					{
+						delete *it;
+						it = _dogfights.erase(it);
+					}
+					for (it = _dogfightsToBeStarted.begin(); it != _dogfightsToBeStarted.end();)
+					{
+						delete *it;
+						it = _dogfightsToBeStarted.erase(it);
+					}
+					_minimizedDogfights = 0;
+
+					// Start the dogfight
+					{
+						// Main target
+						_dogfightsToBeStarted.push_back(new DogfightState(this, c, *i, true));
+
+						// Start fighting escorts and other craft as well (if they are in escort range)
+						if (_game->getMod()->getEscortsJoinFightAgainstHK())
+						{
+							int secondaryTargets = 0;
+							for (std::vector<Base*>::iterator bi = _game->getSavedGame()->getBases()->begin(); bi != _game->getSavedGame()->getBases()->end(); ++bi)
+							{
+								for (std::vector<Craft*>::iterator ci = (*bi)->getCrafts()->begin(); ci != (*bi)->getCrafts()->end(); ++ci)
+								{
+									// craft is flying (i.e. not in base)
+									if ((*ci) != c && (*ci)->getStatus() == "STR_OUT" && !(*ci)->isDestroyed())
+									{
+										// craft is close enough and has at least one loaded weapon
+										if ((*ci)->getNumWeapons(true) > 0 && (*ci)->getDistance(c) < _game->getMod()->getEscortRange())
+										{
+											// only up to 4 dogfights = 1 main + 3 secondary
+											if (secondaryTargets < 3)
+											{
+												// Note: push_front() is used so that main target is attacked first
+												_dogfightsToBeStarted.push_front(new DogfightState(this, (*ci), *i, true));
+												secondaryTargets++;
+											}
+										}
+									}
+								}
+							}
+						}
+
+						if (!_dogfightStartTimer->isRunning())
+						{
+							_pause = true;
+							timerReset();
+							_globe->center(c->getLongitude(), c->getLatitude());
+							startDogfight();
+							_dogfightStartTimer->start();
+						}
+						_game->getMod()->playMusic("GMINTER");
+
+						// Don't process certain craft logic (moving and reaching destination)
+						ufoIsAttacking = true;
+					}
+					// Don't handle other logic for this UFO, just continue with the next one
+					continue;
+				}
+
 				size_t count = _game->getSavedGame()->getMissionSites()->size();
 				AlienMission *mission = (*i)->getMission();
 				bool detected = (*i)->getDetected();
 				mission->ufoReachedWaypoint(**i, *_game, *_globe);
+				if (Options::ufoLandingAlert && (*i)->getStatus() == Ufo::LANDED && (*i)->getDetected() && (*i)->getLandId() != 0)
+				{
+					std::wstring msg = tr("STR_UFO_HAS_LANDED").arg((*i)->getName(_game->getLanguage()));
+					popup(new CraftErrorState(this, msg));
+				}
 				if (detected != (*i)->getDetected() && !(*i)->getFollowers()->empty())
 				{
 					if (!((*i)->getTrajectory().getID() == UfoTrajectory::RETALIATION_ASSAULT_RUN && (*i)->getStatus() == Ufo::LANDED))
@@ -841,26 +934,26 @@ void GeoscapeState::time5Seconds()
 						return;
 					}
 				}
-				// Init UFO shields
-				if ((*i)->getShield() == -1)
+			}
+			// Init UFO shields
+			if ((*i)->getShield() == -1)
+			{
+				(*i)->setShield((*i)->getCraftStats().shieldCapacity);
+			}
+			// Recharge UFO shields
+			else if ((*i)->getShield() < (*i)->getCraftStats().shieldCapacity)
+			{
+				int shieldRechargeInGeoscape = (*i)->getCraftStats().shieldRechargeInGeoscape;
+				if (shieldRechargeInGeoscape == -1)
 				{
 					(*i)->setShield((*i)->getCraftStats().shieldCapacity);
 				}
-				// Recharge UFO shields
-				else if ((*i)->getShield() < (*i)->getCraftStats().shieldCapacity)
+				else if (shieldRechargeInGeoscape > 0)
 				{
-					int shieldRechargeInGeoscape = (*i)->getCraftStats().shieldRechargeInGeoscape;
-					if (shieldRechargeInGeoscape == -1)
-					{
-						(*i)->setShield((*i)->getCraftStats().shieldCapacity);
-					}
-					else if (shieldRechargeInGeoscape > 0)
-					{
-						int total = shieldRechargeInGeoscape / 100;
-						if (RNG::percent(shieldRechargeInGeoscape % 100))
-							total++;
-						(*i)->setShield((*i)->getShield() + total);
-					}
+					int total = shieldRechargeInGeoscape / 100;
+					if (RNG::percent(shieldRechargeInGeoscape % 100))
+						total++;
+					(*i)->setShield((*i)->getShield() + total);
 				}
 			}
 			break;
@@ -929,6 +1022,7 @@ void GeoscapeState::time5Seconds()
 						}
 					}
 				}
+				_game->getSavedGame()->stopHuntingXcomCraft((*j)); // craft destroyed in dogfight
 				delete *j;
 				j = (*i)->getCrafts()->erase(j);
 				continue;
@@ -972,10 +1066,17 @@ void GeoscapeState::time5Seconds()
 				}
 			}
 
-			(*j)->think();
+			if (!ufoIsAttacking)
+			{
+				bool returnedToBase = (*j)->think();
+				if (returnedToBase)
+				{
+					_game->getSavedGame()->stopHuntingXcomCraft((*j)); // hiding in the base is good enough, obviously
+				}
+			}
 
 			// Handle craft shield recharge
-			if ((*j)->getShield() < (*j)->getCraftStats().shieldCapacity)
+			if (!ufoIsAttacking && (*j)->getShield() < (*j)->getCraftStats().shieldCapacity)
 			{
 				int shieldRechargeInGeoscape = (*j)->getCraftStats().shieldRechargeInGeoscape;
 				if (shieldRechargeInGeoscape == -1)
@@ -991,19 +1092,20 @@ void GeoscapeState::time5Seconds()
 				}
 			}
 
-			if ((*j)->reachedDestination())
+			if (!ufoIsAttacking && (*j)->reachedDestination())
 			{
 				Ufo* u = dynamic_cast<Ufo*>((*j)->getDestination());
 				Waypoint *w = dynamic_cast<Waypoint*>((*j)->getDestination());
 				MissionSite* m = dynamic_cast<MissionSite*>((*j)->getDestination());
 				AlienBase* b = dynamic_cast<AlienBase*>((*j)->getDestination());
+				Craft* x = dynamic_cast<Craft*>((*j)->getDestination());
 				if (u != 0)
 				{
 					switch (u->getStatus())
 					{
 					case Ufo::FLYING:
-						// Not more than 4 interceptions at a time.
-						if (_dogfights.size() + _dogfightsToBeStarted.size() >= 4)
+						// Not more than 4 interceptions at a time... but hunter-killers are always allowed
+						if (!u->isHunterKiller() && _dogfights.size() + _dogfightsToBeStarted.size() >= 4)
 						{
 							++j;
 							continue;
@@ -1011,19 +1113,85 @@ void GeoscapeState::time5Seconds()
 						// Can we actually fight it
 						if (!(*j)->isInDogfight() && !(*j)->getDistance(u))
 						{
-							_dogfightsToBeStarted.push_back(new DogfightState(this, (*j), u));
-							if ((*j)->getRules()->isWaterOnly() && u->getAltitudeInt() > (*j)->getRules()->getMaxAltitude())
+							if (u->isHunterKiller())
 							{
-								popup(new DogfightErrorState((*j), tr("STR_UNABLE_TO_ENGAGE_DEPTH")));
-								_dogfightsToBeStarted.back()->setMinimized(true);
-								_dogfightsToBeStarted.back()->setWaitForAltitude(true);
+								// Check if some other HK already attacked before us (at the very same moment)
+								int hkDogfights = 0;
+								for (auto f : _dogfights) if (f->isUfoAttacking()) { hkDogfights++; }
+								for (auto g : _dogfightsToBeStarted) if (g->isUfoAttacking()) { hkDogfights++; }
+
+								// If yes, wait... not more than 1 HK interception allowed at a time.
+								if (hkDogfights >= 1)
+								{
+									++j;
+									continue;
+								}
+
+								// If not, interrupt all other (regular) interceptions to prevent a dead-lock (and other possible side effects)
+								std::list<DogfightState*>::iterator it = _dogfights.begin();
+								for (; it != _dogfights.end();)
+								{
+									delete *it;
+									it = _dogfights.erase(it);
+								}
+								for (it = _dogfightsToBeStarted.begin(); it != _dogfightsToBeStarted.end();)
+								{
+									delete *it;
+									it = _dogfightsToBeStarted.erase(it);
+								}
+								_minimizedDogfights = 0;
+
+								// Don't process certain craft logic (moving and reaching destination)
+								ufoIsAttacking = true;
 							}
-							else if ((*j)->getRules()->isWaterOnly() && !_globe->insideLand((*j)->getLongitude(), (*j)->getLatitude()))
+
+							// Main target
+							_dogfightsToBeStarted.push_back(new DogfightState(this, (*j), u, u->isHunterKiller()));
+
+							if (u->isHunterKiller() && _game->getMod()->getEscortsJoinFightAgainstHK())
 							{
-								popup(new DogfightErrorState((*j), tr("STR_UNABLE_TO_ENGAGE_AIRBORNE")));
-								_dogfightsToBeStarted.back()->setMinimized(true);
-								_dogfightsToBeStarted.back()->setWaitForPoly(true);
+								// Start fighting escorts and other craft as well (if they are in escort range)
+								int secondaryTargets = 0;
+								for (std::vector<Base*>::iterator bi = _game->getSavedGame()->getBases()->begin(); bi != _game->getSavedGame()->getBases()->end(); ++bi)
+								{
+									for (std::vector<Craft*>::iterator ci = (*bi)->getCrafts()->begin(); ci != (*bi)->getCrafts()->end(); ++ci)
+									{
+										// craft is flying (i.e. not in base)
+										if ((*ci) != (*j) && (*ci)->getStatus() == "STR_OUT" && !(*ci)->isDestroyed())
+										{
+											// craft is close enough and has at least one loaded weapon
+											if ((*ci)->getNumWeapons(true) > 0 && (*ci)->getDistance((*j)) < _game->getMod()->getEscortRange())
+											{
+												// only up to 4 dogfights = 1 main + 3 secondary
+												if (secondaryTargets < 3)
+												{
+													// Note: push_front() is used so that main target is attacked first
+													_dogfightsToBeStarted.push_front(new DogfightState(this, (*ci), u, u->isHunterKiller()));
+													secondaryTargets++;
+												}
+											}
+										}
+									}
+								}
 							}
+
+							// Ignore these restrictions when fighting against a HK, otherwise it's very easy to avoid being attacked
+							if (!u->isHunterKiller())
+							{
+								if ((*j)->getRules()->isWaterOnly() && u->getAltitudeInt() > (*j)->getRules()->getMaxAltitude())
+								{
+									popup(new DogfightErrorState((*j), tr("STR_UNABLE_TO_ENGAGE_DEPTH")));
+									_dogfightsToBeStarted.back()->setMinimized(true);
+									_dogfightsToBeStarted.back()->setWaitForAltitude(true);
+								}
+								else if ((*j)->getRules()->isWaterOnly() && !_globe->insideLand((*j)->getLongitude(), (*j)->getLatitude()))
+								{
+									popup(new DogfightErrorState((*j), tr("STR_UNABLE_TO_ENGAGE_AIRBORNE")));
+									_dogfightsToBeStarted.back()->setMinimized(true);
+									_dogfightsToBeStarted.back()->setWaitForPoly(true);
+								}
+							}
+
 							if (!_dogfightStartTimer->isRunning())
 							{
 								_pause = true;
@@ -1095,6 +1263,13 @@ void GeoscapeState::time5Seconds()
 						{
 							(*j)->returnToBase();
 						}
+					}
+				}
+				else if (x != 0)
+				{
+					if (x->getStatus() != "STR_OUT" || x->isDestroyed())
+					{
+						(*j)->returnToBase();
 					}
 				}
 			}
@@ -1216,7 +1391,19 @@ void GeoscapeState::time10Minutes()
 		{
 			if ((*j)->getStatus() == "STR_OUT")
 			{
-				(*j)->consumeFuel();
+				int escortSpeed = 0;
+				if (Options::friendlyCraftEscort)
+				{
+					Craft *escortee = dynamic_cast<Craft*>((*j)->getDestination());
+					if (escortee != 0)
+					{
+						if ((*j)->getDistance(escortee) < _game->getMod()->getEscortRange())
+						{
+							escortSpeed = escortee->getSpeed();
+						}
+					}
+				}
+				(*j)->consumeFuel(escortSpeed);
 				if (!(*j)->getLowFuel() && (*j)->getFuel() <= (*j)->getFuelLimit())
 				{
 					(*j)->setLowFuel(true);
@@ -1227,7 +1414,7 @@ void GeoscapeState::time10Minutes()
 					}
 				}
 
-				if ((*j)->getDestination() == 0)
+				if ((*j)->getDestination() == 0 && (*j)->getCraftStats().sightRange > 0)
 				{
 					double range = ((*j)->getCraftStats().sightRange * (1 / 60.0) * (M_PI / 180));
 					for (std::vector<AlienBase*>::iterator b = _game->getSavedGame()->getAlienBases()->begin(); b != _game->getSavedGame()->getAlienBases()->end(); b++)
@@ -1273,6 +1460,169 @@ void GeoscapeState::time10Minutes()
 		}
 		// Now mark the bases as discovered.
 		std::for_each(discovered.begin(), discovered.end(), SetRetaliationTarget());
+	}
+
+	// Handle alien bases detecting xcom craft and generating hunt missions
+	baseHunting();
+
+	// Handle UFO re-targeting (i.e. hunting and escorting) logic
+	ufoHuntingAndEscorting();
+}
+
+void GeoscapeState::ufoHuntingAndEscorting()
+{
+	for (std::vector<Ufo*>::iterator ufo = _game->getSavedGame()->getUfos()->begin(); ufo != _game->getSavedGame()->getUfos()->end(); ++ufo)
+	{
+		if ((*ufo)->isHunterKiller() && (*ufo)->getStatus() == Ufo::FLYING)
+		{
+			// current target and attraction
+			int newAttraction = INT_MAX;
+			Craft *newTarget = 0;
+			Craft *originalTarget = 0;
+			if ((*ufo)->isHunting())
+			{
+				originalTarget = (*ufo)->getTargetedXcomCraft();
+			}
+			if (originalTarget)
+			{
+				if ((*ufo)->insideRadarRange(originalTarget))
+				{
+					newTarget = originalTarget;
+					newAttraction = newTarget->getHunterKillerAttraction((*ufo)->getHuntMode());
+				}
+			}
+			// look for more attractive target
+			for (std::vector<Base*>::iterator base = _game->getSavedGame()->getBases()->begin(); base != _game->getSavedGame()->getBases()->end(); ++base)
+			{
+				for (std::vector<Craft*>::iterator craft = (*base)->getCrafts()->begin(); craft != (*base)->getCrafts()->end(); ++craft)
+				{
+					if ((*craft)->getStatus() == "STR_OUT")
+					{
+						int tmpAttraction = (*craft)->getHunterKillerAttraction((*ufo)->getHuntMode());
+						if (tmpAttraction < newAttraction && (*ufo)->insideRadarRange(*craft))
+						{
+							newTarget = (*craft);
+							newAttraction = tmpAttraction;
+						}
+					}
+				}
+			}
+			if (newTarget)
+			{
+				if (newTarget != originalTarget)
+				{
+					// set new target
+					(*ufo)->setTargetedXcomCraft(newTarget);
+					// TODO: rethink: always reveal the hunting UFO (even outside of radar range?)
+					(*ufo)->setDetected(true);
+					if ((*ufo)->getId() == 0)
+					{
+						(*ufo)->setId(_game->getSavedGame()->getId("STR_UFO"));
+					}
+					// inform the player
+					std::wstring msg = tr("STR_UFO_STARTED_HUNTING")
+						.arg((*ufo)->getName(_game->getLanguage()))
+						.arg(newTarget->getName(_game->getLanguage()));
+					popup(new CraftErrorState(this, msg));
+				}
+			}
+			else if (originalTarget)
+			{
+				// stop hunting
+				(*ufo)->resetOriginalDestination(originalTarget);
+			}
+
+			// If we are not preoccupied by hunting, let's see if there is still anyone left to escort
+			if ((*ufo)->isEscort() && !(*ufo)->isHunting() && !(*ufo)->isEscorting())
+			{
+				// Find a UFO to escort
+				for (std::vector<Ufo*>::const_iterator t = _game->getSavedGame()->getUfos()->begin(); t != _game->getSavedGame()->getUfos()->end(); ++t)
+				{
+					// From the same mission
+					if ((*t)->getMission()->getId() == (*ufo)->getMission()->getId())
+					{
+						// But not another hunter-killer, we escort only normal UFOs
+						if (!(*t)->isHunterKiller())
+						{
+							(*ufo)->setEscortedUfo((*t));
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void GeoscapeState::baseHunting()
+{
+	for (std::vector<AlienBase*>::iterator ab = _game->getSavedGame()->getAlienBases()->begin(); ab != _game->getSavedGame()->getAlienBases()->end(); ++ab)
+	{
+		if ((*ab)->getDeployment()->getBaseDetectionRange() > 0)
+		{
+			// Increase counter by 10 minutes
+			(*ab)->setMinutesSinceLastHuntMissionGeneration((*ab)->getMinutesSinceLastHuntMissionGeneration() + 10);
+
+			// Check counter
+			if ((*ab)->getMinutesSinceLastHuntMissionGeneration() >= (*ab)->getDeployment()->getHuntMissionMaxFrequency())
+			{
+				// Look for nearby craft
+				bool started = false;
+				for (std::vector<Base*>::iterator bi = _game->getSavedGame()->getBases()->begin(); bi != _game->getSavedGame()->getBases()->end(); ++bi)
+				{
+					for (std::vector<Craft*>::iterator ci = (*bi)->getCrafts()->begin(); ci != (*bi)->getCrafts()->end(); ++ci)
+					{
+						// Craft is flying (i.e. not in base)
+						if ((*ci)->getStatus() == "STR_OUT" && !(*ci)->isDestroyed())
+						{
+							// Craft is close enough and RNG is in our favour
+							if ((*ci)->getDistance((*ab)) < (*ab)->getDeployment()->getBaseDetectionRange() && RNG::percent((*ab)->getDeployment()->getBaseDetectionChance()))
+							{
+								// Generate a hunt mission
+								auto mission = (*ab)->getDeployment()->generateHuntMission(_game->getSavedGame()->getMonthsPassed());
+								if (_game->getMod()->getAlienMission(mission))
+								{
+									// Spawn hunt mission for this base.
+									const RuleAlienMission &rule = *_game->getMod()->getAlienMission(mission);
+									AlienMission *mission = new AlienMission(rule);
+									mission->setRegion(_game->getSavedGame()->locateRegion(*(*ab))->getRules()->getType(), *_game->getMod());
+									mission->setId(_game->getSavedGame()->getId("ALIEN_MISSIONS"));
+									mission->setRace((*ab)->getAlienRace());
+									mission->setAlienBase((*ab));
+									int targetZone = -1;
+									if (mission->getRules().getObjective() == OBJECTIVE_SITE)
+									{
+										int missionZone = mission->getRules().getSpawnZone();
+										RuleRegion *regionRules = _game->getMod()->getRegion(mission->getRegion());
+										const std::vector<MissionArea> areas = regionRules->getMissionZones().at(missionZone).areas;
+										if (!areas.empty())
+										{
+											targetZone = RNG::generate(0, areas.size() - 1);
+										}
+									}
+									mission->setMissionSiteZone(targetZone);
+									mission->start();
+									_game->getSavedGame()->getAlienMissions().push_back(mission);
+
+									// Start immediately
+									mission->think(*_game, *_globe);
+
+									// Reset counter
+									(*ab)->setMinutesSinceLastHuntMissionGeneration(0);
+									started = true;
+									break;
+								}
+								else if (mission != "")
+								{
+									throw Exception("Alien Base tried to generate undefined hunt mission: " + mission);
+								}
+							}
+						}
+					}
+					if (started) break;
+				}
+			}
+		}
 	}
 }
 
@@ -1583,7 +1933,8 @@ void GeoscapeState::time30Minutes()
 						}
 					}
 				}
-				if (!detected)
+				// TODO: rethink: hunting UFOs stay visible even outside of radar range?
+				if (!detected && !(*u)->isHunting())
 				{
 					(*u)->setDetected(false);
 					(*u)->setHyperDetected(false);
@@ -1708,7 +2059,7 @@ public:
 	/// Store rules and game data references for later use.
 	GenerateSupplyMission(const Mod &mod, SavedGame &save) : _mod(mod), _save(save) { /* Empty by design */ }
 	/// Check and spawn mission.
-	void operator()(const AlienBase *base) const;
+	void operator()(AlienBase *base) const;
 private:
 	const Mod &_mod;
 	SavedGame &_save;
@@ -1719,11 +2070,11 @@ private:
  * There is a 6/101 chance of the mission spawning.
  * @param base A pointer to the alien base.
  */
-void GenerateSupplyMission::operator()(const AlienBase *base) const
+void GenerateSupplyMission::operator()(AlienBase *base) const
 {
 	if (_mod.getAlienMission(base->getDeployment()->getGenMissionType()))
 	{
-		if (RNG::percent(base->getDeployment()->getGenMissionFrequency()))
+		if (base->getGenMissionCount() < base->getDeployment()->getGenMissionLimit() && RNG::percent(base->getDeployment()->getGenMissionFrequency()))
 		{
 			//Spawn supply mission for this base.
 			const RuleAlienMission &rule = *_mod.getAlienMission(base->getDeployment()->getGenMissionType());
@@ -1732,7 +2083,20 @@ void GenerateSupplyMission::operator()(const AlienBase *base) const
 			mission->setId(_save.getId("ALIEN_MISSIONS"));
 			mission->setRace(base->getAlienRace());
 			mission->setAlienBase(base);
+			int targetZone = -1;
+			if (mission->getRules().getObjective() == OBJECTIVE_SITE)
+			{
+				int missionZone = mission->getRules().getSpawnZone();
+				RuleRegion *regionRules = _mod.getRegion(mission->getRegion());
+				const std::vector<MissionArea> areas = regionRules->getMissionZones().at(missionZone).areas;
+				if (!areas.empty())
+				{
+					targetZone = RNG::generate(0, areas.size() - 1);
+				}
+			}
+			mission->setMissionSiteZone(targetZone);
 			mission->start();
+			base->setGenMissionCount(base->getGenMissionCount() + 1); // increase counter, used to check mission limit
 			_save.getAlienMissions().push_back(mission);
 		}
 	}
@@ -2179,7 +2543,7 @@ void GeoscapeState::globeClick(Action *action)
 	// Clicking markers on the globe
 	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
 	{
-		std::vector<Target*> v = _globe->getTargets(mouseX, mouseY, false);
+		std::vector<Target*> v = _globe->getTargets(mouseX, mouseY, false, 0);
 		if (!v.empty())
 		{
 			_game->pushState(new MultipleTargetsState(v, 0, this));
@@ -2240,6 +2604,15 @@ void GeoscapeState::btnTechTreeViewerClick(Action *)
 void GeoscapeState::btnSelectMusicTrackClick(Action *)
 {
 	_game->pushState(new SelectMusicTrackState(SMT_GEOSCAPE));
+}
+
+/**
+ * Opens the Current Global Research.
+ * @param action Pointer to an action.
+ */
+void GeoscapeState::btnGlobalResearchClick(Action *)
+{
+	_game->pushState(new GlobalResearchState(false));
 }
 
 /**

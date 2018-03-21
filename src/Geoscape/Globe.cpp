@@ -693,10 +693,10 @@ bool Globe::targetNear(Target* target, int x, int y) const
  * @param craft Only get craft targets.
  * @return List of pointers to targets.
  */
-std::vector<Target*> Globe::getTargets(int x, int y, bool craft) const
+std::vector<Target*> Globe::getTargets(int x, int y, bool craft, Craft *currentCraft) const
 {
 	std::vector<Target*> v;
-	if (!craft)
+	if (!craft || Options::friendlyCraftEscort)
 	{
 		for (std::vector<Base*>::iterator i = _game->getSavedGame()->getBases()->begin(); i != _game->getSavedGame()->getBases()->end(); ++i)
 		{
@@ -710,6 +710,8 @@ std::vector<Target*> Globe::getTargets(int x, int y, bool craft) const
 
 			for (std::vector<Craft*>::iterator j = (*i)->getCrafts()->begin(); j != (*i)->getCrafts()->end(); ++j)
 			{
+				if ((*j) == currentCraft)
+					continue;
 				if ((*j)->getLongitude() == (*i)->getLongitude() && (*j)->getLatitude() == (*i)->getLatitude() && (*j)->getDestination() == 0)
 					continue;
 
@@ -852,7 +854,14 @@ void Globe::blink()
 	for (size_t i = 0; i != _markerSet->getTotalFrames(); ++i)
 	{
 		if (i != CITY_MARKER)
-			_markerSet->getFrame(i)->offset(_blink);
+		{
+			// FIXME: can we do it nicer? this will cycle through thousands of frames (depending on mod offset)
+			// instead of just a dozen that are really needed...
+			if (_markerSet->getFrame(i))
+			{
+				_markerSet->getFrame(i)->offset(_blink);
+			}
+		}
 	}
 
 	drawMarkers();
@@ -1066,7 +1075,7 @@ void Globe::XuLine(Surface* surface, Surface* src, double x1, double y1, double 
 }
 
 /**
- * Draws the radar ranges of player bases on the globe.
+ * Draws the radar ranges of player bases, player craft, alien bases and UFO hunter-killers on the globe.
  */
 void Globe::drawRadars()
 {
@@ -1123,6 +1132,7 @@ void Globe::drawRadars()
 
 		}
 
+		// Draw radars around player craft
 		for (std::vector<Craft*>::iterator j = (*i)->getCrafts()->begin(); j != (*i)->getCrafts()->end(); ++j)
 		{
 			if ((*j)->getStatus()!= "STR_OUT")
@@ -1133,6 +1143,35 @@ void Globe::drawRadars()
 			range = range * (1 / 60.0) * (M_PI / 180);
 
 			if (range>0) drawGlobeCircle(lat,lon,range,24);
+		}
+	}
+
+	{
+		// Draw radars around UFO hunter-killers
+		for (std::vector<Ufo*>::iterator u = _game->getSavedGame()->getUfos()->begin(); u != _game->getSavedGame()->getUfos()->end(); ++u)
+		{
+			if ((*u)->isHunterKiller() && (*u)->getDetected())
+			{
+				lat = (*u)->getLatitude();
+				lon = (*u)->getLongitude();
+				range = (*u)->getCraftStats().radarRange;
+				range = range * (1 / 60.0) * (M_PI / 180);
+
+				if (range > 0) drawGlobeCircle(lat, lon, range, 24);
+			}
+		}
+
+		// Draw radars around alien bases
+		for (std::vector<AlienBase*>::iterator ab = _game->getSavedGame()->getAlienBases()->begin(); ab != _game->getSavedGame()->getAlienBases()->end(); ++ab)
+		{
+			if ((*ab)->getDeployment()->getBaseDetectionRange() > 0 && (*ab)->isDiscovered())
+			{
+				lat = (*ab)->getLatitude();
+				lon = (*ab)->getLongitude();
+				range = (*ab)->getDeployment()->getBaseDetectionRange();
+
+				if (range > 0) drawGlobeCircle(lat, lon, range, 24);
+			}
 		}
 	}
 
@@ -1494,7 +1533,7 @@ void Globe::drawPath(Surface *surface, double lon1, double lat1, double lon2, do
 }
 
 /**
- * Draws the flight paths of player craft flying on the globe.
+ * Draws the flight paths of player craft (and hunting UFOs) flying on the globe.
  */
 void Globe::drawFlights()
 {
@@ -1519,6 +1558,20 @@ void Globe::drawFlights()
 			double lon2 = (*j)->getDestination()->getLongitude();
 			double lat1 = (*j)->getLatitude();
 			double lat2 = (*j)->getDestination()->getLatitude();
+
+			drawPath(_radars, lon1, lat1, lon2, lat2);
+		}
+	}
+
+	// Draw the hunting UFO flight paths
+	for (std::vector<Ufo*>::iterator u = _game->getSavedGame()->getUfos()->begin(); u != _game->getSavedGame()->getUfos()->end(); ++u)
+	{
+		if ((*u)->isHunting() && (*u)->getDetected())
+		{
+			double lon1 = (*u)->getLongitude();
+			double lon2 = (*u)->getDestination()->getLongitude();
+			double lat1 = (*u)->getLatitude();
+			double lat2 = (*u)->getDestination()->getLatitude();
 
 			drawPath(_radars, lon1, lat1, lon2, lat2);
 		}
