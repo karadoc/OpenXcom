@@ -47,6 +47,7 @@ OPT SDLKey keyGeoUfoTracker, keyGeoTechTreeViewer, keyGeoGlobalResearch,
 	keyCraftLoadoutSave, keyCraftLoadoutLoad,
 	keyMarkAllAsSeen, keySelectAll, keyDeselectAll, keyResetAll,
 	keyInventoryArmor, keyInventoryAvatar, keyInventorySave, keyInventoryLoad,
+	keyBattleUseSpecial,
 	keyBattleActionItem1, keyBattleActionItem2, keyBattleActionItem3, keyBattleActionItem4, keyBattleActionItem5,
 	keyNightVisionToggle, keyNightVisionHold, keySelectMusicTrack;
 
@@ -69,6 +70,7 @@ OPT bool oneHandedUnloading; // allow weapons to be unloaded with just one hand 
 OPT bool showBarOverflowLayers; // Karadoc's option for using different colours to represent overflow in status bars (such as the stamina bar in the battlescape).
 OPT bool ufoLandingAlert;
 OPT bool friendlyCraftEscort;
+OPT bool drawEnemyRadarCircles;
 
 // Extra hidden flags (Meridian's build)
 OPT bool simpleUppercase;

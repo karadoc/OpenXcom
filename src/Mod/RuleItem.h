@@ -135,6 +135,7 @@ private:
 	int _bigSprite;
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
+	int _specialIconSprite;
 	std::vector<int> _fireSound, _hitSound; 
 	int _hitAnimation;
 	std::vector<int> _hitMissSound;
@@ -162,12 +163,13 @@ private:
 	RuleItemFuseTrigger _fuseTriggerEvents;
 	bool _hiddenOnMinimap;
 	std::string _psiAttackName, _primeActionName, _unprimeActionName, _primeActionMessage, _unprimeActionMessage;
-	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _allowSelfHeal, _isConsumable, _isFireExtinguisher, _isExplodingInHands;
+	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _allowSelfHeal, _isConsumable, _isFireExtinguisher, _isExplodingInHands, _specialUseEmptyHand;
 	std::string _defaultInventorySlot;
 	std::vector<std::string> _supportedInventorySections;
 	int _waypoints, _invWidth, _invHeight;
 	int _painKiller, _heal, _stimulant;
 	BattleMediKitType _medikitType;
+	std::string _medikitBackground;
 	int _woundRecovery, _healthRecovery, _stunRecovery, _energyRecovery, _moraleRecovery, _painKillerRecovery;
 	int _recoveryPoints;
 	int _armor;
@@ -184,7 +186,7 @@ private:
 	std::string _zombieUnit;
 	bool _LOSRequired, _underwaterOnly, _landOnly, _psiReqiured;
 	int _meleePower, _specialType, _vaporColor, _vaporDensity, _vaporProbability;
-	int _customItemPreviewIndex;
+	std::vector<int> _customItemPreviewIndex;
 	int _kneelBonus, _oneHandedPenalty;
 	int _monthlySalary, _monthlyMaintenance;
 	RuleStatBonus _damageBonus, _meleeBonus, _accuracyMulti, _meleeMulti, _throwMulti, _closeQuartersMulti;
@@ -256,6 +258,8 @@ public:
 	int getFloorSprite() const;
 	/// Gets the item's reference in HANDOB.PCK for use in inventory.
 	int getHandSprite() const;
+	/// Gets the item's reference in SPICONS.DAT for special weapon button.
+	int getSpecialIconSprite() const;
 	/// Gets if the item is two-handed.
 	bool isTwoHanded() const;
 	/// Gets if the item can only be used by both hands.
@@ -480,8 +484,12 @@ public:
 	bool isFireExtinguisher() const;
 	/// Is this item explode in hands?
 	bool isExplodingInHands() const;
+	/// If this is used as a speacialWeapon, is it accessed by empty hand?
+	bool isSpecialUsingEmptyHand() const;
 	/// Gets the medikit use type.
 	BattleMediKitType getMediKitType() const;
+	/// Gets the medikit custom background.
+	const std::string &getMediKitCustomBackground() const;
 	/// Gets the max explosion radius.
 	int getExplosionRadius(const BattleUnit *unit) const;
 	/// Gets the recovery points score
@@ -570,7 +578,7 @@ public:
 	/// Gets the vapor cloud probability.
 	int getVaporProbability() const;
 	/// Gets the index of the sprite in the CustomItemPreview sprite set
-	int getCustomItemPreviewIndex() const;
+	const std::vector<int> &getCustomItemPreviewIndex() const;
 	/// Gets the kneel bonus.
 	int getKneelBonus(Mod *mod) const;
 	/// Gets the one-handed penalty.

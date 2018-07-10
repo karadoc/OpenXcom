@@ -1446,12 +1446,12 @@ void DogfightState::update()
 							rule = _game->getMod()->getRandomMission(OBJECTIVE_RETALIATION, _game->getSavedGame()->getMonthsPassed());
 						}
 
-						AlienMission *mission = new AlienMission(*rule);
-						mission->setId(_game->getSavedGame()->getId("ALIEN_MISSIONS"));
-						mission->setRegion(targetRegion, *_game->getMod());
-						mission->setRace(_ufo->getAlienRace());
-						mission->start(mission->getRules().getWave(0).spawnTimer); // fixed delay for first scout
-						_game->getSavedGame()->getAlienMissions().push_back(mission);
+						AlienMission *newMission = new AlienMission(*rule);
+						newMission->setId(_game->getSavedGame()->getId("ALIEN_MISSIONS"));
+						newMission->setRegion(targetRegion, *_game->getMod());
+						newMission->setRace(_ufo->getAlienRace());
+						newMission->start(newMission->getRules().getWave(0).spawnTimer); // fixed delay for first scout
+						_game->getSavedGame()->getAlienMissions().push_back(newMission);
 					}
 				}
 			}
@@ -1516,6 +1516,12 @@ void DogfightState::update()
 					if (_ufo->getCrashId() == 0)
 					{
 						_ufo->setCrashId(_game->getSavedGame()->getId("STR_CRASH_SITE"));
+						if (_ufo->isHunterKiller())
+						{
+							// stop being a hunter-killer
+							_ufo->resetOriginalDestination(_craft);
+							_ufo->setHunterKiller(false);
+						}
 					}
 				}
 			}

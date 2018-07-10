@@ -62,6 +62,7 @@ class ArticleDefinition;
 class RuleInventory;
 class RuleResearch;
 class RuleManufacture;
+class RuleSoldierTransformation;
 class AlienRace;
 class RuleStartingCondition;
 class AlienDeployment;
@@ -129,6 +130,7 @@ private:
 	std::map<std::string, RuleInventory*> _invs;
 	std::map<std::string, RuleResearch *> _research;
 	std::map<std::string, RuleManufacture *> _manufacture;
+	std::map<std::string, RuleSoldierTransformation *> _soldierTransformation;
 	std::map<std::string, UfoTrajectory *> _ufoTrajectories;
 	std::map<std::string, RuleAlienMission *> _alienMissions;
 	std::map<std::string, RuleInterface *> _interfaces;
@@ -172,8 +174,9 @@ private:
 	int _pilotAccuracyZeroPoint, _pilotAccuracyRange, _pilotReactionsZeroPoint, _pilotReactionsRange;
 	int _pilotBraveryThresholds[3];
 	int _performanceBonusFactor;
-	bool _useCustomCategories, _showDogfightDistanceInKm;
+	bool _useCustomCategories, _showDogfightDistanceInKm, _showFullNameInAlienInventory, _extraNerdyPediaInfo;
 	int _theMostUselessOptionEver, _theBiggestRipOffEver;
+	int _shortRadarRange;
 	int _defeatScore, _defeatFunds;
 	std::pair<std::string, int> _alienFuel;
 	std::string _fontName, _finalResearch, _psiUnlockResearch;
@@ -184,15 +187,16 @@ private:
 	std::map<int, std::string> _missionRatings, _monthlyRatings;
 	std::map<std::string, std::string> _fixedUserOptions;
 	std::vector<std::string> _hiddenMovementBackgrounds;
+	std::vector<int> _flagByKills;
 	StatAdjustment _statAdjustment[5];
 
 	std::map<std::string, int> _ufopaediaSections;
 	std::vector<std::string> _countriesIndex, _extraGlobeLabelsIndex, _regionsIndex, _facilitiesIndex, _craftsIndex, _craftWeaponsIndex, _itemCategoriesIndex, _itemsIndex, _invsIndex, _ufosIndex;
-	std::vector<std::string> _soldiersIndex, _aliensIndex, _startingConditionsIndex, _deploymentsIndex, _armorsIndex, _ufopaediaIndex, _ufopaediaCatIndex, _researchIndex, _manufactureIndex, _MCDPatchesIndex;
+	std::vector<std::string> _soldiersIndex, _aliensIndex, _startingConditionsIndex, _deploymentsIndex, _armorsIndex, _ufopaediaIndex, _ufopaediaCatIndex, _researchIndex, _manufactureIndex, _soldierTransformationIndex, _MCDPatchesIndex;
 	std::vector<std::string> _alienMissionsIndex, _terrainIndex, _extraSpritesIndex, _customPalettesIndex, _extraSoundsIndex, _extraStringsIndex, _missionScriptIndex;
 	std::vector<std::vector<int> > _alienItemLevels;
 	std::vector<SDL_Color> _transparencies;
-	int _facilityListOrder, _craftListOrder, _itemCategoryListOrder, _itemListOrder, _researchListOrder,  _manufactureListOrder, _ufopaediaListOrder, _invListOrder;
+	int _facilityListOrder, _craftListOrder, _itemCategoryListOrder, _itemListOrder, _researchListOrder,  _manufactureListOrder, _transformationListOrder, _ufopaediaListOrder, _invListOrder, _soldierListOrder;
 	size_t _modOffset;
 	std::vector<std::string> _psiRequirements; // it's a cache for psiStrengthEval
 	size_t _surfaceOffsetBigobs = 0;
@@ -218,8 +222,6 @@ private:
 	SoundSet *getSoundSet(const std::string &name, bool error = true) const;
 	/// Loads battlescape specific resources.
 	void loadBattlescapeResources();
-	/// Checks if an extension is a valid image file.
-	bool isImageFile(std::string extension) const;
 	/// Loads a specified music file.
 	Music *loadMusic(MusicFormat fmt, const std::string &file, int track, float volume, CatFile *adlibcat, CatFile *aintrocat, GMCatFile *gmcat) const;
 	/// Creates a transparency lookup table for a given palette.
@@ -284,6 +286,8 @@ public:
 	/// For internal use only
 	const std::map<std::string, int> &getUfopaediaSections() const { return _ufopaediaSections; }
 
+	/// Checks if an extension is a valid image file.
+	bool isImageFile(std::string extension) const;
 	/// Gets a particular font.
 	Font *getFont(const std::string &name, bool error = true) const;
 	/// Gets a particular surface.
@@ -298,6 +302,8 @@ public:
 	void playMusic(const std::string &name, int id = 0);
 	/// Gets a particular sound.
 	Sound *getSound(const std::string &set, unsigned int sound, bool error = true) const;
+	/// Gets all palettes.
+	const std::map<std::string, Palette*> &getPalettes() const { return _palettes; }
 	/// Gets a particular palette.
 	Palette *getPalette(const std::string &name, bool error = true) const;
 	/// Sets a new palette.
@@ -366,7 +372,9 @@ public:
 	/// Gets the available soldiers.
 	const std::vector<std::string> &getSoldiersList() const;
 	/// Gets commendation rules.
-	std::map<std::string, RuleCommendations *> getCommendation() const;
+	RuleCommendations *getCommendation(const std::string &id, bool error = false) const;
+	/// Gets the available commendations.
+	const std::map<std::string, RuleCommendations *> &getCommendationsList() const;
 	/// Gets generated unit rules.
 	Unit *getUnit(const std::string &name, bool error = false) const;
 	/// Gets alien race rules.
@@ -515,6 +523,10 @@ public:
 	bool getUseCustomCategories() const { return _useCustomCategories; }
 	/// Should distance in dogfight GUI be shown in kilometers?
 	bool getShowDogfightDistanceInKm() const { return _showDogfightDistanceInKm; }
+	/// Should alien inventory show full name (e.g. Sectoid Leader) or just the race (e.g. Sectoid)?
+	bool getShowFullNameInAlienInventory() const { return _showFullNameInAlienInventory; }
+	/// Display extra item info (accuracy modifier and power bonus) in the main pedia article?
+	bool getExtraNerdyPediaInfo() const { return _extraNerdyPediaInfo; }
 	/// Self-explanatory
 	int getTheMostUselessOptionEver() const { return _theMostUselessOptionEver; }
 	/// Shame on you!
@@ -529,6 +541,10 @@ public:
 	RuleManufacture *getManufacture (const std::string &id, bool error = false) const;
 	/// Gets the list of all manufacture projects.
 	const std::vector<std::string> &getManufactureList() const;
+	/// Gets the ruleset for a specific soldier transformation project.
+	RuleSoldierTransformation *getSoldierTransformation(const std::string &id, bool error = false) const;
+	/// Gets the list of all soldier transformation projects.
+	const std::vector<std::string> &getSoldierTransformationList() const;
 	/// Gets facilities for custom bases.
 	std::vector<RuleBaseFacility*> getCustomBaseFacilities() const;
 	/// Gets a specific UfoTrajectory.
@@ -571,8 +587,8 @@ public:
 	int getAlienFuelQuantity() const;
 	/// Gets the font name.
 	std::string getFontName() const;
-	/// Gets the minimum radar's range.
-	int getMinRadarRange() const;
+	/// Gets the maximum radar range still considered as short.
+	int getShortRadarRange() const;
 	/// Gets information on an interface element.
 	RuleInterface *getInterface(const std::string &id, bool error = true) const;
 	/// Gets the ruleset for the globe.
@@ -596,6 +612,7 @@ public:
 	const std::map<int, std::string> *getMonthlyRatings() const;
 	const std::map<std::string, std::string> &getFixedUserOptions() const;
 	const std::vector<std::string> &getHiddenMovementBackgrounds() const;
+	const std::vector<int> &getFlagByKills() const;
 	StatAdjustment *getStatAdjustment(int difficulty);
 	int getDefeatScore() const;
 	int getDefeatFunds() const;

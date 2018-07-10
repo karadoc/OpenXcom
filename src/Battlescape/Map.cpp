@@ -139,6 +139,20 @@ Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) 
 	_stunIndicator = _game->getMod()->getSurface("FloorStunIndicator", false);
 	_woundIndicator = _game->getMod()->getSurface("FloorWoundIndicator", false);
 	_burnIndicator = _game->getMod()->getSurface("FloorBurnIndicator", false);
+	_shockIndicator = _game->getMod()->getSurface("FloorShockIndicator", false);
+
+	const SavedBattleGame *battleSave = _game->getSavedGame()->getSavedBattle();
+	if (battleSave)
+	{
+		const RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(battleSave->getStartingConditionType());
+		if (startingCondition)
+		{
+			if (!startingCondition->getMapShockIndicator().empty())
+			{
+				_shockIndicator = _game->getMod()->getSurface(startingCondition->getMapShockIndicator(), false);
+			}
+		}
+	}
 }
 
 /**
@@ -280,7 +294,7 @@ void Map::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
  * @param tileBehind Tile behind wall.
  * @return Current shade of wall.
  */
-int Map::getWallShade(MapDataType part, Tile* tileFrot, Tile* tileBehind)
+int Map::getWallShade(TilePart part, Tile* tileFrot, Tile* tileBehind)
 {
 	int shade;
 	if (tileFrot->isDiscovered(2))
@@ -682,7 +696,7 @@ void Map::drawTerrain(Surface *surface)
 										tileWestShade,
 										true
 									);
-									if (_stunIndicator || _woundIndicator || _burnIndicator)
+									if (_stunIndicator || _woundIndicator || _burnIndicator || _shockIndicator)
 									{
 										BattleUnit *itemUnit = item->getUnit();
 										if (itemUnit && itemUnit->getStatus() == STATUS_UNCONSCIOUS)
@@ -703,6 +717,14 @@ void Map::drawTerrain(Surface *surface)
 													tileWestShade,
 													true);
 											}
+											else if (_shockIndicator && itemUnit->hasNegativeHealthRegen())
+											{
+												_shockIndicator->blitNShade(surface,
+													screenPosition.x - tileOffset.x,
+													screenPosition.y + tileWest->getTerrainLevel() + tileOffset.y,
+													tileWestShade,
+													true);
+											}
 											else if (_stunIndicator)
 											{
 												_stunIndicator->blitNShade(surface,
@@ -718,13 +740,13 @@ void Map::drawTerrain(Surface *surface)
 								if (westUnit && (!tileWest->getMapData(O_OBJECT) || tileWest->getMapData(O_OBJECT)->getBigWall() < 6 || tileWest->getMapData(O_OBJECT)->getBigWall() == 9) && (westUnit->getVisible() || _save->getDebugMode()))
 								{
 									// the part is 0 for small units, large units have parts 1,2 & 3 depending on the relative x/y position of this tile vs the actual unit position.
-									int part = 0;
-									part += tileWest->getPosition().x - westUnit->getPosition().x;
-									part += (tileWest->getPosition().y - westUnit->getPosition().y)*2;
+									int unitPart = 0;
+									unitPart += tileWest->getPosition().x - westUnit->getPosition().x;
+									unitPart += (tileWest->getPosition().y - westUnit->getPosition().y)*2;
 									Position offset;
 									calculateWalkingOffset(westUnit, &offset);
 									unitSprite.draw(
-										westUnit, part,
+										westUnit, unitPart,
 										screenPosition.x - tileOffset.x + offset.x,
 										screenPosition.y + tileOffset.y + offset.y,
 										tileWestShade,
@@ -805,7 +827,7 @@ void Map::drawTerrain(Surface *surface)
 								screenPosition.y + tile->getTerrainLevel(),
 								tileShade
 							);
-							if (_stunIndicator || _woundIndicator || _burnIndicator)
+							if (_stunIndicator || _woundIndicator || _burnIndicator || _shockIndicator)
 							{
 								BattleUnit *itemUnit = item->getUnit();
 								if (itemUnit && itemUnit->getStatus() == STATUS_UNCONSCIOUS)
@@ -820,6 +842,13 @@ void Map::drawTerrain(Surface *surface)
 									else if (_woundIndicator && itemUnit->getFatalWounds() > 0)
 									{
 										_woundIndicator->blitNShade(surface,
+											screenPosition.x,
+											screenPosition.y + tile->getTerrainLevel(),
+											tileShade);
+									}
+									else if (_shockIndicator && itemUnit->hasNegativeHealthRegen())
+									{
+										_shockIndicator->blitNShade(surface,
 											screenPosition.x,
 											screenPosition.y + tile->getTerrainLevel(),
 											tileShade);
@@ -1450,6 +1479,35 @@ void Map::drawTerrain(Surface *surface)
 		if (this->getCursorType() != CT_NONE)
 		{
 			_arrow->blitNShade(surface, screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2), screenPosition.y + offset.y - _arrow->getHeight() + arrowBob[_animFrame % 8], 0);
+		}
+	}
+	// Draw motion scanner arrows
+	if (isAltPressed && _save->getSide() == FACTION_PLAYER)
+	{
+		for (auto myUnit : *_save->getUnits())
+		{
+			if (myUnit->getScannedTurn() == _save->getTurn() && myUnit->getFaction() != FACTION_PLAYER && !myUnit->isOut())
+			{
+				Position temp = myUnit->getPosition();
+				temp.z = _camera->getViewLevel();
+				_camera->convertMapToScreen(temp, &screenPosition);
+				screenPosition += _camera->getMapOffset();
+				Position offset;
+				//calculateWalkingOffset(myUnit, &offset);
+				if (myUnit->getArmor()->getSize() > 1)
+				{
+					offset.y += 4;
+				}
+				offset.y += 24 - myUnit->getHeight();
+				if (myUnit->isKneeled())
+				{
+					offset.y -= 2;
+				}
+				if (this->getCursorType() != CT_NONE)
+				{
+					_arrow->blitNShade(surface, screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2), screenPosition.y + offset.y - _arrow->getHeight() + arrowBob[_animFrame % 8], 0);
+				}
+			}
 		}
 	}
 	delete _numWaypid;

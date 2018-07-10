@@ -96,7 +96,7 @@ void UnitWalkBState::think()
 			return;
 		}
 	}
-	Tile *tileBelow = _parent->getSave()->getTile(_unit->getPosition() + Position(0,0,-1));
+	
 
 	if (_unit->isOut())
 	{
@@ -107,6 +107,7 @@ void UnitWalkBState::think()
 
 	if (_unit->getStatus() == STATUS_WALKING || _unit->getStatus() == STATUS_FLYING)
 	{
+		Tile *tileBelow = _parent->getSave()->getTile(_unit->getPosition() + Position(0,0,-1));
 		if ((_parent->getSave()->getTile(_unit->getDestination())->getUnit() == 0) || // next tile must be not occupied
 			(_parent->getSave()->getTile(_unit->getDestination())->getUnit() == _unit))
 		{
@@ -468,7 +469,7 @@ void UnitWalkBState::postPathProcedures()
 				BattleAction action;
 				action.actor = _unit;
 				action.target = _unit->getCharging()->getPosition();
-				action.weapon = _unit->getSpecialWeapon(BT_MELEE);
+				action.weapon = _unit->getUtilityWeapon(BT_MELEE);
 				action.type = BA_HIT;
 				action.targeting = true;
 				action.updateTU();

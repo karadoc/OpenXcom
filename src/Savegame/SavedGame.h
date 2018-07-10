@@ -57,6 +57,7 @@ class Soldier;
 class Craft;
 class EquipmentLayoutItem;
 class ItemContainer;
+class RuleSoldierTransformation;
 struct MissionStatistics;
 struct BattleUnitKills;
 
@@ -133,6 +134,7 @@ private:
 	std::map<std::string, int> _ufopediaRuleStatus;
 	std::map<std::string, int> _manufactureRuleStatus;
 	std::map<std::string, int> _researchRuleStatus;
+	std::map<std::string, bool> _hiddenPurchaseItemsMap;
 	std::vector<AlienMission*> _activeMissions;
 	bool _debug, _warned;
 	int _monthsPassed;
@@ -244,6 +246,8 @@ public:
 	void setManufactureRuleStatus(const std::string &manufactureRule, int newStatus);
 	/// Sets the status of a research rule
 	void setResearchRuleStatus(const std::string &researchRule, int newStatus);
+    /// Sets the item as hidden or unhidden
+    void setHiddenPurchaseItemsStatus(const std::string &itemName, bool hidden);
 	/// Remove a research from the "already discovered" list
 	void removeDiscoveredResearch(const RuleResearch *research);
 	/// Add a finished ResearchProject
@@ -260,6 +264,8 @@ public:
 	void getAvailableProductions(std::vector<RuleManufacture*> & productions, const Mod *mod, Base *base, ManufacturingFilterType filter = MANU_FILTER_DEFAULT) const;
 	/// Get the list of newly available manufacture projects once a research has been completed.
 	void getDependableManufacture(std::vector<RuleManufacture*> & dependables, const RuleResearch *research, const Mod *mod, Base *base) const;
+	/// Get the list of Soldier Transformations that can occur at a base
+	void getAvailableTransformations(std::vector<RuleSoldierTransformation*> & transformations, const Mod *mod, Base *base) const;
 	/// Get the list of newly available items to purchase once a research has been completed.
 	void getDependablePurchase(std::vector<RuleItem*> & dependables, const RuleResearch *research, const Mod *mod) const;
 	/// Get the list of newly available craft to purchase/rent once a research has been completed.
@@ -268,6 +274,8 @@ public:
 	void getDependableFacilities(std::vector<RuleBaseFacility*> & dependables, const RuleResearch *research, const Mod *mod) const;
 	/// Gets the status of a ufopedia rule.
 	int getUfopediaRuleStatus(const std::string &ufopediaRule);
+    /// Gets the list of hidden items
+    const std::map<std::string, bool> &getHiddenPurchaseItems();
 	/// Gets the status of a manufacture rule.
 	int getManufactureRuleStatus(const std::string &manufactureRule);
 	/// Is the research new?

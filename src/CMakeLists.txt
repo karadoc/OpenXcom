@@ -3,6 +3,10 @@ set ( root_src
   main.cpp
 )
 
+if ( WIN32 )
+  set ( root_src ${root_src} OpenXcom.rc )
+endif ()
+
 set ( basescape_src
   Basescape/BaseInfoState.cpp
   Basescape/BaseView.cpp
@@ -48,6 +52,7 @@ set ( basescape_src
   Basescape/SoldierMemorialState.cpp
   Basescape/SoldierSortUtil.cpp
   Basescape/SoldiersState.cpp
+  Basescape/SoldierTransformationState.cpp
   Basescape/StoresState.cpp
   Basescape/TechTreeSelectState.cpp
   Basescape/TechTreeViewerState.cpp
@@ -232,6 +237,7 @@ set ( menu_src
   Menu/CutsceneState.cpp
   Menu/DeleteGameState.cpp
   Menu/ErrorMessageState.cpp
+  Menu/HelloCommanderState.cpp
   Menu/ListGamesState.cpp
   Menu/ListLoadOriginalState.cpp
   Menu/ListLoadState.cpp
@@ -298,6 +304,7 @@ set ( mod_src
   Mod/RuleRegion.cpp
   Mod/RuleResearch.cpp
   Mod/RuleSoldier.cpp
+  Mod/RuleSoldierTransformation.cpp
   Mod/RuleStatBonus.cpp
   Mod/RuleTerrain.cpp
   Mod/RuleUfo.cpp

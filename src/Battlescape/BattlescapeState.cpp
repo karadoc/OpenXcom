@@ -78,6 +78,7 @@
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleInventory.h"
 #include "../Mod/RuleSoldier.h"
+#include "../Mod/RuleStartingCondition.h"
 #include <algorithm>
 
 namespace OpenXcom
@@ -87,7 +88,7 @@ namespace OpenXcom
  * Initializes all the elements in the Battlescape screen.
  * @param game Pointer to the core game.
  */
-BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseScrolling(false), _isMouseScrolled(false), _xBeforeMouseScrolling(0), _yBeforeMouseScrolling(0), _totalMouseMoveX(0), _totalMouseMoveY(0), _mouseMovedOverThreshold(0), _mouseOverIcons(false), _autosave(false), _animFrame(0), _numberOfDirectlyVisibleUnits(0), _numberOfEnemiesTotal(0), _numberOfEnemiesTotalPlusWounded(0)
+BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _paletteResetNeeded(false), _isMouseScrolling(false), _isMouseScrolled(false), _xBeforeMouseScrolling(0), _yBeforeMouseScrolling(0), _totalMouseMoveX(0), _totalMouseMoveY(0), _mouseMovedOverThreshold(0), _mouseOverIcons(false), _autosave(false), _animFrame(0), _numberOfDirectlyVisibleUnits(0), _numberOfEnemiesTotal(0), _numberOfEnemiesTotalPlusWounded(0)
 {
 	std::fill_n(_visibleUnit, 10, (BattleUnit*)(0));
 
@@ -176,6 +177,8 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
 	_btnLaunch->setVisible(false);
 	_btnPsi = new BattlescapeButton(32, 24, screenWidth - 32, 25); // we need screenWidth, because that is independent of the black bars on the screen
 	_btnPsi->setVisible(false);
+	_btnSpecial = new BattlescapeButton(32, 24, screenWidth - 32, 25); // we need screenWidth, because that is independent of the black bars on the screen
+	_btnSpecial->setVisible(false);
 
 	// Create soldier stats summary
 	_rankTiny = new Surface(7, 7, x + 135, y + 33);
@@ -195,6 +198,23 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
 
 	_txtDebug = new Text(300, 10, 20, 0);
 	_txtTooltip = new Text(300, 10, x + 2, y - 10);
+
+	// Palette transformations
+	std::string startingConditionType = _game->getSavedGame()->getSavedBattle()->getStartingConditionType();
+	RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(startingConditionType);
+	if (startingCondition)
+	{
+		for (auto change : *startingCondition->getPaletteTransformations())
+		{
+			Palette *origPal = _game->getMod()->getPalette(change.first, false);
+			Palette *newPal = _game->getMod()->getPalette(change.second, false);
+			if (origPal && newPal)
+			{
+				origPal->copyFrom(newPal);
+				_paletteResetNeeded = true;
+			}
+		}
+	}
 
 	// Set palette
 	_game->getSavedGame()->getSavedBattle()->setPaletteByDepth(this);
@@ -307,6 +327,8 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
 	_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(0)->blit(_btnLaunch);
 	add(_btnPsi);
 	_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(1)->blit(_btnPsi);
+	add(_btnSpecial);
+	_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(1)->blit(_btnSpecial); // use psi button for default
 
 	// Set up objects
 	_save = _game->getSavedGame()->getSavedBattle();
@@ -529,6 +551,13 @@ BattlescapeState::BattlescapeState() : _reserve(0), _firstInit(true), _isMouseSc
 	_btnLaunch->onMouseClick((ActionHandler)&BattlescapeState::btnLaunchClick);
 	_btnPsi->onMouseClick((ActionHandler)&BattlescapeState::btnPsiClick);
 
+	_btnSpecial->onMouseClick((ActionHandler)&BattlescapeState::btnSpecialClick);
+	_btnSpecial->onMouseClick((ActionHandler)&BattlescapeState::btnSpecialClick, SDL_BUTTON_MIDDLE);
+	_btnSpecial->onKeyboardPress((ActionHandler)&BattlescapeState::btnSpecialClick, Options::keyBattleUseSpecial);
+	_btnSpecial->setTooltip("STR_USE_SPECIAL_ITEM");
+	_btnSpecial->onMouseIn((ActionHandler)&BattlescapeState::txtTooltipInExtraSpecial);
+	_btnSpecial->onMouseOut((ActionHandler)&BattlescapeState::txtTooltipOut);
+
 	_txtName->setHighContrast(true);
 
 	_barTimeUnits->setScale(1.0);
@@ -579,6 +608,28 @@ BattlescapeState::~BattlescapeState()
 	delete _animTimer;
 	delete _gameTimer;
 	delete _battleGame;
+
+	resetPalettes();
+}
+
+void BattlescapeState::resetPalettes()
+{
+	if (_paletteResetNeeded)
+	{
+		for (auto origPal : _game->getMod()->getPalettes())
+		{
+			if (origPal.first.find("PAL_") == 0)
+			{
+				std::string backupName = "BACKUP_" + origPal.first;
+				Palette *backupPal = _game->getMod()->getPalette(backupName, false);
+				if (backupPal)
+				{
+					origPal.second->copyFrom(backupPal);
+				}
+			}
+		}
+		_paletteResetNeeded = false;
+	}
 }
 
 /**
@@ -1259,6 +1310,19 @@ void BattlescapeState::btnLeftHandItemClick(Action *action)
 		_save->getSelectedUnit()->setActiveHand("STR_LEFT_HAND");
 		_map->draw();
 		BattleItem *leftHandItem = _save->getSelectedUnit()->getLeftHandWeapon();
+		if (!leftHandItem)
+		{
+			auto typesToCheck = {BT_MELEE, BT_PSIAMP, BT_FIREARM, BT_MEDIKIT, BT_SCANNER, BT_MINDPROBE};
+			for (auto &type : typesToCheck)
+			{
+				leftHandItem = _save->getSelectedUnit()->getSpecialWeapon(type);
+				if (leftHandItem && leftHandItem->getRules()->isSpecialUsingEmptyHand())
+				{
+					break;
+				}
+				leftHandItem = 0;
+			}
+		}
 		bool middleClick = action->getDetails()->button.button == SDL_BUTTON_MIDDLE;
 		handleItemClick(leftHandItem, middleClick);
 	}
@@ -1286,6 +1350,19 @@ void BattlescapeState::btnRightHandItemClick(Action *action)
 		_save->getSelectedUnit()->setActiveHand("STR_RIGHT_HAND");
 		_map->draw();
 		BattleItem *rightHandItem = _save->getSelectedUnit()->getRightHandWeapon();
+		if (!rightHandItem)
+		{
+			auto typesToCheck = {BT_MELEE, BT_PSIAMP, BT_FIREARM, BT_MEDIKIT, BT_SCANNER, BT_MINDPROBE};
+			for (auto &type : typesToCheck)
+			{
+				rightHandItem = _save->getSelectedUnit()->getSpecialWeapon(type);
+				if (rightHandItem && rightHandItem->getRules()->isSpecialUsingEmptyHand())
+				{
+					break;
+				}
+				rightHandItem = 0;
+			}
+		}
 		bool middleClick = action->getDetails()->button.button == SDL_BUTTON_MIDDLE;
 		handleItemClick(rightHandItem, middleClick);
 	}
@@ -1334,6 +1411,38 @@ void BattlescapeState::btnPsiClick(Action *action)
 {
 	_battleGame->psiButtonAction();
 	action->getDetails()->type = SDL_NOEVENT; // consume the event
+}
+
+/**
+ * Shows action menu for special weapons.
+ * @param action Pointer to an action.
+ */
+void BattlescapeState::btnSpecialClick(Action *action)
+{
+	if (playableUnitSelected())
+	{
+		// concession for touch devices:
+		// click on the item to cancel action, and don't pop up a menu to select a new one
+		// TODO: wrap this in an IFDEF ?
+		if (_battleGame->getCurrentAction()->targeting)
+		{
+			_battleGame->cancelCurrentAction();
+			return;
+		}
+
+		_battleGame->cancelCurrentAction();
+
+		BattleType type;
+		BattleItem *specialItem = _save->getSelectedUnit()->getSpecialIconWeapon(type);
+		if (!specialItem)
+		{
+			return;
+		}
+
+		_map->draw();
+		bool middleClick = action->getDetails()->button.button == SDL_BUTTON_MIDDLE;
+		handleItemClick(specialItem, middleClick);
+	}
 }
 
 /**
@@ -1515,6 +1624,7 @@ void BattlescapeState::updateSoldierInfo()
 	{
 		_txtName->setText(L"");
 		showPsiButton(false);
+		showSpecialButton(false);
 		toggleKneelButton(0);
 		return;
 	}
@@ -1762,6 +1872,17 @@ void BattlescapeState::updateSoldierInfo()
 	}
 
 	showPsiButton(battleUnit->getSpecialWeapon(BT_PSIAMP) != 0);
+	BattleType type = BT_NONE;
+	BattleItem *specialWeapon = battleUnit->getSpecialIconWeapon(type); // updates type!
+	if (specialWeapon && type != BT_NONE && type != BT_AMMO && type != BT_GRENADE && type != BT_PROXIMITYGRENADE && type != BT_FLARE && type != BT_CORPSE)
+	{
+		showPsiButton(false);
+		showSpecialButton(true, specialWeapon->getRules()->getSpecialIconSprite());
+	}
+	else
+	{
+		showSpecialButton(false);
+	}
 }
 
 /**
@@ -2068,16 +2189,82 @@ inline void BattlescapeState::handle(Action *action)
 				{
 					_game->pushState(new InfoboxState(_save->hitLog.str()));
 				}
+				// "ctrl-e" - experience log
+				else if (key == SDLK_e && ctrlPressed)
+				{
+					std::wostringstream ss;
+					ss << tr("STR_NO_EXPERIENCE_YET");
+					ss << L"\n\n";
+					bool first = true;
+					for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+					{
+						if ((*i)->getOriginalFaction() == FACTION_PLAYER && !(*i)->isOut())
+						{
+							if ((*i)->getGeoscapeSoldier() && !(*i)->hasGainedAnyExperience())
+							{
+								if (!first) ss << L", ";
+								ss << (*i)->getName(_game->getLanguage());
+								first = false;
+							}
+						}
+					}
+					_game->pushState(new InfoboxState(ss.str()));
+				}
 				// "ctrl-m" - melee damage preview
 				else if (key == SDLK_m && ctrlPressed)
 				{
 					BattleUnit *actor = _save->getSelectedUnit();
 					if (actor)
 					{
+						BattleItem *leftWeapon = actor->getLeftHandWeapon();
+
+						BattleItem *rightWeapon = actor->getRightHandWeapon();
+
+						BattleItem *specialWeapon = 0;
+						auto typesToCheck = {BT_MELEE, BT_PSIAMP, BT_FIREARM, BT_MEDIKIT, BT_SCANNER, BT_MINDPROBE};
+						for (auto &type : typesToCheck)
+						{
+							specialWeapon = actor->getSpecialWeapon(type);
+							if (specialWeapon && specialWeapon->getRules()->isSpecialUsingEmptyHand())
+							{
+								break;
+							}
+							specialWeapon = 0;
+						}
+
+						BattleType type;
+						BattleItem *anotherSpecialWeapon = actor->getSpecialIconWeapon(type);
+						if (anotherSpecialWeapon && anotherSpecialWeapon == specialWeapon)
+						{
+							anotherSpecialWeapon = 0;
+						}
+
 						std::wostringstream ss;
-						ss << getMeleeDamagePreview(actor, actor->getLeftHandWeapon());
-						ss << L"\n\n";
-						ss << getMeleeDamagePreview(actor, actor->getRightHandWeapon());
+						bool first = true;
+						if (leftWeapon)
+						{
+							ss << getMeleeDamagePreview(actor, leftWeapon);
+							first = false;
+						}
+						if (rightWeapon)
+						{
+							if (!first) ss << L"\n\n";
+							ss << getMeleeDamagePreview(actor, rightWeapon);
+							first = false;
+						}
+						if (specialWeapon)
+						{
+							if (!first) ss << L"\n\n";
+							ss << getMeleeDamagePreview(actor, specialWeapon);
+							first = false;
+						}
+						if (anotherSpecialWeapon)
+						{
+							if (!first) ss << L"\n\n";
+							ss << getMeleeDamagePreview(actor, anotherSpecialWeapon);
+							first = false;
+						}
+
 						_game->pushState(new InfoboxState(ss.str()));
 					}
 				}
@@ -2204,13 +2391,12 @@ void BattlescapeState::saveAIMap()
 
 	int w = _save->getMapSizeX();
 	int h = _save->getMapSizeY();
-	Position pos(unit->getPosition());
 
 	SDL_Surface *img = SDL_AllocSurface(0, w * 8, h * 8, 24, 0xff, 0xff00, 0xff0000, 0);
 	Log(LOG_INFO) << "unit = " << unit->getId();
 	memset(img->pixels, 0, img->pitch * img->h);
 
-	Position tilePos(pos);
+	Position tilePos(unit->getPosition());
 	SDL_Rect r;
 	r.h = 8;
 	r.w = 8;
@@ -2341,7 +2527,7 @@ void BattlescapeState::saveVoxelView()
 	Position targetVoxel,hitPos;
 	double dist = 0;
 	bool _debug = _save->getDebugMode();
-	double dir = ((float)bu->getDirection()+4)/4*M_PI;
+	double dir = ((double)bu->getDirection()+4)/4*M_PI;
 	image.clear();
 	for (int y = -256+32; y < 256+32; ++y)
 	{
@@ -2417,12 +2603,12 @@ void BattlescapeState::saveVoxelView()
 					dist*=0.9;
 				}
 				if (dist > 1) dist = 1;
-				if (tile) dist *= (16 - (float)tile->getShade())/16;
+				if (tile) dist *= (16 - (double)tile->getShade())/16;
 			}
 
-			image.push_back((int)((float)(pal[test*3+0])*dist));
-			image.push_back((int)((float)(pal[test*3+1])*dist));
-			image.push_back((int)((float)(pal[test*3+2])*dist));
+			image.push_back((int)((double)(pal[test*3+0])*dist));
+			image.push_back((int)((double)(pal[test*3+1])*dist));
+			image.push_back((int)((double)(pal[test*3+2])*dist));
 		}
 	}
 
@@ -2636,6 +2822,19 @@ void BattlescapeState::showPsiButton(bool show)
 }
 
 /**
+ * Shows the special button.
+ * @param show Show special button?
+ */
+void BattlescapeState::showSpecialButton(bool show, int sprite)
+{
+	if (show)
+	{
+		_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(sprite)->blit(_btnSpecial);
+	}
+	_btnSpecial->setVisible(show);
+}
+
+/**
  * Clears mouse-scrolling state (isMouseScrolling).
  */
 void BattlescapeState::clearMouseScrollingState()
@@ -2745,7 +2944,7 @@ void BattlescapeState::btnZeroTUsClick(Action *action)
 * Shows a tooltip with extra information (used for medikit-type equipment).
 * @param action Pointer to an action.
 */
-void BattlescapeState::txtTooltipInExtra(Action *action, bool leftHand)
+void BattlescapeState::txtTooltipInExtra(Action *action, bool leftHand, bool special)
 {
 	if (allowButtons() && Options::battleTooltips)
 	{
@@ -2762,6 +2961,11 @@ void BattlescapeState::txtTooltipInExtra(Action *action, bool leftHand)
 		if (leftHand)
 		{
 			weapon = selectedUnit->getItem("STR_LEFT_HAND");
+		}
+		else if (special)
+		{
+			BattleType type;
+			weapon = selectedUnit->getSpecialIconWeapon(type);
 		}
 		else
 		{
@@ -2877,6 +3081,15 @@ void BattlescapeState::txtTooltipInExtraLeftHand(Action *action)
 void BattlescapeState::txtTooltipInExtraRightHand(Action *action)
 {
 	txtTooltipInExtra(action, false);
+}
+
+/**
+* Shows a tooltip with extra information (used for medikit-type equipment).
+* @param action Pointer to an action.
+*/
+void BattlescapeState::txtTooltipInExtraSpecial(Action *action)
+{
+	txtTooltipInExtra(action, false, true);
 }
 
 /**

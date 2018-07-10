@@ -56,6 +56,7 @@
 #include "../Savegame/BaseFacility.h"
 #include <sstream>
 #include "../Menu/ErrorMessageState.h"
+#include "../Menu/HelloCommanderState.h"
 #include "../Menu/MainMenuState.h"
 #include "../Interface/Cursor.h"
 #include "../Engine/Options.h"
@@ -511,7 +512,7 @@ DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(tru
 
 		SoldierRank rank = (*deadUnit)->getGeoscapeSoldier()->getRank();
 		// Rookies don't get this next award. No one likes them.
-		if (rank == 0)
+		if (rank == RANK_ROOKIE) 
 		{
 			continue;
 		}
@@ -574,11 +575,12 @@ DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(tru
 					soldierAlienStuns++;
 				}
 			}
-			if (aliensKilled && aliensKilled == soldierAlienKills && _missionStatistics->success == true)
+
+			if (aliensKilled != 0 && aliensKilled == soldierAlienKills && _missionStatistics->success == true && aliensStunned == soldierAlienStuns)
 			{
 				(*j)->getStatistics()->nikeCross = true;
 			}
-			if (aliensStunned && aliensStunned == soldierAlienStuns && _missionStatistics->success == true)
+			if (aliensStunned != 0 && aliensStunned == soldierAlienStuns && _missionStatistics->success == true && aliensKilled == 0)
 			{
 				(*j)->getStatistics()->mercyCross = true;
 			}
@@ -793,6 +795,9 @@ void DebriefingState::btnOkClick(Action *)
 	}
 	_game->getSavedGame()->setBattleGame(0);
 	_game->popState();
+
+	_game->pushState(new HelloCommanderState);
+
 	if (_game->getSavedGame()->getMonthsPassed() == -1)
 	{
 		_game->setState(new MainMenuState);
@@ -1577,11 +1582,12 @@ void DebriefingState::prepareDebriefing()
 			for (int i = 0; i < battle->getMapSizeXYZ(); ++i)
 			{
 				// get recoverable map data objects from the battlescape map
-				for (int part = 0; part < 4; ++part)
+				for (int part = O_FLOOR; part <= O_OBJECT; ++part)
 				{
-					if (battle->getTile(i)->getMapData(part))
+					TilePart tp = (TilePart)part;
+					if (battle->getTile(i)->getMapData(tp))
 					{
-						size_t specialType = battle->getTile(i)->getMapData(part)->getSpecialType();
+						size_t specialType = battle->getTile(i)->getMapData(tp)->getSpecialType();
 						if (specialType != nonRecoverType && _recoveryStats.find(specialType) != _recoveryStats.end())
 						{
 							addStat(_recoveryStats[specialType]->name, 1, _recoveryStats[specialType]->value);
@@ -1992,6 +1998,13 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base)
 				{
 					addStat("STR_ALIEN_ARTIFACTS_RECOVERED", 1, rule->getRecoveryPoints());
 				}
+			}
+
+			// Check if the bodies of our dead soldiers were left, even if we don't recover them
+			// This is so we can give them a proper burial... or raise the dead!
+			if ((*it)->getUnit() && (*it)->getUnit()->getStatus() == STATUS_DEAD && (*it)->getUnit()->getGeoscapeSoldier())
+			{
+				(*it)->getUnit()->getGeoscapeSoldier()->setCorpseRecovered(true);
 			}
 
 			// put items back in the base

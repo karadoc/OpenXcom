@@ -105,6 +105,7 @@ private:
 	int _expBraveryTmp, _expReactionsTmp, _expFiringTmp, _expThrowingTmp, _expPsiSkillTmp, _expPsiStrengthTmp, _expMeleeTmp;
 	int improveStat(int exp) const;
 	int _motionPoints;
+	int _scannedTurn;
 	int _kills;
 	int _faceDirection; // used only during strafeing moves
 	bool _hitByFire, _hitByAnything;
@@ -265,6 +266,8 @@ public:
 	void healStun(int power);
 	/// Gets the unit's stun level.
 	int getStunlevel() const;
+	/// Is the unit losing HP (due to negative health regeneration)?
+	bool hasNegativeHealthRegen() const;
 	/// Knocks the unit out instantly.
 	void knockOut(BattlescapeGame *battle);
 	/// Start falling sequence.
@@ -397,6 +400,8 @@ public:
 	void addPsiStrengthExp();
 	/// Adds one to the melee exp counter.
 	void addMeleeExp();
+	/// Did the unit gain any experience yet?
+	bool hasGainedAnyExperience();
 	/// Updates the stats of a Geoscape soldier.
 	void updateGeoscapeStats(Soldier *soldier) const;
 	/// Check if unit eligible for squaddie promotion.
@@ -417,6 +422,10 @@ public:
 	void stimulant (int energy, int stun);
 	/// Get motion points for the motion scanner.
 	int getMotionPoints() const;
+	/// Get turn when unit was scanned by the motion scanner.
+	int getScannedTurn() const { return _scannedTurn; }
+	/// Set turn when unit was scanned by the motion scanner.
+	void setScannedTurn(int turn) { _scannedTurn = turn; }
 	/// Gets the unit's armor.
 	const Armor *getArmor() const;
 	/// Sets the unit's name.
@@ -558,6 +567,8 @@ public:
 	void setSpecialWeapon(SavedBattleGame *save);
 	/// Get special weapon.
 	BattleItem *getSpecialWeapon(BattleType type) const;
+	/// Gets special weapon that uses an icon, if any.
+	BattleItem *getSpecialIconWeapon(BattleType &type) const;
 	/// Checks if this unit is in hiding for a turn.
 	bool isHiding() const {return _hidingForTurn; };
 	/// Sets this unit is in hiding for a turn (or not).

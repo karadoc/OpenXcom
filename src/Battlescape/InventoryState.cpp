@@ -184,6 +184,10 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base, bo
 	_btnOk->setTooltip("STR_OK");
 	_btnOk->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnOk->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::invMouseOver, SDLK_LALT);
+	_btnOk->onKeyboardRelease((ActionHandler)&InventoryState::invMouseOver, SDLK_LALT);
+	_btnOk->onKeyboardPress((ActionHandler)&InventoryState::invMouseOver, SDLK_RALT);
+	_btnOk->onKeyboardRelease((ActionHandler)&InventoryState::invMouseOver, SDLK_RALT);
 
 	_btnPrev->onMouseClick((ActionHandler)&InventoryState::btnPrevClick);
 	_btnPrev->onKeyboardPress((ActionHandler)&InventoryState::btnPrevClick, Options::keyBattlePrevUnit);
@@ -202,7 +206,8 @@ InventoryState::InventoryState(bool tu, BattlescapeState *parent, Base *base, bo
 	_btnUnload->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnUnload->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
 
-	_btnGround->onMouseClick((ActionHandler)&InventoryState::btnGroundClick);
+	_btnGround->onMouseClick((ActionHandler)&InventoryState::btnGroundClick, SDL_BUTTON_LEFT);
+	_btnGround->onMouseClick((ActionHandler)&InventoryState::btnGroundClick, SDL_BUTTON_RIGHT);
 	_btnGround->setTooltip("STR_SCROLL_RIGHT");
 	_btnGround->onMouseIn((ActionHandler)&InventoryState::txtTooltipIn);
 	_btnGround->onMouseOut((ActionHandler)&InventoryState::txtTooltipOut);
@@ -409,7 +414,7 @@ void InventoryState::init()
 			_applyInventoryTemplate(_tempInventoryTemplate);
 
 			// refresh ui
-			_inv->arrangeGround(false); // calls drawItems() too
+			_inv->arrangeGround(); // calls drawItems() too
 
 			// reset armor tooltip
 			_currentTooltip = "";
@@ -475,7 +480,7 @@ void InventoryState::init()
 		_globalLayoutIndex = -1;
 
 		// refresh ui
-		_inv->arrangeGround(false);
+		_inv->arrangeGround();
 	}
 
 	updateStats();
@@ -729,7 +734,7 @@ void InventoryState::btnGlobalEquipmentLayoutClick(Action *action)
 		loadGlobalLayout(index);
 
 		// refresh ui
-		_inv->arrangeGround(false);
+		_inv->arrangeGround();
 		updateStats();
 		refreshMouse();
 
@@ -899,9 +904,23 @@ void InventoryState::btnQuickSearchApply(Action *)
  * Shows more ground items / rearranges them.
  * @param action Pointer to an action.
  */
-void InventoryState::btnGroundClick(Action *)
+void InventoryState::btnGroundClick(Action *action)
 {
-	_inv->arrangeGround();
+	if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+	{
+		// scroll backwards
+		_inv->arrangeGround(-1);
+	}
+	else if ((SDL_GetModState() & KMOD_SHIFT) != 0)
+	{
+		// scroll backwards
+		_inv->arrangeGround(-1);
+	}
+	else
+	{
+		// scroll forward
+		_inv->arrangeGround(1);
+	}
 }
 
 /**
@@ -1120,7 +1139,7 @@ void InventoryState::btnApplyTemplateClick(Action *)
 	_applyInventoryTemplate(_curInventoryTemplate);
 
 	// refresh ui
-	_inv->arrangeGround(false);
+	_inv->arrangeGround();
 	updateStats();
 	refreshMouse();
 
@@ -1154,7 +1173,7 @@ void InventoryState::onClearInventory(Action *)
 	_clearInventory(_game, unitInv, groundTile, false);
 
 	// refresh ui
-	_inv->arrangeGround(false);
+	_inv->arrangeGround();
 	updateStats();
 	refreshMouse();
 
@@ -1182,7 +1201,7 @@ void InventoryState::onAutoequip(Action *)
 	BattlescapeGenerator::autoEquip(units, mod, groundInv, groundRuleInv, worldShade, true, true);
 
 	// refresh ui
-	_inv->arrangeGround(false);
+	_inv->arrangeGround();
 	updateStats();
 	refreshMouse();
 
@@ -1200,6 +1219,99 @@ void InventoryState::invClick(Action *act)
 }
 
 /**
+ * Calculates item damage info.
+ */
+void InventoryState::calculateCurrentDamageTooltip()
+{
+	// Differences against battlescape indicator:
+	// 1. doesn't consider which action (auto/snap/aim/melee) is used... just takes ammo from primary slot
+	// 2. doesn't show psi success chance (distance is unknown)
+	// 3. doesn't consider range power reduction (distance is unknown)
+
+	const BattleUnit *currentUnit = _inv->getSelectedUnit();
+
+	if (!currentUnit)
+		return;
+
+	if (!_currentDamageTooltipItem)
+		return;
+
+	const RuleItem *weaponRule = _currentDamageTooltipItem->getRules();
+	const int PRIMARY_SLOT = 0;
+
+	// step 1: determine rule
+	const RuleItem *rule;
+	if (weaponRule->getBattleType() == BT_PSIAMP)
+	{
+		rule = weaponRule;
+	}
+	else if (_currentDamageTooltipItem->needsAmmoForSlot(PRIMARY_SLOT))
+	{
+		if (_currentDamageTooltipItem->getAmmoForSlot(PRIMARY_SLOT) != 0)
+		{
+			rule = _currentDamageTooltipItem->getAmmoForSlot(PRIMARY_SLOT)->getRules();
+		}
+		else
+		{
+			rule = 0; // empty weapon = no rule
+		}
+	}
+	else
+	{
+		rule = weaponRule;
+	}
+
+	// step 2: check if unlocked
+	if (_game->getSavedGame()->getMonthsPassed() == -1)
+	{
+		// new battle mode
+	}
+	else if (rule)
+	{
+		// instead of checking the weapon/ammo itself... we're checking their ufopedia articles here
+		// same as for the battlescape indicator
+		// it's arguable if this is the correct approach, but so far this is what we have
+		ArticleDefinition *article = _game->getMod()->getUfopaediaArticle(rule->getType(), false);
+		if (article && !Ufopaedia::isArticleAvailable(_game->getSavedGame(), article))
+		{
+			// ammo/weapon locked
+			rule = 0;
+		}
+		if (rule && rule->getType() != weaponRule->getType())
+		{
+			article = _game->getMod()->getUfopaediaArticle(weaponRule->getType(), false);
+			if (article && !Ufopaedia::isArticleAvailable(_game->getSavedGame(), article))
+			{
+				// weapon locked
+				rule = 0;
+			}
+		}
+	}
+
+	// step 3: calculate and remember
+	if (rule)
+	{
+		if (rule->getBattleType() != BT_CORPSE)
+		{
+			int totalDamage = 0;
+			totalDamage += rule->getPowerBonus(currentUnit);
+			//totalDamage -= rule->getPowerRangeReduction(distance * 16);
+			if (totalDamage < 0) totalDamage = 0;
+			std::wostringstream ss;
+			ss << rule->getDamageType()->getRandomDamage(totalDamage, 1);
+			ss << "-";
+			ss << rule->getDamageType()->getRandomDamage(totalDamage, 2);
+			if (rule->getDamageType()->RandomType == DRT_UFO_WITH_TWO_DICE)
+				ss << "*";
+			_currentDamageTooltip = tr("STR_DAMAGE_UC_").arg(ss.str());
+		}
+	}
+	else
+	{
+		_currentDamageTooltip = tr("STR_DAMAGE_UC_").arg(tr("STR_UNKNOWN"));
+	}
+}
+/**
  * Shows item info.
  * @param action Pointer to an action.
  */
@@ -1210,11 +1322,28 @@ void InventoryState::invMouseOver(Action *)
 		return;
 	}
 
+	bool altPressed = ((SDL_GetModState() & KMOD_ALT) != 0);
+	bool currentDamageTooltipItemChanged = false;
+
 	BattleItem *item = _inv->getMouseOverItem();
 	if (item != _mouseHoverItem)
 	{
 		_mouseHoverItemFrame = _inv->getAnimFrame();
 		_mouseHoverItem = item;
+	}
+	if (altPressed)
+	{
+		if (item != _currentDamageTooltipItem)
+		{
+			currentDamageTooltipItemChanged = true;
+			_currentDamageTooltipItem = item;
+			_currentDamageTooltip = L"";
+		}
+	}
+	else
+	{
+		_currentDamageTooltipItem = nullptr;
+		_currentDamageTooltip = L"";
 	}
 	if (item != 0)
 	{
@@ -1249,7 +1378,18 @@ void InventoryState::invMouseOver(Action *)
 						text += tr(ammoName);
 					}
 				}
-				itemName = text;
+				if (altPressed)
+				{
+					if (currentDamageTooltipItemChanged)
+					{
+						calculateCurrentDamageTooltip();
+					}
+					itemName = _currentDamageTooltip;
+				}
+				else
+				{
+					itemName = text;
+				}
 			}
 			else
 			{
@@ -1257,7 +1397,7 @@ void InventoryState::invMouseOver(Action *)
 			}
 		}
 
-		if (Options::showItemNameAndWeightInInventory)
+		if (!altPressed && Options::showItemNameAndWeightInInventory)
 		{
 			std::wostringstream ss;
 			ss << itemName;
@@ -1315,7 +1455,10 @@ void InventoryState::invMouseOut(Action *)
 	_txtItem->setText(L"");
 	_txtAmmo->setText(L"");
 	_selAmmo->clear();
+	_inv->setMouseOverItem(0);
 	_mouseHoverItem = nullptr;
+	_currentDamageTooltipItem = nullptr;
+	_currentDamageTooltip = L"";
 	updateTemplateButtons(!_tu);
 }
 
@@ -1386,7 +1529,7 @@ void InventoryState::onMoveGroundInventoryToBase(Action *)
 	}
 
 	// refresh ui
-	_inv->arrangeGround(false);
+	_inv->arrangeGround();
 	updateStats();
 	refreshMouse();
 

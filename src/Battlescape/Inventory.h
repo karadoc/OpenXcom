@@ -50,8 +50,8 @@ private:
 	BattleItem *_mouseOverItem;
 	int _groundOffset, _animFrame;
 	std::map<int, std::map<int, int> > _stackLevel;
-	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator;
-	std::vector<std::pair<int, int> > _stunnedIndicators, _woundedIndicators, _burningIndicators;
+	Surface *_stunIndicator, *_woundIndicator, *_burnIndicator, *_shockIndicator;
+	std::vector<std::pair<int, int> > _stunnedIndicators, _woundedIndicators, _burningIndicators, _shockedIndicators;
 	NumberText *_stackNumber;
 	std::wstring _searchString;
 	std::locale _myLocale;
@@ -113,7 +113,7 @@ public:
 	/// Checks whether the given item is visible with the current search string.
 	bool isInSearchString(BattleItem *item);
 	/// Arranges items on the ground.
-	void arrangeGround(bool alterOffset = true);
+	void arrangeGround(int alterOffset = 0);
 	/// Attempts to place an item in an inventory slot.
 	bool fitItem(RuleInventory *newSlot, BattleItem *item, std::string &warning);
 	/// Checks if two items can be stacked on one another.

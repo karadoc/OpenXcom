@@ -31,6 +31,7 @@
 #include "../Engine/Options.h"
 #include "../Savegame/SavedGame.h"
 #include "../Savegame/SavedBattleGame.h"
+#include "../Mod/RuleStartingCondition.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Savegame/BattleItem.h"
 #include "../Mod/RuleItem.h"
@@ -84,6 +85,20 @@ Inventory::Inventory(Game *game, int width, int height, int x, int y, bool base)
 	_stunIndicator = _game->getMod()->getSurface("BigStunIndicator", false);
 	_woundIndicator = _game->getMod()->getSurface("BigWoundIndicator", false);
 	_burnIndicator = _game->getMod()->getSurface("BigBurnIndicator", false);
+	_shockIndicator = _game->getMod()->getSurface("BigShockIndicator", false);
+
+	const SavedBattleGame *battleSave = _game->getSavedGame()->getSavedBattle();
+	if (battleSave)
+	{
+		const RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(battleSave->getStartingConditionType());
+		if (startingCondition)
+		{
+			if (!startingCondition->getInventoryShockIndicator().empty())
+			{
+				_shockIndicator = _game->getMod()->getSurface(startingCondition->getInventoryShockIndicator(), false);
+			}
+		}
+	}
 
 	_inventorySlotRightHand = _game->getMod()->getInventory("STR_RIGHT_HAND", true);
 	_inventorySlotLeftHand = _game->getMod()->getInventory("STR_LEFT_HAND", true);
@@ -149,7 +164,7 @@ void Inventory::setSelectedUnit(BattleUnit *unit)
 {
 	_selUnit = unit;
 	_groundOffset = 999;
-	arrangeGround();
+	arrangeGround(1);
 }
 
 /**
@@ -278,6 +293,7 @@ void Inventory::drawItems()
 	ScriptWorkerBlit work;
 	_items->clear();
 	_stunnedIndicators.clear();
+	_shockedIndicators.clear();
 	_woundedIndicators.clear();
 	_burningIndicators.clear();
 	Uint8 color = _game->getMod()->getInterface("inventory")->getElement("numStack")->color;
@@ -371,6 +387,10 @@ void Inventory::drawItems()
 					else if (_woundIndicator && fatalWounds > 0)
 					{
 						_woundedIndicators.push_back(std::make_pair(x, y));
+					}
+					else if (_shockIndicator && (*i)->getUnit()->hasNegativeHealthRegen())
+					{
+						_shockedIndicators.push_back(std::make_pair(x, y));
 					}
 					else if (_stunIndicator)
 					{
@@ -583,7 +603,7 @@ void Inventory::setSearchString(const std::wstring &searchString)
 {
 	_searchString = searchString;
 	CrossPlatform::upperCase(_searchString, _myLocale);
-	arrangeGround(true);
+	arrangeGround(1);
 }
 
 /**
@@ -749,7 +769,7 @@ void Inventory::mouseClick(Action *action, State *state)
 								placed = true;
 								moveItem(item, newSlot, 0, 0);
 								_game->getMod()->getSoundByDepth(_depth, Mod::ITEM_DROP)->play();
-								arrangeGround(false);
+								arrangeGround();
 							}
 							else
 							{
@@ -890,7 +910,7 @@ void Inventory::mouseClick(Action *action, State *state)
 								_game->getMod()->getSoundByDepth(_depth, Mod::ITEM_RELOAD)->play();
 								if (item->getSlot()->getType() == INV_GROUND)
 								{
-									arrangeGround(false);
+									arrangeGround();
 								}
 							}
 							else
@@ -964,14 +984,14 @@ void Inventory::mouseClick(Action *action, State *state)
 									{
 										_warning->showMessage(_game->getLanguage()->getString(item->getRules()->getPrimeActionMessage()));
 										item->setFuseTimer(item->getRules()->getFuseTimerDefault());
-										arrangeGround(false);
+										arrangeGround();
 									}
 								}
 								else
 								{
 									_warning->showMessage(_game->getLanguage()->getString(item->getRules()->getUnprimeActionMessage()));
 									item->setFuseTimer(-1);  // Unprime the grenade
-									arrangeGround(false);
+									arrangeGround();
 								}
 							}
 						}
@@ -1269,9 +1289,9 @@ bool Inventory::isInSearchString(BattleItem *item)
  * Arranges items on the ground for the inventory display.
  * Since items on the ground aren't assigned to anyone,
  * they don't actually have permanent slot positions.
- * @param alterOffset Whether to alter the ground offset.
+ * @param alterOffset Whether to alter the ground offset and in which direction.
  */
-void Inventory::arrangeGround(bool alterOffset)
+void Inventory::arrangeGround(int alterOffset)
 {
 	RuleInventory *ground = _inventorySlotGround;
 
@@ -1433,7 +1453,7 @@ void Inventory::arrangeGround(bool alterOffset)
 			} // end stacks for this item type
 		} // end of item types
 	}
-	if (alterOffset)
+	if (alterOffset > 0)
 	{
 		if (xMax >= _groundOffset + slotsX)
 		{
@@ -1442,6 +1462,20 @@ void Inventory::arrangeGround(bool alterOffset)
 		else
 		{
 			_groundOffset = 0;
+		}
+	}
+	else if (alterOffset < 0)
+	{
+		// one step back
+		_groundOffset -= slotsX;
+
+		// if too much, as many steps forward as possible
+		if (_groundOffset < 0)
+		{
+			while (xMax >= _groundOffset + slotsX)
+			{
+				_groundOffset += slotsX;
+			}
 		}
 	}
 	drawItems();
@@ -1563,6 +1597,12 @@ void Inventory::drawPrimers()
 	for (std::vector<std::pair<int, int> >::const_iterator i = _woundedIndicators.begin(); i != _woundedIndicators.end(); ++i)
 	{
 		_woundIndicator->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame % 8]);
+	}
+
+	// units in shock
+	for (std::vector<std::pair<int, int> >::const_iterator i = _shockedIndicators.begin(); i != _shockedIndicators.end(); ++i)
+	{
+		_shockIndicator->blitNShade(_items, (*i).first, (*i).second, Pulsate[_animFrame % 8]);
 	}
 
 	// stunned units

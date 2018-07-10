@@ -46,6 +46,7 @@ class RuleStartingCondition
 {
 private:
 	std::string _type;
+	std::map<std::string, std::string> _paletteTransformations;
 	std::map<std::string, EnvironmentalCondition> _environmentalConditions;
 	std::map<std::string, std::string> _armorTransformations;
 	std::map<std::string, std::map<std::string, int> > _defaultArmor;
@@ -55,6 +56,8 @@ private:
 	std::vector<std::string> _allowedItemCategories;
 	std::vector<std::string> _allowedCraft;
 	int _mapBackgroundColor;
+	std::string _inventoryShockIndicator;
+	std::string _mapShockIndicator;
 public:
 	/// Creates a blank Starting Conditions ruleset.
 	RuleStartingCondition(const std::string &type);
@@ -64,6 +67,8 @@ public:
 	void load(const YAML::Node& node);
 	/// Gets the Starting Conditions's type.
 	std::string getType() const;
+	/// Gets the palette transformations.
+	const std::map<std::string, std::string> *getPaletteTransformations() const;
 	/// Gets the environmental condition for a given faction.
 	EnvironmentalCondition getEnvironmetalCondition(const std::string &faction) const;
 	/// Gets the allowed armor types.
@@ -82,6 +87,10 @@ public:
 	bool isItemAllowed(const std::string &itemType, Mod *mod) const;
 	/// Gets the battlescape map background color.
 	int getMapBackgroundColor() const;
+	/// Gets the inventory shock indicator sprite name.
+	const std::string &getInventoryShockIndicator() const;
+	/// Gets the map shock indicator sprite name.
+	const std::string &getMapShockIndicator() const;
 };
 
 }

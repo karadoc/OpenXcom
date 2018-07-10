@@ -50,6 +50,7 @@
 #include "../Mod/RuleResearch.h"
 #include "../Mod/RuleManufacture.h"
 #include "../Mod/RuleBaseFacility.h"
+#include "../Mod/RuleSoldierTransformation.h"
 #include "Production.h"
 #include "MissionSite.h"
 #include "AlienBase.h"
@@ -523,7 +524,7 @@ void SavedGame::load(const std::string &filename, Mod *mod)
 		std::string type = (*i)["type"].as<std::string>();
 		if (mod->getUfo(type))
 		{
-			Ufo *u = new Ufo(mod->getUfo(type));
+			Ufo *u = new Ufo(mod->getUfo(type), 0);
 			u->load(*i, *mod, *this);
 			_ufos.push_back(u);
 		}
@@ -592,6 +593,7 @@ void SavedGame::load(const std::string &filename, Mod *mod)
 	_ufopediaRuleStatus = doc["ufopediaRuleStatus"].as< std::map<std::string, int> >(_ufopediaRuleStatus);
 	_manufactureRuleStatus = doc["manufactureRuleStatus"].as< std::map<std::string, int> >(_manufactureRuleStatus);
 	_researchRuleStatus = doc["researchRuleStatus"].as< std::map<std::string, int> >(_researchRuleStatus);
+	_hiddenPurchaseItemsMap = doc["hiddenPurchaseItems"].as< std::map<std::string, bool> >(_hiddenPurchaseItemsMap);
 
 	for (YAML::const_iterator i = doc["bases"].begin(); i != doc["bases"].end(); ++i)
 	{
@@ -633,19 +635,22 @@ void SavedGame::load(const std::string &filename, Mod *mod)
 	// Finish loading UFOs after all craft and all other UFOs are loaded
 	for (YAML::const_iterator i = doc["ufos"].begin(); i != doc["ufos"].end(); ++i)
 	{
-		int ufoId = (*i)["id"].as<int>();
-		Ufo *ufo = 0;
-		for (std::vector<Ufo*>::iterator u = _ufos.begin(); u != _ufos.end(); ++u)
+		int uniqueUfoId = (*i)["uniqueId"].as<int>(0);
+		if (uniqueUfoId > 0)
 		{
-			if ((*u)->getId() == ufoId)
+			Ufo *ufo = 0;
+			for (std::vector<Ufo*>::iterator u = _ufos.begin(); u != _ufos.end(); ++u)
 			{
-				ufo = (*u);
-				break;
+				if ((*u)->getUniqueId() == uniqueUfoId)
+				{
+					ufo = (*u);
+					break;
+				}
 			}
-		}
-		if (ufo)
-		{
-			ufo->finishLoading(*i, *this);
+			if (ufo)
+			{
+				ufo->finishLoading(*i, *this);
+			}
 		}
 	}
 
@@ -878,6 +883,7 @@ void SavedGame::save(const std::string &filename) const
 	node["ufopediaRuleStatus"] = _ufopediaRuleStatus;
 	node["manufactureRuleStatus"] = _manufactureRuleStatus;
 	node["researchRuleStatus"] = _researchRuleStatus;
+	node["hiddenPurchaseItems"] = _hiddenPurchaseItemsMap;
 	node["alienStrategy"] = _alienStrategy->save();
 	for (std::vector<Soldier*>::const_iterator i = _deadSoldiers.begin(); i != _deadSoldiers.end(); ++i)
 	{
@@ -1368,6 +1374,25 @@ void SavedGame::setResearchRuleStatus(const std::string &researchRule, int newSt
 	_researchRuleStatus[researchRule] = newStatus;
 }
 
+/**
+ * Sets the hidden status of a purchase item
+ * @param purchase item name 
+ * @param hidden
+ */
+void SavedGame::setHiddenPurchaseItemsStatus(const std::string &itemName, bool hidden)
+{
+	_hiddenPurchaseItemsMap[itemName] = hidden;
+}
+
+/**
+ * Get the map of hidden items
+ * @return map
+ */
+const std::map<std::string, bool> &SavedGame::getHiddenPurchaseItems()
+{
+    return _hiddenPurchaseItemsMap;
+}
+
 /*
  * Checks for and removes a research project from the "already discovered" list
  * @param research is the project we are checking for and removing, if necessary.
@@ -1731,6 +1756,33 @@ void SavedGame::getDependableManufacture (std::vector<RuleManufacture *> & depen
 		{
 			dependables.push_back(m);
 		}
+	}
+}
+
+/**
+ * Get the list of RuleSoldierTransformation which can occur at a base.
+ * @param transformations the list of Transformations which are available.
+ * @param mod the Game Mod
+ * @param base a pointer to a Base
+ */
+void SavedGame::getAvailableTransformations (std::vector<RuleSoldierTransformation *> & transformations, const Mod * mod, Base * base) const
+{
+	const std::vector<std::string> &items = mod->getSoldierTransformationList();
+	const std::vector<std::string> &baseFunc = base->getProvidedBaseFunc();
+
+	for (std::vector<std::string>::const_iterator iter = items.begin(); iter != items.end(); ++iter)
+	{
+		RuleSoldierTransformation *m = mod->getSoldierTransformation(*iter);
+		if (!isResearched(m->getRequiredResearch()))
+		{
+			continue;
+		}
+		if (!std::includes(baseFunc.begin(), baseFunc.end(), m->getRequiredBaseFuncs().begin(), m->getRequiredBaseFuncs().end()))
+		{
+			continue;
+		}
+
+		transformations.push_back(m);
 	}
 }
 
@@ -2167,7 +2219,17 @@ Soldier *SavedGame::inspectSoldiers(std::vector<Soldier*> &soldiers, std::vector
 	Soldier *highestRanked = 0;
 	for (std::vector<Soldier*>::iterator i = soldiers.begin(); i != soldiers.end(); ++i)
 	{
-		if ((*i)->getRank() == rank)
+		const std::vector<std::string> &rankStrings = (*i)->getRules()->getRankStrings();
+		bool rankIsMatching = ((*i)->getRank() == rank);
+		if (!rankStrings.empty())
+		{
+			// if rank is matching, but there are no more higher ranks defined for this soldier type, skip this soldier
+			if (rankIsMatching && (rank >= (int)rankStrings.size() - 1))
+			{
+				rankIsMatching = false;
+			}
+		}
+		if (rankIsMatching)
 		{
 			int score = getSoldierScore(*i);
 			if (score > highestScore && (!Options::fieldPromotions || std::find(participants.begin(), participants.end(), *i) != participants.end()))

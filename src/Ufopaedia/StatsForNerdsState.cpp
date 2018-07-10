@@ -40,7 +40,7 @@
 namespace OpenXcom
 {
 
-std::map<std::string, std::string> translationMap =
+const std::map<std::string, std::string> StatsForNerdsState::translationMap =
 {
 	{ "flatOne", "" }, // no translation
 	{ "flatHundred", "" }, // no translation
@@ -247,7 +247,7 @@ void StatsForNerdsState::btnOkClick(Action *)
 	if (ctrlPressed)
 	{
 		Log(LOG_INFO) << Language::wstrToUtf8(_txtArticle->getText());
-		for (int row = 0; row < _lstRawData->getTexts(); ++row)
+		for (size_t row = 0; row < _lstRawData->getTexts(); ++row)
 		{
 			Log(LOG_INFO) << Language::wstrToUtf8(_lstRawData->getCellText(row, 0)) << "\t\t" << Language::wstrToUtf8(_lstRawData->getCellText(row, 1));
 		}
@@ -308,9 +308,11 @@ void StatsForNerdsState::initLists()
 	switch (_typeId)
 	{
 	case UFOPAEDIA_TYPE_ITEM:
+	case UFOPAEDIA_TYPE_TFTD_ITEM:
 		initItemList();
 		break;
 	case UFOPAEDIA_TYPE_ARMOR:
+	case UFOPAEDIA_TYPE_TFTD_ARMOR:
 		initArmorList();
 		break;
 	default:
@@ -480,11 +482,11 @@ void StatsForNerdsState::addBoolean(std::wostringstream &ss, const bool &value, 
 	resetStream(ss);
 	if (value)
 	{
-		ss << L"true";
+		ss << tr("STR_TRUE");
 	}
 	else
 	{
-		ss << L"false";
+		ss << tr("STR_FALSE");
 	}
 	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
 	++_counter;
@@ -853,9 +855,9 @@ void StatsForNerdsState::addBoolOrInteger(std::wostringstream &ss, const int &va
 	if (formatAsBoolean)
 	{
 		if (value == 1)
-			ss << L"true";
+			ss << tr("STR_TRUE");
 		else if (value == 0)
-			ss << L"false";
+			ss << tr("STR_FALSE");
 		else
 			ss << value;
 	}
@@ -1084,7 +1086,7 @@ void StatsForNerdsState::addRuleStatBonus(std::wostringstream &ss, const RuleSta
 					{
 						ss << numberAbs << L"*";
 					}
-					addTranslation(ss, translationMap[item.first]);
+					addTranslation(ss, translationMap.at(item.first));
 					if (power > 1)
 					{
 						ss << L"^" << power;
@@ -1403,6 +1405,7 @@ void StatsForNerdsState::initItemList()
 
 		addFloatAsPercentage(ss, rule->ToTile, "ToTile", mod->getDamageType(rule->ResistType)->ToTile);
 		addBoolean(ss, rule->RandomTile, "RandomTile", mod->getDamageType(rule->ResistType)->RandomTile);
+		addInteger(ss, rule->TileDamageMethod, "TileDamageMethod", mod->getDamageType(rule->ResistType)->TileDamageMethod);
 
 		endHeading();
 	}
@@ -1529,11 +1532,12 @@ void StatsForNerdsState::initItemList()
 		addInteger(ss, itemRule->getListOrder(), "listOrder");
 
 		addSection(L"{Inventory}", L"", _white);
-		addInteger(ss, itemRule->getCustomItemPreviewIndex(), "customItemPreviewIndex");
+		addVectorOfIntegers(ss, itemRule->getCustomItemPreviewIndex(), "customItemPreviewIndex");
 		addInteger(ss, itemRule->getInventoryWidth(), "invWidth", -1); // always show!
 		addInteger(ss, itemRule->getInventoryHeight(), "invHeight", -1); // always show!
 		addSingleString(ss, itemRule->getDefaultInventorySlot(), "defaultInventorySlot");
 		addBoolean(ss, itemRule->isFixed(), "fixedWeapon");
+		addBoolean(ss, itemRule->isSpecialUsingEmptyHand(), "specialUseEmptyHand");
 
 		addSection(L"{Recovery}", L"", _white);
 		addBoolean(ss, !itemRule->canBeEquippedBeforeBaseDefense(), "ignoreInBaseDefense"); // negated!
@@ -1583,7 +1587,10 @@ void StatsForNerdsState::initItemList()
 		addSpriteResourcePath(ss, mod, "FLOOROB.PCK", itemRule->getFloorSprite());
 		addInteger(ss, itemRule->getHandSprite(), "handSprite", 120);
 		addSpriteResourcePath(ss, mod, "HANDOB.PCK", itemRule->getHandSprite());
+		addInteger(ss, itemRule->getSpecialIconSprite(), "specialIconSprite", -1);
+		addSpriteResourcePath(ss, mod, "SPICONS.DAT", itemRule->getSpecialIconSprite());
 		addInteger(ss, itemRule->getBulletSprite(), "bulletSprite", -1);
+		addSingleString(ss, itemRule->getMediKitCustomBackground(), "medikitBackground");
 
 		addSection(L"{Sounds}", L"", _white);
 		addVectorOfIntegers(ss, itemRule->getFireSoundRaw(), "fireSound");
@@ -2025,7 +2032,7 @@ void StatsForNerdsState::initArmorList()
 		addBoolean(ss, armorRule->hasInventory(), "allowInv", true);
 
 		addSection(L"{Sprites}", L"", _white);
-		addInteger(ss, armorRule->getCustomArmorPreviewIndex(), "customArmorPreviewIndex");
+		addVectorOfIntegers(ss, armorRule->getCustomArmorPreviewIndex(), "customArmorPreviewIndex");
 		addSingleString(ss, armorRule->getSpriteSheet(), "spriteSheet", "", false);
 		addInteger(ss, armorRule->getFaceColorGroup(), "spriteFaceGroup");
 		addVectorOfIntegers(ss, armorRule->getFaceColorRaw(), "spriteFaceColor");

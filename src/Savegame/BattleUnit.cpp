@@ -23,6 +23,7 @@
 #include "../Engine/Script.h"
 #include "../Engine/ScriptBind.h"
 #include "../Engine/Language.h"
+#include "../Engine/Exception.h"
 #include "../Engine/Options.h"
 #include "../Engine/RNG.h"
 #include "../Battlescape/Pathfinding.h"
@@ -59,7 +60,7 @@ BattleUnit::BattleUnit(Soldier *soldier, int depth, int maxViewDistance) :
 	_verticalDirection(0), _status(STATUS_STANDING), _wantsToSurrender(false), _isSurrendering(false), _walkPhase(0), _fallPhase(0), _kneeled(false), _floating(false),
 	_dontReselect(false), _fire(0), _currentAIState(0), _visible(false),
 	_expBravery(0), _expReactions(0), _expFiring(0), _expThrowing(0), _expPsiSkill(0), _expPsiStrength(0), _expMelee(0),
-	_motionPoints(0), _kills(0), _hitByFire(false), _hitByAnything(false), _fireMaxHit(0), _smokeMaxHit(0), _moraleRestored(0), _coverReserve(0), _charging(0), _turnsSinceSpotted(255), _turnsLeftSpottedForSnipers(0),
+	_motionPoints(0), _scannedTurn(-1), _kills(0), _hitByFire(false), _hitByAnything(false), _fireMaxHit(0), _smokeMaxHit(0), _moraleRestored(0), _coverReserve(0), _charging(0), _turnsSinceSpotted(255), _turnsLeftSpottedForSnipers(0),
 	_statistics(), _murdererId(0), _mindControllerID(0), _fatalShotSide(SIDE_FRONT), _fatalShotBodyPart(BODYPART_HEAD), _armor(0),
 	_geoscapeSoldier(soldier), _unitRules(0), _rankInt(0), _turretType(-1), _hidingForTurn(false), _floorAbove(false), _respawn(false), _alreadyRespawned(false), _isLeeroyJenkins(false)
 {
@@ -235,7 +236,7 @@ BattleUnit::BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, St
 	_toDirectionTurret(0), _verticalDirection(0), _status(STATUS_STANDING), _wantsToSurrender(false), _isSurrendering(false), _walkPhase(0),
 	_fallPhase(0), _kneeled(false), _floating(false), _dontReselect(false), _fire(0), _currentAIState(0),
 	_visible(false), _expBravery(0), _expReactions(0), _expFiring(0),
-	_expThrowing(0), _expPsiSkill(0), _expPsiStrength(0), _expMelee(0), _motionPoints(0), _kills(0), _hitByFire(false), _hitByAnything(false), _fireMaxHit(0), _smokeMaxHit(0),
+	_expThrowing(0), _expPsiSkill(0), _expPsiStrength(0), _expMelee(0), _motionPoints(0), _scannedTurn(-1), _kills(0), _hitByFire(false), _hitByAnything(false), _fireMaxHit(0), _smokeMaxHit(0),
 	_moraleRestored(0), _coverReserve(0), _charging(0), _turnsSinceSpotted(255), _turnsLeftSpottedForSnipers(0),
 	_statistics(), _murdererId(0), _mindControllerID(0), _fatalShotSide(SIDE_FRONT),
 	_fatalShotBodyPart(BODYPART_HEAD), _armor(armor), _geoscapeSoldier(0),  _unitRules(unit),
@@ -1368,6 +1369,15 @@ void BattleUnit::healStun(int power)
 int BattleUnit::getStunlevel() const
 {
 	return _stunlevel;
+}
+
+bool BattleUnit::hasNegativeHealthRegen() const
+{
+	if (_health > 0)
+	{
+		return _armor->getHealthRecovery(this) < 0;
+	}
+	return false;
 }
 
 /**
@@ -2558,7 +2568,17 @@ BattleItem *BattleUnit::getMainHandWeapon(bool quickest) const
 	else if (!weaponRightHand && weaponLeftHand)
 		return weaponLeftHand;
 	else if (!weaponRightHand && !weaponLeftHand)
+	{
+		// Allow *AI* to use also a special weapon, but only when both hands are empty
+		// Only need to check for firearms since melee/psi is handled elsewhere
+		BattleItem* specialWeapon = getSpecialWeapon(BT_FIREARM);
+		if (specialWeapon)
+		{
+			return specialWeapon;
+		}
+
 		return 0;
+	}
 
 	// otherwise pick the one with the least snapshot TUs
 	int tuRightHand = getActionTUs(BA_SNAPSHOT, weaponRightHand).Time;
@@ -2795,6 +2815,14 @@ void BattleUnit::addMeleeExp()
 	_expMelee++;
 }
 
+/**
+ * Did the unit gain any experience yet?
+ */
+bool BattleUnit::hasGainedAnyExperience()
+{
+	return _expBravery || _expReactions || _expFiring || _expPsiSkill || _expPsiStrength || _expMelee || _expThrowing;
+}
+
 void BattleUnit::updateGeoscapeStats(Soldier *soldier) const
 {
 	soldier->addMissionCount();
@@ -2862,7 +2890,7 @@ bool BattleUnit::postMissionProcedures(SavedGame *geoscape, UnitStats &statsDiff
 	}
 
 	bool hasImproved = false;
-	if (_expBravery || _expReactions || _expFiring || _expPsiSkill || _expPsiStrength || _expMelee || _expThrowing)
+	if (hasGainedAnyExperience())
 	{
 		hasImproved = true;
 		if (s->getRank() == RANK_ROOKIE)
@@ -3861,10 +3889,20 @@ void BattleUnit::setSpecialWeapon(SavedBattleGame *save)
 		item = mod->getItem(getUnitRules()->getMeleeWeapon());
 		if (item && i < SPEC_WEAPON_MAX)
 		{
+			if ((item->getBattleType() == BT_FIREARM || item->getBattleType() == BT_MELEE) && !item->getClipSize())
+			{
+				throw Exception("Weapon " + item->getType() + " is used as a special weapon on unit " + getUnitRules()->getType() + " but doesn't have it's own ammo - give it a clipSize!");
+			}
 			_specWeapon[i++] = save->createItemForUnitBuildin(item, this);
 		}
 	}
+
 	item = mod->getItem(getArmor()->getSpecialWeapon());
+	if (item && (item->getBattleType() == BT_FIREARM || item->getBattleType() == BT_MELEE) && !item->getClipSize())
+	{
+		throw Exception("Weapon " + item->getType() + " is used as a special weapon on armor " + getArmor()->getType() + " but doesn't have it's own ammo - give it a clipSize!");
+	}
+
 	if (item && i < SPEC_WEAPON_MAX)
 	{
 		_specWeapon[i++] = save->createItemForUnitBuildin(item, this);
@@ -3892,6 +3930,29 @@ BattleItem *BattleUnit::getSpecialWeapon(BattleType type) const
 		}
 		if (_specWeapon[i]->getRules()->getBattleType() == type)
 		{
+			return _specWeapon[i];
+		}
+	}
+	return 0;
+}
+
+/**
+ * Gets the special weapon that uses an icon
+ * @param type Parameter passed to get back the type of the weapon
+ * @return Pointer the the weapon, null if not found
+ */
+BattleItem *BattleUnit::getSpecialIconWeapon(BattleType &type) const
+{
+	for (int i = 0; i < SPEC_WEAPON_MAX; ++i)
+	{
+		if (!_specWeapon[i])
+		{
+			break;
+		}
+
+		if (_specWeapon[i]->getRules()->getSpecialIconSprite() != -1)
+		{
+			type = _specWeapon[i]->getRules()->getBattleType();
 			return _specWeapon[i];
 		}
 	}
@@ -4182,6 +4243,19 @@ void getTileShade(const BattleUnit *bu, int &shade)
 	shade = 0;
 }
 
+void getStunMaxScript(const BattleUnit *bu, int &maxStun)
+{
+	if (bu)
+	{
+		maxStun = bu->getBaseStats()->health * 4;
+		return;
+	}
+	else
+	{
+		maxStun = 0;
+	}
+}
+
 struct getRightHandWeaponScript
 {
 	static RetEnum func(BattleUnit *bu, BattleItem *&bi)
@@ -4360,6 +4434,15 @@ void setMaxStatScript(BattleUnit *bu, int val)
 	}
 }
 
+template<int BattleUnit::*StatCurr>
+void setStunScript(BattleUnit *bu, int val)
+{
+	if (bu)
+	{
+		(bu->*StatCurr) = Clamp(val, 0, (bu->getBaseStats()->health) * 4);
+	}
+}
+
 template<int UnitStats::*StatMax>
 void setMaxStatScript(BattleUnit *bu, int val)
 {
@@ -4462,8 +4545,8 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.add<&setBaseStatScript<&BattleUnit::_energy, &UnitStats::stamina>>("setEnergy");
 
 	bu.addField<&BattleUnit::_stunlevel>("getStun");
-	bu.addField<&BattleUnit::_health>("getStunMax");
-	bu.add<&setBaseStatScript<&BattleUnit::_stunlevel, &BattleUnit::_health>>("setStun");
+	bu.add<&getStunMaxScript>("getStunMax");
+	bu.add<&setStunScript<&BattleUnit::_stunlevel>>("setStun");
 
 	bu.addField<&BattleUnit::_morale>("getMorale");
 	bu.addFake<100>("getMoraleMax");

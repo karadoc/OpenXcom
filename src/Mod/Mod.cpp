@@ -93,6 +93,7 @@
 #include "RuleGlobe.h"
 #include "RuleVideo.h"
 #include "RuleConverter.h"
+#include "RuleSoldierTransformation.h"
 
 namespace OpenXcom
 {
@@ -290,12 +291,12 @@ Mod::Mod() :
 	_escortRange(20), _escortsJoinFightAgainstHK(true), _crewEmergencyEvacuationSurvivalChance(100), _pilotsEmergencyEvacuationSurvivalChance(100),
 	_soldiersPerSergeant(5), _soldiersPerCaptain(11), _soldiersPerColonel(23), _soldiersPerCommander(30),
 	_pilotAccuracyZeroPoint(55), _pilotAccuracyRange(40), _pilotReactionsZeroPoint(55), _pilotReactionsRange(60),
-	_performanceBonusFactor(0), _useCustomCategories(false), _showDogfightDistanceInKm(false),
-	_theMostUselessOptionEver(0), _theBiggestRipOffEver(0),
+	_performanceBonusFactor(0), _useCustomCategories(false), _showDogfightDistanceInKm(false), _showFullNameInAlienInventory(false), _extraNerdyPediaInfo(false),
+	_theMostUselessOptionEver(0), _theBiggestRipOffEver(0), _shortRadarRange(0),
 	_defeatScore(0), _defeatFunds(0), _startingTime(6, 1, 1, 1999, 12, 0, 0), _startingDifficulty(0),
 	_baseDefenseMapFromLocation(0),
 	_facilityListOrder(0), _craftListOrder(0), _itemCategoryListOrder(0), _itemListOrder(0),
-	_researchListOrder(0),  _manufactureListOrder(0), _ufopaediaListOrder(0), _invListOrder(0), _modOffset(0)
+	_researchListOrder(0),  _manufactureListOrder(0), _transformationListOrder(0), _ufopaediaListOrder(0), _invListOrder(0), _soldierListOrder(0), _modOffset(0)
 {
 	_muteMusic = new Music();
 	_muteSound = new Sound();
@@ -350,6 +351,7 @@ Mod::Mod() :
 	dmg->ToTile = 0.0f;
 	dmg->ToStun = 1.0f;
 	dmg->RandomStun = false;
+	dmg->TileDamageMethod = 2;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	dmg = new RuleDamageType();
@@ -359,6 +361,7 @@ Mod::Mod() :
 	dmg->IgnoreSelfDestruct = true;
 	dmg->RadiusEffectiveness = 0.05f;
 	dmg->ToItem = 1.0f;
+	dmg->TileDamageMethod = 2;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	dmg = new RuleDamageType();
@@ -375,6 +378,7 @@ Mod::Mod() :
 	dmg->ToItem = 0.0f;
 	dmg->ToTile = 0.0f;
 	dmg->ToStun = 1.0f;
+	dmg->TileDamageMethod = 2;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	dmg = new RuleDamageType();
@@ -393,6 +397,7 @@ Mod::Mod() :
 	dmg->ToItem = 0.0f;
 	dmg->ToTile = 0.0f;
 	dmg->ToStun = 0.0f;
+	dmg->TileDamageMethod = 2;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	for (int itd = DT_10; itd < DAMAGE_TYPES; ++itd)
@@ -543,6 +548,10 @@ Mod::~Mod()
 		delete i->second;
 	}
 	for (std::map<std::string, RuleManufacture *>::const_iterator i = _manufacture.begin(); i != _manufacture.end(); ++i)
+	{
+		delete i->second;
+	}
+	for (std::map<std::string, RuleSoldierTransformation *>::const_iterator i = _soldierTransformation.begin(); i != _soldierTransformation.end(); ++i)
 	{
 		delete i->second;
 	}
@@ -1225,7 +1234,8 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 		RuleSoldier *rule = loadRule(*i, &_soldiers, &_soldiersIndex);
 		if (rule != 0)
 		{
-			rule->load(*i, this);
+			_soldierListOrder += 1;
+			rule->load(*i, this, _soldierListOrder);
 		}
 	}
 	for (YAML::const_iterator i = doc["units"].begin(); i != doc["units"].end(); ++i)
@@ -1280,6 +1290,15 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 		{
 			_manufactureListOrder += 100;
 			rule->load(*i, _manufactureListOrder);
+		}
+	}
+	for (YAML::const_iterator i = doc["soldierTransformation"].begin(); i != doc["soldierTransformation"].end(); ++i)
+	{
+		RuleSoldierTransformation *rule = loadRule(*i, &_soldierTransformation, &_soldierTransformationIndex, "name");
+		if (rule != 0)
+		{
+			_transformationListOrder += 100;
+			rule->load(*i, _transformationListOrder);
 		}
 	}
 	for (YAML::const_iterator i = doc["ufopaedia"].begin(); i != doc["ufopaedia"].end(); ++i)
@@ -1339,10 +1358,10 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 		else if ((*i)["delete"])
 		{
 			std::string type = (*i)["delete"].as<std::string>();
-			std::map<std::string, ArticleDefinition*>::iterator i = _ufopaediaArticles.find(type);
-			if (i != _ufopaediaArticles.end())
+			std::map<std::string, ArticleDefinition*>::iterator j = _ufopaediaArticles.find(type);
+			if (j != _ufopaediaArticles.end())
 			{
-				_ufopaediaArticles.erase(i);
+				_ufopaediaArticles.erase(j);
 			}
 			std::vector<std::string>::iterator idx = std::find(_ufopaediaIndex.begin(), _ufopaediaIndex.end(), type);
 			if (idx != _ufopaediaIndex.end())
@@ -1445,13 +1464,17 @@ void Mod::loadFile(const std::string &filename, ModScript &parsers)
 	_performanceBonusFactor = doc["performanceBonusFactor"].as<int>(_performanceBonusFactor);
 	_useCustomCategories = doc["useCustomCategories"].as<bool>(_useCustomCategories);
 	_showDogfightDistanceInKm = doc["showDogfightDistanceInKm"].as<bool>(_showDogfightDistanceInKm);
+	_showFullNameInAlienInventory = doc["showFullNameInAlienInventory"].as<bool>(_showFullNameInAlienInventory);
+	_extraNerdyPediaInfo = doc["extraNerdyPediaInfo"].as<bool>(_extraNerdyPediaInfo);
 	_theMostUselessOptionEver = doc["theMostUselessOptionEver"].as<int>(_theMostUselessOptionEver);
 	_theBiggestRipOffEver = doc["theBiggestRipOffEver"].as<int>(_theBiggestRipOffEver);
+	_shortRadarRange = doc["shortRadarRange"].as<int>(_shortRadarRange);
 	_baseDefenseMapFromLocation = doc["baseDefenseMapFromLocation"].as<int>(_baseDefenseMapFromLocation);
 	_missionRatings = doc["missionRatings"].as<std::map<int, std::string> >(_missionRatings);
 	_monthlyRatings = doc["monthlyRatings"].as<std::map<int, std::string> >(_monthlyRatings);
 	_fixedUserOptions = doc["fixedUserOptions"].as<std::map<std::string, std::string> >(_fixedUserOptions);
 	_hiddenMovementBackgrounds = doc["hiddenMovementBackgrounds"].as<std::vector<std::string> >(_hiddenMovementBackgrounds);
+	_flagByKills = doc["flagByKills"].as<std::vector<int> >(_flagByKills);
 
 	_defeatScore = doc["defeatScore"].as<int>(_defeatScore);
 	_defeatFunds = doc["defeatFunds"].as<int>(_defeatFunds);
@@ -2219,10 +2242,20 @@ const std::vector<std::string> &Mod::getSoldiersList() const
 }
 
 /**
- * Gets the list of commendations
+ * Returns the rules for the specified commendation.
+ * @param id Commendation type.
+ * @return Rules for the commendation.
+ */
+RuleCommendations *Mod::getCommendation(const std::string &id, bool error) const
+{
+	return getRule(id, "Commendation", _commendations, error);
+}
+
+/**
+ * Gets the list of commendations provided by the mod.
  * @return The list of commendations.
  */
-std::map<std::string, RuleCommendations *> Mod::getCommendation() const
+const std::map<std::string, RuleCommendations *> &Mod::getCommendationsList() const
 {
 	return _commendations;
 }
@@ -2477,6 +2510,25 @@ RuleManufacture *Mod::getManufacture (const std::string &id, bool error) const
 const std::vector<std::string> &Mod::getManufactureList() const
 {
 	return _manufactureIndex;
+}
+
+/**
+ * Returns the rules for the specified soldier transformation project.
+ * @param id Soldier transformation project type.
+ * @return Rules for the soldier transformation project.
+ */
+RuleSoldierTransformation *Mod::getSoldierTransformation (const std::string &id, bool error) const
+{
+	return getRule(id, "SoldierTransformation", _soldierTransformation, error);
+}
+
+/**
+ * Returns the list of soldier transformation projects.
+ * @return The list of soldier transformation projects.
+ */
+const std::vector<std::string> &Mod::getSoldierTransformationList() const
+{
+	return _soldierTransformationIndex;
 }
 
 /**
@@ -2769,6 +2821,7 @@ void Mod::sortLists()
 	std::sort(_facilitiesIndex.begin(), _facilitiesIndex.end(), compareRule<RuleBaseFacility>(this, (compareRule<RuleBaseFacility>::RuleLookup)&Mod::getBaseFacility));
 	std::sort(_researchIndex.begin(), _researchIndex.end(), compareRule<RuleResearch>(this, (compareRule<RuleResearch>::RuleLookup)&Mod::getResearch));
 	std::sort(_manufactureIndex.begin(), _manufactureIndex.end(), compareRule<RuleManufacture>(this, (compareRule<RuleManufacture>::RuleLookup)&Mod::getManufacture));
+	std::sort(_soldierTransformationIndex.begin(), _soldierTransformationIndex.end(), compareRule<RuleSoldierTransformation>(this,  (compareRule<RuleSoldierTransformation>::RuleLookup)&Mod::getSoldierTransformation));
 	std::sort(_invsIndex.begin(), _invsIndex.end(), compareRule<RuleInventory>(this, (compareRule<RuleInventory>::RuleLookup)&Mod::getInventory));
 	// special cases
 	std::sort(_craftWeaponsIndex.begin(), _craftWeaponsIndex.end(), compareRule<RuleCraftWeapon>(this));
@@ -2804,7 +2857,7 @@ Soldier *Mod::genSoldier(SavedGame *save, std::string type) const
 	// Check for duplicates
 	// Original X-COM gives up after 10 tries so might as well do the same here
 	bool duplicate = true;
-	for (int i = 0; i < 10 && duplicate; ++i)
+	for (int tries = 0; tries < 10 && duplicate; ++tries)
 	{
 		delete soldier;
 		soldier = new Soldier(getSoldier(type, true), getArmor(getSoldier(type, true)->getArmor(), true), newId);
@@ -2862,11 +2915,14 @@ std::string Mod::getFontName() const
 }
 
 /**
- * Returns the minimum facilitie's radar range.
- * @return The minimum range.
+ * Returns the maximum radar range still considered as short.
+ * @return The short radar range threshold.
  */
- int Mod::getMinRadarRange() const
+ int Mod::getShortRadarRange() const
  {
+	if (_shortRadarRange > 0)
+		return _shortRadarRange;
+
 	int minRadarRange = 0;
 
 	{
@@ -2990,6 +3046,11 @@ const std::map<std::string, std::string> &Mod::getFixedUserOptions() const
 const std::vector<std::string> &Mod::getHiddenMovementBackgrounds() const
 {
 	return _hiddenMovementBackgrounds;
+}
+
+const std::vector<int> &Mod::getFlagByKills() const
+{
+	return _flagByKills;
 }
 
 namespace
@@ -3874,8 +3935,9 @@ void Mod::loadExtraResources()
 		std::string palTargetName = palDef->getTarget();
 		if (_palettes.find(palTargetName) == _palettes.end())
 		{
-			Log(LOG_VERBOSE) << "WARNING: Palette " << palTargetName << " does not exist!";
-			continue;
+			Log(LOG_INFO) << "Creating a new palette: " << palTargetName;
+			_palettes[palTargetName] = new Palette();
+			_palettes[palTargetName]->initBlack();
 		}
 		else
 		{
@@ -3918,6 +3980,19 @@ void Mod::loadExtraResources()
 			{
 				throw Exception(fullPath + " not found");
 			}
+		}
+	}
+
+	Log(LOG_INFO) << "Making palette backups...";
+	for (auto pal : _palettes)
+	{
+		if (pal.first.find("PAL_") == 0)
+		{
+			Log(LOG_VERBOSE) << "Creating a backup for palette: " << pal.first;
+			std::string newName = "BACKUP_" + pal.first;
+			_palettes[newName] = new Palette();
+			_palettes[newName]->initBlack();
+			_palettes[newName]->copyFrom(pal.second);
 		}
 	}
 }

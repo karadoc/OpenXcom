@@ -101,7 +101,7 @@ void create()
 	_info.push_back(OptionInfo("language", &language, ""));
 	_info.push_back(OptionInfo("battleScrollSpeed", &battleScrollSpeed, 8));
 	_info.push_back(OptionInfo("battleEdgeScroll", (int*)&battleEdgeScroll, SCROLL_AUTO));
-	_info.push_back(OptionInfo("battleDragScrollButton", &battleDragScrollButton, SDL_BUTTON_MIDDLE));
+	_info.push_back(OptionInfo("battleDragScrollButton", &battleDragScrollButton, 0));
 	_info.push_back(OptionInfo("dragScrollTimeTolerance", &dragScrollTimeTolerance, 300)); // miliSecond
 	_info.push_back(OptionInfo("dragScrollPixelTolerance", &dragScrollPixelTolerance, 10)); // count of pixel
 	_info.push_back(OptionInfo("battleFireSpeed", &battleFireSpeed, 6));
@@ -226,6 +226,7 @@ void create()
 	_info.push_back(OptionInfo("oneHandedUnloading", &oneHandedUnloading, false, "STR_ALLOW_ONE_HANDED_UNLOADING", "STR_OXCE"));
 	_info.push_back(OptionInfo("ufoLandingAlert", &ufoLandingAlert, false, "STR_UFO_LANDING_ALERT", "STR_OXCE"));
 	_info.push_back(OptionInfo("friendlyCraftEscort", &friendlyCraftEscort, false, "STR_FRIENDLY_CRAFT_ESCORT", "STR_OXCE"));
+	_info.push_back(OptionInfo("drawEnemyRadarCircles", &drawEnemyRadarCircles, true, "STR_DRAW_ENEMY_RADAR_CIRCLES", "STR_OXCE"));
 
 	_info.push_back(OptionInfo("simpleUppercase", &simpleUppercase, false));
 
@@ -328,6 +329,7 @@ void create()
 	_info.push_back(OptionInfo("keyInventorySave", &keyInventorySave, SDLK_F5, "STR_SAVE_EQUIPMENT_TEMPLATE", "STR_OXCE"));
 	_info.push_back(OptionInfo("keyInventoryLoad", &keyInventoryLoad, SDLK_F9, "STR_LOAD_EQUIPMENT_TEMPLATE", "STR_OXCE"));
 
+	_info.push_back(OptionInfo("keyBattleUseSpecial", &keyBattleUseSpecial, SDLK_w, "STR_USE_SPECIAL_ITEM", "STR_OXCE"));
 	_info.push_back(OptionInfo("keyBattleActionItem1", &keyBattleActionItem1, SDLK_1, "STR_ACTION_ITEM_1", "STR_OXCE"));
 	_info.push_back(OptionInfo("keyBattleActionItem2", &keyBattleActionItem2, SDLK_2, "STR_ACTION_ITEM_2", "STR_OXCE"));
 	_info.push_back(OptionInfo("keyBattleActionItem3", &keyBattleActionItem3, SDLK_3, "STR_ACTION_ITEM_3", "STR_OXCE"));
@@ -933,8 +935,8 @@ void userSplitMasters()
 			{
 				std::string srcFile = _userFolder + (*j);
 				YAML::Node doc = YAML::LoadFile(srcFile);
-				std::vector<std::string> mods = doc["mods"].as<std::vector< std::string> >(std::vector<std::string>());
-				if (std::find(mods.begin(), mods.end(), (*i)) != mods.end())
+				std::vector<std::string> srcMods = doc["mods"].as<std::vector< std::string> >(std::vector<std::string>());
+				if (std::find(srcMods.begin(), srcMods.end(), (*i)) != srcMods.end())
 				{
 					std::string dstFile = masterFolder + CrossPlatform::PATH_SEPARATOR + (*j);
 					CrossPlatform::moveFile(srcFile, dstFile);
