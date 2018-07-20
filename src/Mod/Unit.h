@@ -73,6 +73,7 @@ private:
 	bool _livingWeapon;
 	std::string _meleeWeapon, _psiWeapon;
 	std::vector<std::vector<std::string> > _builtInWeapons;
+	bool _capturable;
 	bool _canSurrender, _autoSurrender;
 	bool _isLeeroyJenkins;
 	bool _waitIfOutsideWeaponRange;
@@ -131,6 +132,8 @@ public:
 	const std::string &getPsiWeapon() const;
 	/// Gets a vector of integrated items this unit has available.
 	const std::vector<std::vector<std::string> > &getBuiltInWeapons() const;
+	/// Gets whether the alien can be captured alive.
+	bool getCapturable() const;
 	/// Checks if this unit can surrender.
 	bool canSurrender() const;
 	/// Checks if this unit surrenders automatically, if all other units surrendered too.

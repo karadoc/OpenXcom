@@ -310,7 +310,11 @@ void SoldierTransformationState::performTransformation()
 	if (_transformationRule->isCreatingClone())
 	{
 		int newId = _game->getSavedGame()->getId("STR_SOLDIER");
-		RuleSoldier *newSoldierType = _game->getMod()->getSoldier(_transformationRule->getProducedSoldierType());
+		RuleSoldier *newSoldierType = _game->getMod()->getSoldier(_sourceSoldier->getRules()->getType());
+		if (!_transformationRule->getProducedSoldierType().empty())
+		{
+			newSoldierType = _game->getMod()->getSoldier(_transformationRule->getProducedSoldierType());
+		}
 		destinationSoldier = new Soldier(
 			newSoldierType,
 			_game->getMod()->getArmor(newSoldierType->getArmor()),
@@ -322,7 +326,7 @@ void SoldierTransformationState::performTransformation()
 		destinationSoldier->setLookVariant(_sourceSoldier->getLookVariant());
 
 		// preserve nationality only for soldiers of the same type
-		if (_sourceSoldier->getRules()->getType() == _transformationRule->getProducedSoldierType())
+		if (_sourceSoldier->getRules() == newSoldierType)
 		{
 			destinationSoldier->setNationality(_sourceSoldier->getNationality());
 		}
@@ -341,6 +345,15 @@ void SoldierTransformationState::performTransformation()
 			if (it != _game->getSavedGame()->getDeadSoldiers()->end())
 			{
 				_game->getSavedGame()->getDeadSoldiers()->erase(it);
+			}
+		}
+		else if (_transformationRule->getTransferTime() > 0)
+		{
+			// transfer time on a live soldier already at the base (doesn't make much sense, but we need to handle it anyway)
+			std::vector<Soldier*>::iterator it = find(_base->getSoldiers()->begin(), _base->getSoldiers()->end(), _sourceSoldier);
+			if (it != _base->getSoldiers()->end())
+			{
+				_base->getSoldiers()->erase(it);
 			}
 		}
 	}

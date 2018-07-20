@@ -62,7 +62,7 @@ BattleUnit::BattleUnit(Soldier *soldier, int depth, int maxViewDistance) :
 	_expBravery(0), _expReactions(0), _expFiring(0), _expThrowing(0), _expPsiSkill(0), _expPsiStrength(0), _expMelee(0),
 	_motionPoints(0), _scannedTurn(-1), _kills(0), _hitByFire(false), _hitByAnything(false), _fireMaxHit(0), _smokeMaxHit(0), _moraleRestored(0), _coverReserve(0), _charging(0), _turnsSinceSpotted(255), _turnsLeftSpottedForSnipers(0),
 	_statistics(), _murdererId(0), _mindControllerID(0), _fatalShotSide(SIDE_FRONT), _fatalShotBodyPart(BODYPART_HEAD), _armor(0),
-	_geoscapeSoldier(soldier), _unitRules(0), _rankInt(0), _turretType(-1), _hidingForTurn(false), _floorAbove(false), _respawn(false), _alreadyRespawned(false), _isLeeroyJenkins(false)
+	_geoscapeSoldier(soldier), _unitRules(0), _rankInt(0), _turretType(-1), _hidingForTurn(false), _floorAbove(false), _respawn(false), _capturable(true), _alreadyRespawned(false), _isLeeroyJenkins(false)
 {
 	_name = soldier->getName(true);
 	_id = soldier->getId();
@@ -73,6 +73,7 @@ BattleUnit::BattleUnit(Soldier *soldier, int depth, int maxViewDistance) :
 	_standHeight = _armor->getStandHeight() == -1 ? soldier->getRules()->getStandHeight() : _armor->getStandHeight();
 	_kneelHeight = _armor->getKneelHeight() == -1 ? soldier->getRules()->getKneelHeight() : _armor->getKneelHeight();
 	_floatHeight = _armor->getFloatHeight() == -1 ? soldier->getRules()->getFloatHeight() : _armor->getFloatHeight();
+	_lastReloadSound = Mod::ITEM_RELOAD;
 	_deathSound = std::vector<int>(); // this one is hardcoded
 	_aggroSound = -1;
 	_moveSound = _armor->getMoveSound() != -1 ? _armor->getMoveSound() : -1; // there's no unit move sound, thus hardcoded -1
@@ -250,6 +251,7 @@ BattleUnit::BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, St
 	_kneelHeight = _armor->getKneelHeight() == -1 ? unit->getKneelHeight() : _armor->getKneelHeight();
 	_floatHeight = _armor->getFloatHeight() == -1 ? unit->getFloatHeight() : _armor->getFloatHeight();
 	_loftempsSet = _armor->getLoftempsSet();
+	_lastReloadSound = Mod::ITEM_RELOAD;
 	_deathSound = unit->getDeathSounds();
 	_aggroSound = unit->getAggroSound();
 	_moveSound = _armor->getMoveSound() != -1 ? _armor->getMoveSound() : unit->getMoveSound();
@@ -259,6 +261,7 @@ BattleUnit::BattleUnit(Unit *unit, UnitFaction faction, int id, Armor *armor, St
 	_spawnUnit = unit->getSpawnUnit();
 	_value = unit->getValue();
 	_faceDirection = -1;
+	_capturable = unit->getCapturable();
 	_isLeeroyJenkins = unit->isLeeroyJenkins();
 
 	_movementType = _armor->getMovementType();
@@ -1807,6 +1810,14 @@ int BattleUnit::getFiringAccuracy(BattleActionType actionType, BattleItem *item,
 		{
 			result = result * item->getRules()->getOneHandedPenalty(mod) / 100;
 		}
+		else if (item->getRules()->isSpecialUsingEmptyHand())
+		{
+			// for special weapons that use an empty hand... already one hand with an item is enough for the penalty to apply
+			if (getRightHandWeapon() != 0 || getLeftHandWeapon() != 0)
+			{
+				result = result * item->getRules()->getOneHandedPenalty(mod) / 100;
+			}
+		}
 	}
 
 	return result * modifier / 100;
@@ -2734,6 +2745,7 @@ bool BattleUnit::reloadAmmo()
 			weapon->setAmmoForSlot(slotAmmo, ammo);
 			ammo->moveToOwner(0);
 
+			_lastReloadSound = ruleWeapon->getReloadSound();
 			return true;
 		}
 	}
@@ -4147,6 +4159,13 @@ void BattleUnit::resetHitState()
 	_hitByAnything = false;
 }
 
+/**
+ * Gets whether this unit can be captured alive (applies to aliens).
+ */
+bool BattleUnit::getCapturable() const
+{
+	return _capturable;
+}
 
 namespace
 {

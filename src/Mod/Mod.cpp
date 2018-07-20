@@ -286,7 +286,7 @@ Mod::Mod() :
 	_enableCloseQuartersCombat(0), _closeQuartersAccuracyGlobal(100), _closeQuartersTuCostGlobal(12), _closeQuartersEnergyCostGlobal(8),
 	_noLOSAccuracyPenaltyGlobal(-1),
 	_surrenderMode(0),
-	_bughuntMinTurn(20), _bughuntMaxEnemies(2), _bughuntRank(0), _bughuntLowMorale(40), _bughuntTimeUnitsLeft(60),
+	_bughuntMinTurn(999), _bughuntMaxEnemies(2), _bughuntRank(0), _bughuntLowMorale(40), _bughuntTimeUnitsLeft(60),
 	_ufoGlancingHitThreshold(0), _ufoBeamWidthParameter(1000),
 	_escortRange(20), _escortsJoinFightAgainstHK(true), _crewEmergencyEvacuationSurvivalChance(100), _pilotsEmergencyEvacuationSurvivalChance(100),
 	_soldiersPerSergeant(5), _soldiersPerCaptain(11), _soldiersPerColonel(23), _soldiersPerCommander(30),
@@ -3366,6 +3366,11 @@ void Mod::loadVanillaResources()
 	Window::soundPopup[2] = getSound("GEO.CAT", Mod::WINDOW_POPUP[2]);
 
 	loadBattlescapeResources(); // TODO load this at battlescape start, unload at battlescape end?
+
+	// dummy resources, that need to be defined in order for mod loading to work correctly
+	_sets["CustomArmorPreviews"] = new SurfaceSet(10, 18);
+	_sets["CustomItemPreviews"] = new SurfaceSet(10, 18);
+	_sets["TinyRanks"] = new SurfaceSet(7, 7);
 }
 
 /**
@@ -3702,7 +3707,7 @@ void Mod::loadExtraResources()
 		}
 
 		// Try the preferred format first, otherwise use the default priority
-		MusicFormat priority[] = { Options::preferredMusic, MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_MIDI };
+		MusicFormat priority[] = { Options::preferredMusic, MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_GM, MUSIC_MIDI };
 		for (std::map<std::string, RuleMusic *>::const_iterator i = _musicDefs.begin(); i != _musicDefs.end(); ++i)
 		{
 			Music *music = 0;
@@ -4123,8 +4128,8 @@ bool Mod::isImageFile(std::string extension) const
  */
 Music *Mod::loadMusic(MusicFormat fmt, const std::string &file, int track, float volume, CatFile *adlibcat, CatFile *aintrocat, GMCatFile *gmcat) const
 {
-	/* MUSIC_AUTO, MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_MIDI */
-	static const std::string exts[] = { "", ".flac", ".ogg", ".mp3", ".mod", ".wav", "", ".mid" };
+	/* MUSIC_AUTO, MUSIC_FLAC, MUSIC_OGG, MUSIC_MP3, MUSIC_MOD, MUSIC_WAV, MUSIC_ADLIB, MUSIC_GM, MUSIC_MIDI */
+	static const std::string exts[] = { "", ".flac", ".ogg", ".mp3", ".mod", ".wav", "", "", ".mid" };
 	Music *music = 0;
 	std::set<std::string> soundContents = FileMap::getVFolderContents("SOUND");
 	try
@@ -4158,23 +4163,14 @@ Music *Mod::loadMusic(MusicFormat fmt, const std::string &file, int track, float
 				}
 			}
 		}
-		// Try MIDI music
-		else if (fmt == MUSIC_MIDI)
+		// Try MIDI music (from GM.CAT)
+		else if (fmt == MUSIC_GM)
 		{
 			// DOS MIDI
 			if (gmcat && track < gmcat->getAmount())
 			{
 				music = gmcat->loadMIDI(track);
-			}
-			// Windows MIDI
-			else
-			{
-				if (soundContents.find(fname) != soundContents.end())
-				{
-					music = new Music();
-					music->load(FileMap::getFilePath("SOUND/" + fname));
-				}
-			}
+			}			
 		}
 		// Try digital tracks
 		else

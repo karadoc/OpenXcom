@@ -1224,6 +1224,7 @@ void StatsForNerdsState::initItemList()
 	addBoolean(ss, itemRule->getArcingShot(), "arcingShot");
 	addBoolean(ss, itemRule->isFireExtinguisher(), "isFireExtinguisher");
 	addInteger(ss, itemRule->getWaypoints(), "waypoints");
+	addInteger(ss, itemRule->getSprayWaypoints(), "sprayWaypoints");
 
 	addInteger(ss, itemRule->getShotgunPellets(), "shotgunPellets");
 	addInteger(ss, itemRule->getShotgunBehaviorType(), "shotgunBehavior", 0, false, "STR_SHOTGUN_BEHAVIOR_OXCE", 1);
@@ -1593,6 +1594,8 @@ void StatsForNerdsState::initItemList()
 		addSingleString(ss, itemRule->getMediKitCustomBackground(), "medikitBackground");
 
 		addSection(L"{Sounds}", L"", _white);
+		addVectorOfIntegers(ss, itemRule->getReloadSoundRaw(), "reloadSound");
+		addSoundVectorResourcePaths(ss, mod, "BATTLE.CAT", itemRule->getReloadSoundRaw());
 		addVectorOfIntegers(ss, itemRule->getFireSoundRaw(), "fireSound");
 		addSoundVectorResourcePaths(ss, mod, "BATTLE.CAT", itemRule->getFireSoundRaw());
 		addVectorOfIntegers(ss, itemRule->getHitSoundRaw(), "hitSound");

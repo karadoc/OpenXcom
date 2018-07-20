@@ -136,7 +136,8 @@ private:
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
 	int _specialIconSprite;
-	std::vector<int> _fireSound, _hitSound; 
+	std::vector<int> _reloadSound;
+	std::vector<int> _fireSound, _hitSound;
 	int _hitAnimation;
 	std::vector<int> _hitMissSound;
 	int _hitMissAnimation;
@@ -189,6 +190,7 @@ private:
 	std::vector<int> _customItemPreviewIndex;
 	int _kneelBonus, _oneHandedPenalty;
 	int _monthlySalary, _monthlyMaintenance;
+	int _sprayWaypoints;
 	RuleStatBonus _damageBonus, _meleeBonus, _accuracyMulti, _meleeMulti, _throwMulti, _closeQuartersMulti;
 	ModScript::BattleItemScripts::Container _battleItemScripts;
 	ScriptValues<RuleItem> _scriptValues;
@@ -278,6 +280,9 @@ public:
 	int getWaypoints() const;
 	/// Gets the item's bullet sprite reference.
 	int getBulletSprite() const;
+	/// Gets the item's reload sound.
+	int getReloadSound() const;
+	const std::vector<int> &getReloadSoundRaw() const { return _reloadSound; }
 	/// Gets the item's fire sound.
 	int getFireSound() const;
 	const std::vector<int> &getFireSoundRaw() const { return _fireSound; }
@@ -587,6 +592,8 @@ public:
 	int getMonthlySalary() const;
 	/// Gets the monthly maintenance.
 	int getMonthlyMaintenance() const;
+	/// Gets how many waypoints are used for a "spray" attack
+	int getSprayWaypoints() const;
 	/// Gets script.
 	template<typename Script>
 	const typename Script::Container &getScript() const { return _battleItemScripts.get<Script>(); }

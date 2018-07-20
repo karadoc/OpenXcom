@@ -95,8 +95,12 @@ public:
 	std::wstring getCraftString(Language *lang, float absBonus, float relBonus) const;
 	/// Gets a string version of the soldier's rank.
 	std::string getRankString() const;
-	/// Gets a sprite version of the soldier's rank.
+	/// Gets a sprite version of the soldier's rank. Used for BASEBITS.PCK.
 	int getRankSprite() const;
+	/// Gets a sprite version of the soldier's rank. Used for SMOKE.PCK.
+	int getRankSpriteBattlescape() const;
+	/// Gets a sprite version of the soldier's rank. Used for TinyRanks.
+	int getRankSpriteTiny() const;
 	/// Gets the soldier's rank.
 	SoldierRank getRank() const;
 	/// Increase the soldier's military rank.
