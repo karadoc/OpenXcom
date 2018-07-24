@@ -71,6 +71,7 @@ OPT bool showBarOverflowLayers; // Karadoc's option for using different colours 
 OPT bool ufoLandingAlert;
 OPT bool friendlyCraftEscort;
 OPT bool drawEnemyRadarCircles;
+OPT bool oneHandedUnloading;
 
 // Extra hidden flags (Meridian's build)
 OPT bool simpleUppercase;

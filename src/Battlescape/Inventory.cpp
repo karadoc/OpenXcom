@@ -1154,17 +1154,22 @@ bool Inventory::unload()
 				}
 				if ((*i)->getSlot() == FirstFreeHand)
 				{
-					FirstFreeHand = SecondFreeHand;
-					SecondFreeHand = nullptr;
-					if (FirstFreeHand == nullptr)
-					{
-						_warning->showMessage(_game->getLanguage()->getString("STR_BOTH_HANDS_MUST_BE_EMPTY"));
-						// Note: currently there is no available message for "one hand must be free".
-						return false;
-					}
+
+					FirstFreeHand = nullptr;
 				}
 			}
 		}
+	}
+
+	if (FirstFreeHand == nullptr)
+	{
+		FirstFreeHand = SecondFreeHand;
+		SecondFreeHand = nullptr;
+	}
+	if (FirstFreeHand == nullptr)
+	{
+		_warning->showMessage(_game->getLanguage()->getString("STR_ONE_HAND_MUST_BE_EMPTY"));
+		return false;
 	}
 
 	BattleActionCost cost { BA_NONE, _selUnit, _selItem };
@@ -1202,7 +1207,7 @@ bool Inventory::unload()
 			else
 			{
 				moveItem(oldAmmo, _inventorySlotGround, 0, 0);
-				arrangeGround(false);
+				arrangeGround();
 			}
 		}
 		setSelectedItem(0);
