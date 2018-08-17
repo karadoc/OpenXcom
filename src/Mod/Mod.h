@@ -160,6 +160,7 @@ private:
 	bool _aiExtendedFireModeChoice, _aiRespectMaxRange;
 	int _maxLookVariant, _tooMuchSmokeThreshold, _customTrainingFactor, _minReactionAccuracy;
 	int _chanceToStopRetaliation;
+	bool _allowCountriesToCancelAlienPact;
 	int _kneelBonusGlobal, _oneHandedPenaltyGlobal;
 	int _enableCloseQuartersCombat, _closeQuartersAccuracyGlobal, _closeQuartersTuCostGlobal, _closeQuartersEnergyCostGlobal;
 	int _noLOSAccuracyPenaltyGlobal;
@@ -188,6 +189,7 @@ private:
 	std::map<std::string, std::string> _fixedUserOptions;
 	std::vector<std::string> _hiddenMovementBackgrounds;
 	std::vector<int> _flagByKills;
+	int _pediaReplaceCraftFuelWithRangeType;
 	StatAdjustment _statAdjustment[5];
 
 	std::map<std::string, int> _ufopaediaSections;
@@ -455,6 +457,8 @@ public:
 	int getMinReactionAccuracy() const { return _minReactionAccuracy; }
 	/// Gets the chance to stop retaliation after unsuccessful xcom base attack (default = 0).
 	int getChanceToStopRetaliation() const { return _chanceToStopRetaliation; }
+	/// Will countries join the good side again after the infiltrator base is destroyed?
+	bool getAllowCountriesToCancelAlienPact() const { return _allowCountriesToCancelAlienPact; }
 	/// Gets the global kneel bonus (default = 115).
 	int getKneelBonusGlobal() const { return _kneelBonusGlobal; }
 	/// Gets the global one-handed penalty (default = 80).
@@ -589,6 +593,8 @@ public:
 	std::string getFontName() const;
 	/// Gets the maximum radar range still considered as short.
 	int getShortRadarRange() const;
+	/// Gets what type of information should be shown in craft articles for the fuel capacity/range
+	int getPediaReplaceCraftFuelWithRangeType() const;
 	/// Gets information on an interface element.
 	RuleInterface *getInterface(const std::string &id, bool error = true) const;
 	/// Gets the ruleset for the globe.

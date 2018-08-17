@@ -828,7 +828,10 @@ void DebriefingState::btnOkClick(Action *)
 			{
 				if (i->second == 2)
 				{
-					if (_base->getAvailableContainment(i->first) - (_base->getUsedContainment(i->first) * _limitsEnforced) >= 0)
+					int availableContainment = _base->getAvailableContainment(i->first);
+					int usedContainment = _base->getUsedContainment(i->first);
+					int freeContainment = availableContainment - (usedContainment * _limitsEnforced);
+					if (availableContainment > 0 && freeContainment >= 0)
 					{
 						_containmentStateInfo[i->first] = 0; // 0 = OK
 					}
@@ -1271,6 +1274,18 @@ void DebriefingState::prepareDebriefing()
 				std::for_each(save->getAlienMissions().begin(), save->getAlienMissions().end(),
 							ClearAlienBase(*i));
 
+				// If there was a pact with this base, cancel it?
+				if (_game->getMod()->getAllowCountriesToCancelAlienPact() && !(*i)->getPactCountry().empty())
+				{
+					for (std::vector<Country*>::iterator cntr = _game->getSavedGame()->getCountries()->begin(); cntr != _game->getSavedGame()->getCountries()->end(); ++cntr)
+					{
+						if ((*cntr)->getRules()->getType() == (*i)->getPactCountry())
+						{
+							(*cntr)->setCancelPact();
+							break;
+						}
+					}
+				}
 				delete *i;
 				save->getAlienBases()->erase(i);
 				break;
@@ -1513,6 +1528,7 @@ void DebriefingState::prepareDebriefing()
 			// without worrying it's vehicles' destructor calling double (on base defense missions
 			// all vehicle object in the craft is also referenced by base->getVehicles() !!)
 			_game->getSavedGame()->stopHuntingXcomCraft(craft); // lost during ground mission
+			_game->getSavedGame()->removeAllSoldiersFromXcomCraft(craft); // needed in case some soldiers couldn't spawn
 			delete craft;
 			craft = 0; // To avoid a crash down there!!
 			lostCraft = true;
@@ -2139,14 +2155,18 @@ void DebriefingState::recoverCivilian(BattleUnit *from, Base *base)
 					}
 					if (killPrisonersAutomatically)
 					{
-						_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 1; // 1 = not available
+						_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 1; // 1 = not available in any base
 					}
 					else
 					{
 						base->getStorageItems()->addItem(type, 1);
-						if (base->getAvailableContainment(ruleLiveAlienItem->getPrisonType()) - (base->getUsedContainment(ruleLiveAlienItem->getPrisonType()) * _limitsEnforced) < 0)
+						int availableContainment = base->getAvailableContainment(ruleLiveAlienItem->getPrisonType());
+						int usedContainment = base->getUsedContainment(ruleLiveAlienItem->getPrisonType());
+						int freeContainment = availableContainment - (usedContainment * _limitsEnforced);
+						// no capacity, or not enough capacity
+						if (availableContainment == 0 || freeContainment < 0)
 						{
-							_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 2; // 2 = full
+							_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 2; // 2 = overfull
 						}
 					}
 				}
@@ -2191,7 +2211,7 @@ void DebriefingState::recoverAlien(BattleUnit *from, Base *base)
 	}
 	if (killPrisonersAutomatically)
 	{
-		_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 1; // 1 = not available
+		_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 1; // 1 = not available in any base
 
 		if (!from->getArmor()->getCorpseBattlescape().empty())
 		{
@@ -2224,9 +2244,13 @@ void DebriefingState::recoverAlien(BattleUnit *from, Base *base)
 		}
 
 		base->getStorageItems()->addItem(type, 1);
-		if (base->getAvailableContainment(ruleLiveAlienItem->getPrisonType()) - (base->getUsedContainment(ruleLiveAlienItem->getPrisonType()) * _limitsEnforced) < 0)
+		int availableContainment = base->getAvailableContainment(ruleLiveAlienItem->getPrisonType());
+		int usedContainment = base->getUsedContainment(ruleLiveAlienItem->getPrisonType());
+		int freeContainment = availableContainment - (usedContainment * _limitsEnforced);
+		// no capacity, or not enough capacity
+		if (availableContainment == 0 || freeContainment < 0)
 		{
-			_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 2; // 2 = full
+			_containmentStateInfo[ruleLiveAlienItem->getPrisonType()] = 2; // 2 = overfull
 		}
 	}
 }

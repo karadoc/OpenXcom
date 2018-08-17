@@ -487,6 +487,11 @@ bool RuleCraft::isValidWeaponSlot(int slot, int weaponType) const
 	return false;
 }
 
+int RuleCraft::getWeaponTypesRaw(int slot, int subslot) const
+{
+	return _weaponTypes[slot][subslot];
+}
+
 /**
  * Return string ID of weapon slot name for geoscape craft state.
  * @param slot value less than WeaponMax.
@@ -540,6 +545,48 @@ int RuleCraft::getShieldRechargeAtBase() const
 bool RuleCraft::isMapVisible() const
 {
 	return _mapVisible;
+}
+
+/**
+ * Calculates the theoretical range of the craft
+ * This depends on when you launch the craft as fuel is consumed only on exact 10 minute increments
+ * @param type Which calculation should we do? 0 = maximum, 1 = minimum, 2 = average of the two
+ * @return The calculated range
+ */
+int RuleCraft::calculateRange(int type)
+{
+	// If the craft uses an item to refuel, the tick rate is one fuel unit per 10 minutes
+	int totalFuelTicks = _stats.fuelMax;
+
+	// If no item is used to refuel, the tick rate depends on speed
+	if (_refuelItem.empty())
+	{
+		// Craft with less than 100 speed don't consume fuel and therefore have infinite range
+		if (_stats.speedMax < 100)
+		{
+			return -1;
+		}
+
+		totalFuelTicks = _stats.fuelMax / (_stats.speedMax / 100);
+	}
+
+	// Six ticks per hour, factor return trip and speed for total range
+	int range;
+	switch (type)
+	{
+		// Min range happens when the craft is sent at xx:x9:59, as a unit of fuel is immediately consumed, so we subtract an extra 'tick' of fuel in this case
+		case 1:
+			range = (totalFuelTicks - 1) * _stats.speedMax / 12;
+			break;
+		case 2:
+			range = (2 * totalFuelTicks - 1) * _stats.speedMax / 12 / 2;
+			break;
+		default :
+			range = totalFuelTicks * _stats.speedMax / 12;
+			break;
+	}
+
+	return range;
 }
 
 }

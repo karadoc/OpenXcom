@@ -124,6 +124,7 @@ class RuleItem
 public:
 	/// Maximum number of ammo slots on weapon.
 	static const int AmmoSlotMax = 4;
+	static const int MedikitSlots = 3;
 
 private:
 	std::string _type, _name, _nameAsAmmo; // two types of objects can have the same name
@@ -132,6 +133,7 @@ private:
 	std::vector<std::string> _categories;
 	double _size;
 	int _costBuy, _costSell, _transferTime, _weight;
+	bool _haveMercy;
 	int _bigSprite;
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
@@ -255,6 +257,7 @@ public:
 	/// Gets the item's weight.
 	int getWeight() const;
 	/// Gets the item's reference in BIGOBS.PCK for use in inventory.
+	bool haveMercy() const { return _haveMercy; }
 	int getBigSprite() const;
 	/// Gets the item's reference in FLOOROB.PCK for use in battlescape.
 	int getFloorSprite() const;

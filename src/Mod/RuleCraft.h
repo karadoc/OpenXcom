@@ -217,6 +217,7 @@ public:
 	int getMaxItems() const;
 	/// Test for possibility of usage of weapon type in weapon slot.
 	bool isValidWeaponSlot(int slot, int weaponType) const;
+	int getWeaponTypesRaw(int slot, int subslot) const;
 	/// Get description string of weapon slot.
 	const std::string &getWeaponSlotString(int slot) const;
 	/// Get basic statistic of craft.
@@ -229,6 +230,8 @@ public:
 	int getShieldRechargeAtBase() const;
 	/// Get whether the craft's map should be visible at the start of a battle
 	bool isMapVisible() const;
+	/// Calculate the theoretical range of the craft in nautical miles
+	int calculateRange(int type);
 };
 
 }

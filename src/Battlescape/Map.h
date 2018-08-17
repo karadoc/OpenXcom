@@ -48,10 +48,9 @@ class Map : public InteractiveSurface
 private:
 	static const int SCROLL_INTERVAL = 15;
 	static const int FADE_INTERVAL = 23;
-	static const int NIGHT_VISION_THRESHOLD = 6;
 	static const int NIGHT_VISION_SHADE = 4;
 	static const int BULLET_SPRITES = 35;
-	Timer *_scrollMouseTimer, *_scrollKeyTimer;
+	Timer *_scrollMouseTimer, *_scrollKeyTimer, *_obstacleTimer;
 	Timer *_fadeTimer;
 	int _fadeShade;
 	bool _nightVisionOn;
@@ -89,6 +88,7 @@ private:
 	int getWallShade(TilePart part, Tile* tileFrot, Tile* tileBehind);
 	int _iconHeight, _iconWidth, _messageColor;
 	const std::vector<Uint8> *_transparencies;
+	bool _showObstacles;
 public:
 	/// Creates a new map at the specified position and size.
 	Map(Game* game, int width, int height, int x, int y, int visibleMapHeight);
@@ -168,6 +168,12 @@ public:
 	int reShade(Tile *tile);
 	/// toggle the night-vision mode
 	void toggleNightVision();
+	/// Resets obstacle markers.
+	void resetObstacles();
+	/// Enables obstacle markers.
+	void enableObstacles();
+	/// Disables obstacle markers.
+	void disableObstacles();
 };
 
 }

@@ -33,9 +33,14 @@
 #include "../Mod/ExtraSounds.h"
 #include "../Mod/ExtraSprites.h"
 #include "../Mod/Mod.h"
+#include "../Mod/RuleBaseFacility.h"
+#include "../Mod/RuleCraft.h"
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleItem.h"
+#include "../Mod/RuleUfo.h"
+#include "../Savegame/SavedGame.h"
 #include "../fmath.h"
+#include <algorithm>
 
 namespace OpenXcom
 {
@@ -315,6 +320,18 @@ void StatsForNerdsState::initLists()
 	case UFOPAEDIA_TYPE_TFTD_ARMOR:
 		initArmorList();
 		break;
+	case UFOPAEDIA_TYPE_BASE_FACILITY:
+	case UFOPAEDIA_TYPE_TFTD_BASE_FACILITY:
+		initFacilityList();
+		break;
+	case UFOPAEDIA_TYPE_CRAFT:
+	case UFOPAEDIA_TYPE_TFTD_CRAFT:
+		initCraftList();
+		break;
+	case UFOPAEDIA_TYPE_UFO:
+	case UFOPAEDIA_TYPE_TFTD_USO:
+		initUfoList();
+		break;
 	default:
 		break;
 	}
@@ -392,9 +409,35 @@ void StatsForNerdsState::addSection(const std::wstring &name, const std::wstring
 /**
  * Adds a group heading to the table.
  */
-void StatsForNerdsState::addHeading(const std::string &propertyName)
+void StatsForNerdsState::addHeading(const std::string &propertyName, const std::string &moreDetail, bool addDifficulty)
 {
-	_lstRawData->addRow(2, trp(propertyName).c_str(), L"");
+	if (moreDetail.empty())
+	{
+		_lstRawData->addRow(2, trp(propertyName).c_str(), L"");
+	}
+	else
+	{
+		std::wostringstream ss2;
+		if (addDifficulty)
+		{
+			std::wstring diff;
+			switch (_game->getSavedGame()->getDifficulty())
+			{
+				case DIFF_SUPERHUMAN: diff = tr("STR_5_SUPERHUMAN"); break;
+				case DIFF_GENIUS: diff = tr("STR_4_GENIUS"); break;
+				case DIFF_VETERAN: diff = tr("STR_3_VETERAN"); break;
+				case DIFF_EXPERIENCED: diff = tr("STR_2_EXPERIENCED"); break;
+				default: diff = tr("STR_1_BEGINNER"); break;
+			}
+			ss2 << tr(moreDetail).arg(diff);
+		}
+		else
+		{
+			addTranslation(ss2, moreDetail);
+		}
+		_lstRawData->addRow(2, trp(propertyName).c_str(), ss2.str().c_str());
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _white);
+	}
 	_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 0, _blue);
 
 	// reset counter
@@ -629,9 +672,100 @@ void StatsForNerdsState::addIntegerPercent(std::wostringstream &ss, const int &v
 	resetStream(ss);
 	ss << value;
 	// -1 is not a percentage, usually means "take value from somewhere else"
-	if (value >= 0)
+	if (value != -1)
 	{
 		ss << L"%";
+	}
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds a single integer number (representing a distance in nautical miles) to the table.
+ */
+void StatsForNerdsState::addIntegerNauticalMiles(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	ss << tr("STR_NAUTICAL_MILES").arg(value);
+	ss << L" = ";
+	ss << tr("STR_KILOMETERS").arg(value * 1852 / 1000);
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds a single integer number (representing a speed in knots = nautical miles per hour) to the table.
+ */
+void StatsForNerdsState::addIntegerKnots(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	ss << tr("STR_KNOTS").arg(value);
+	ss << L" = ";
+	ss << tr("STR_KILOMETERS_PER_HOUR").arg(value * 1852 / 1000);
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds a single integer number (representing a distance in kilometers) to the table.
+ */
+void StatsForNerdsState::addIntegerKm(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	ss << tr("STR_KILOMETERS").arg(value);
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds one or two integer numbers (representing a duration in seconds) to the table.
+ */
+void StatsForNerdsState::addIntegerSeconds(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue, const int &value2)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	if (value2 == -1)
+	{
+		ss << tr("STR_SECONDS_LONG").arg(value);
+	}
+	else
+	{
+		std::wostringstream ss2;
+		ss2 << value;
+		ss2 << L"-";
+		ss2 << value2;
+		ss << tr("STR_SECONDS_LONG").arg(ss2.str());
 	}
 	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
 	++_counter;
@@ -774,6 +908,7 @@ void StatsForNerdsState::addDamageRandomType(std::wostringstream &ss, const Item
 		case DRT_FIRE: ss << tr("DRT_FIRE"); break;
 		case DRT_NONE: ss << tr("DRT_NONE"); break;
 		case DRT_UFO_WITH_TWO_DICE: ss << tr("DRT_UFO_WITH_TWO_DICE"); break;
+		case DRT_EASY: ss << tr("DRT_EASY"); break;
 		default: ss << tr("STR_UNKNOWN"); break;
 	}
 	if (_showIds)
@@ -1582,7 +1717,7 @@ void StatsForNerdsState::initItemList()
 		addBoolean(ss, itemRule->getFixedShow(), "fixedWeaponShow");
 		addInteger(ss, itemRule->getTurretType(), "turretType", -1);
 
-		addInteger(ss, itemRule->getBigSprite(), "bigSprite", -1);
+		addInteger(ss, itemRule->getBigSprite(), "bigSprite", -999);
 		addSpriteResourcePath(ss, mod, "BIGOBS.PCK", itemRule->getBigSprite());
 		addInteger(ss, itemRule->getFloorSprite(), "floorSprite", -1);
 		addSpriteResourcePath(ss, mod, "FLOOROB.PCK", itemRule->getFloorSprite());
@@ -2089,6 +2224,590 @@ void StatsForNerdsState::initArmorList()
 			}
 			endHeading();
 		}
+	}
+}
+
+/**
+ * Adds a vector of Positions to the table.
+ */
+void StatsForNerdsState::addVectorOfPositions(std::wostringstream &ss, const std::vector<Position> &vec, const std::string &propertyName)
+{
+	if (vec.empty() && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	int i = 0;
+	ss << L"{";
+	for (auto &item : vec)
+	{
+		if (i > 0)
+		{
+			ss << L", ";
+		}
+		ss << L"(" << item.x << L"," << item.y << L"," << item.z << L")";
+		i++;
+	}
+	ss << L"}";
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (!vec.empty())
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds a build cost item to the table.
+ */
+void StatsForNerdsState::addBuildCostItem(std::wostringstream &ss, const std::pair<const std::string, std::pair<int, int> > &costItem)
+{
+	resetStream(ss);
+	int i = 0;
+	addTranslation(ss, costItem.first);
+	ss << L": " << tr("STR_COST_BUILD") << ": ";
+	ss << costItem.second.first;
+	ss << L", " << tr("STR_COST_REFUND") << ": ";
+	ss << costItem.second.second;
+	_lstRawData->addRow(2, L"", ss.str().c_str());
+	++_counter;
+	_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+}
+
+/**
+ * Adds a human readable form of base facility right-click action type to the table.
+ */
+void StatsForNerdsState::addRightClickActionType(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	switch (value)
+	{
+	case 0: ss << tr("BFRCT_DEFAULT"); break;
+	case 1: ss << tr("BFRCT_PRISON"); break;
+	case 2: ss << tr("BFRCT_ENGINEERING"); break;
+	case 3: ss << tr("BFRCT_RESEARCH"); break;
+	case 4: ss << tr("BFRCT_GYM"); break;
+	case 5: ss << tr("BFRCT_PSI_LABS"); break;
+	case 6: ss << tr("BFRCT_BARRACKS"); break;
+	case 7: ss << tr("BFRCT_GREY_MARKET"); break;
+	default: ss << tr("BFRCT_GEOSCAPE"); break;
+	}
+	if (_showIds)
+	{
+		ss << L" [" << value << L"]";
+	}
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Shows the "raw" RuleBaseFacility data.
+ */
+void StatsForNerdsState::initFacilityList()
+{
+	_lstRawData->clearList();
+	_lstRawData->setIgnoreSeparators(true);
+
+	std::wostringstream ssTopic;
+	ssTopic << tr(_topicId);
+	if (_showIds)
+	{
+		ssTopic << L" [" << Language::utf8ToWstr(_topicId) << L"]";
+	}
+
+	_txtArticle->setText(tr("STR_ARTICLE").arg(ssTopic.str()));
+
+	Mod *mod = _game->getMod();
+	RuleBaseFacility *facilityRule = mod->getBaseFacility(_topicId);
+	if (!facilityRule)
+		return;
+
+	_filterOptions.clear();
+	_cbxRelatedStuff->setVisible(false);
+
+	std::wostringstream ss;
+
+	addVectorOfStrings(ss, facilityRule->getRequirements(), "requires");
+
+	addInteger(ss, facilityRule->getSize(), "size", 1);
+	addInteger(ss, facilityRule->getBuildCost(), "buildCost", 0, true);
+	addHeading("buildCostItems");
+	{
+		for (auto& costItem : facilityRule->getBuildCostItems())
+		{
+			addBuildCostItem(ss, costItem);
+		}
+		endHeading();
+	}
+	addInteger(ss, facilityRule->getBuildTime(), "buildTime");
+	addInteger(ss, facilityRule->getMonthlyCost(), "monthlyCost", 0, true);
+	addInteger(ss, facilityRule->getRefundValue(), "refundValue", 0, true);
+
+	addVectorOfStrings(ss, facilityRule->getRequireBaseFunc(), "requiresBaseFunc");
+	addVectorOfStrings(ss, facilityRule->getProvidedBaseFunc(), "provideBaseFunc");
+	addVectorOfStrings(ss, facilityRule->getForbiddenBaseFunc(), "forbiddenBaseFunc");
+
+	addBoolean(ss, facilityRule->isLift(), "lift");
+	addBoolean(ss, facilityRule->isHyperwave(), "hyper");
+	addBoolean(ss, facilityRule->isMindShield(), "mind");
+	addBoolean(ss, facilityRule->isGravShield(), "grav");
+
+	addInteger(ss, facilityRule->getStorage(), "storage");
+	addInteger(ss, facilityRule->getPersonnel(), "personnel");
+	addInteger(ss, facilityRule->getAliens(), "aliens");
+	addInteger(ss, facilityRule->getPrisonType(), "prisonType");
+	addInteger(ss, facilityRule->getCrafts(), "crafts");
+	addInteger(ss, facilityRule->getLaboratories(), "labs");
+	addInteger(ss, facilityRule->getWorkshops(), "workshops");
+	addInteger(ss, facilityRule->getPsiLaboratories(), "psiLabs");
+	addInteger(ss, facilityRule->getTrainingFacilities(), "trainingRooms");
+
+	addIntegerNauticalMiles(ss, facilityRule->getRadarRange(), "radarRange");
+	addIntegerPercent(ss, facilityRule->getRadarChance(), "radarChance");
+	addInteger(ss, facilityRule->getDefenseValue(), "defense");
+	addIntegerPercent(ss, facilityRule->getHitRatio(), "hitRatio");
+
+	addInteger(ss, facilityRule->getMaxAllowedPerBase(), "maxAllowedPerBase");
+	addFloat(ss, facilityRule->getSickBayAbsoluteBonus(), "sickBayAbsoluteBonus");
+	addFloat(ss, facilityRule->getSickBayRelativeBonus(), "sickBayRelativeBonus");
+
+	addRightClickActionType(ss, facilityRule->getRightClickActionType(), "rightClickActionType");
+
+	addVectorOfStrings(ss, facilityRule->getLeavesBehindOnSell(), "leavesBehindOnSell");
+	addInteger(ss, facilityRule->getRemovalTime(), "removalTime");
+	addBoolean(ss, facilityRule->getCanBeBuiltOver(), "canBeBuiltOver");
+	addVectorOfStrings(ss, facilityRule->getBuildOverFacilities(), "buildOverFacilities");
+
+	if (_showDebug)
+	{
+		addSection(L"{Modding section}", L"You don't need this info as a player", _white, true);
+
+		addSection(L"{Naming}", L"", _white);
+		addSingleString(ss, facilityRule->getType(), "type");
+		addInteger(ss, facilityRule->getListOrder(), "listOrder");
+
+		addSection(L"{Visuals}", L"", _white);
+		addSingleString(ss, facilityRule->getMapName(), "mapName");
+		addBoolean(ss, !facilityRule->getVerticalLevels().empty(), "verticalLevels*"); // just say if there are any or not
+		addVectorOfPositions(ss, facilityRule->getStorageTiles(), "storageTiles");
+
+		addInteger(ss, facilityRule->getSpriteShape(), "spriteShape", -1);
+		addSpriteResourcePath(ss, mod, "BASEBITS.PCK", facilityRule->getSpriteShape());
+
+		addInteger(ss, facilityRule->getSpriteFacility(), "spriteFacility", -1);
+		addSpriteResourcePath(ss, mod, "BASEBITS.PCK", facilityRule->getSpriteFacility());
+
+		addSection(L"{Sounds}", L"", _white);
+		addInteger(ss, facilityRule->getFireSound(), "fireSound");
+		std::vector<int> tmpSoundVector;
+		tmpSoundVector.push_back(facilityRule->getFireSound());
+		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
+
+		addInteger(ss, facilityRule->getHitSound(), "hitSound");
+		tmpSoundVector.clear();
+		tmpSoundVector.push_back(facilityRule->getHitSound());
+		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
+	}
+}
+
+/**
+ * Shows the "raw" RuleCraft data.
+ */
+void StatsForNerdsState::initCraftList()
+{
+	_lstRawData->clearList();
+	_lstRawData->setIgnoreSeparators(true);
+
+	std::wostringstream ssTopic;
+	ssTopic << tr(_topicId);
+	if (_showIds)
+	{
+		ssTopic << L" [" << Language::utf8ToWstr(_topicId) << L"]";
+	}
+
+	_txtArticle->setText(tr("STR_ARTICLE").arg(ssTopic.str()));
+
+	Mod *mod = _game->getMod();
+	RuleCraft *craftRule = mod->getCraft(_topicId);
+	if (!craftRule)
+		return;
+
+	_filterOptions.clear();
+	_cbxRelatedStuff->setVisible(false);
+
+	std::wostringstream ss;
+
+	addVectorOfStrings(ss, craftRule->getRequirements(), "requires");
+
+	addInteger(ss, craftRule->getBuyCost(), "costBuy", 0, true);
+	addInteger(ss, craftRule->getRentCost(), "costRent", 0, true);
+	addInteger(ss, craftRule->getSellCost(), "costSell", 0, true);
+	addInteger(ss, craftRule->getTransferTime(), "transferTime", 24);
+
+	addInteger(ss, craftRule->getSoldiers(), "soldiers");
+	addInteger(ss, craftRule->getPilots(), "pilots");
+	addInteger(ss, craftRule->getVehicles(), "vehicles");
+	addInteger(ss, craftRule->getMaxItems(), "maxItems");
+
+	addInteger(ss, craftRule->getMaxAltitude(), "maxAltitude", -1);
+	addInteger(ss, craftRule->getWeapons(), "weapons");
+
+	// weaponStrings
+	bool modded = false;
+	for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+	{
+		if (i == 0 && craftRule->getWeaponSlotString(i) != "STR_WEAPON_ONE")
+		{
+			modded = true;
+		}
+		if (i == 1 && craftRule->getWeaponSlotString(i) != "STR_WEAPON_TWO")
+		{
+			modded = true;
+		}
+		if (i > 1 && !craftRule->getWeaponSlotString(i).empty())
+		{
+			modded = true;
+		}
+	}
+	std::vector<std::string> tmp;
+	if (modded)
+	{
+		for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+		{
+			tmp.push_back(craftRule->getWeaponSlotString(i));
+		}
+	}
+	addVectorOfStrings(ss, tmp, "weaponStrings");
+
+	// weaponTypes
+	modded = false;
+	for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+	{
+		for (int j = 0; j < RuleCraft::WeaponTypeMax; ++j)
+		{
+			if (craftRule->getWeaponTypesRaw(i, j) != 0)
+			{
+				modded = true;
+				break;
+			}
+		}
+		if (modded) break;
+	}
+	tmp.clear();
+	if (modded)
+	{
+		for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+		{
+			std::ostringstream ss2;
+			ss2 << "{";
+			ss2 << craftRule->getWeaponTypesRaw(i, 0);
+			for (int j = 1; j < RuleCraft::WeaponTypeMax; ++j)
+			{
+				ss2 << ",";
+				ss2 << craftRule->getWeaponTypesRaw(i, j);
+			}
+			ss2 << "}";
+			tmp.push_back(ss2.str());
+		}
+	}
+	addVectorOfStrings(ss, tmp, "weaponTypes");
+
+	addHeading("stats");
+	{
+		addInteger(ss, craftRule->getMaxDamage(), "damageMax");
+		addInteger(ss, craftRule->getStats().armor, "armor");
+		addIntegerPercent(ss, craftRule->getStats().avoidBonus, "avoidBonus");
+		addIntegerPercent(ss, craftRule->getStats().powerBonus, "powerBonus");
+		addIntegerPercent(ss, craftRule->getStats().hitBonus, "hitBonus");
+		addInteger(ss, craftRule->getMaxFuel(), "fuelMax");
+		addIntegerKnots(ss, craftRule->getMaxSpeed(), "speedMax");
+		addInteger(ss, craftRule->getAcceleration(), "accel");
+		addIntegerNauticalMiles(ss, craftRule->getRadarRange(), "radarRange", 672);
+		addIntegerPercent(ss, craftRule->getRadarChance(), "radarChance", 100);
+		addIntegerNauticalMiles(ss, craftRule->getSightRange(), "sightRange", 1696);
+		addInteger(ss, craftRule->getStats().shieldCapacity, "shieldCapacity");
+		addInteger(ss, craftRule->getStats().shieldRecharge, "shieldRecharge");
+		addInteger(ss, craftRule->getStats().shieldRechargeInGeoscape, "shieldRechargeInGeoscape");
+		addInteger(ss, craftRule->getStats().shieldBleedThrough, "shieldBleedThrough");
+		endHeading();
+	}
+	addInteger(ss, craftRule->getShieldRechargeAtBase(), "shieldRechargedAtBase", 1000);
+
+	addSingleString(ss, craftRule->getRefuelItem(), "refuelItem");
+	addInteger(ss, craftRule->getRefuelRate(), "refuelRate", 1);
+	addInteger(ss, craftRule->getRepairRate(), "repairRate", 1);
+
+	addBoolean(ss, craftRule->getSpacecraft(), "spacecraft");
+	addBoolean(ss, craftRule->getAllowLanding(), "allowLanding", true);
+	addBoolean(ss, craftRule->notifyWhenRefueled(), "notifyWhenRefueled");
+	addBoolean(ss, craftRule->canAutoPatrol(), "autoPatrol");
+
+	addBoolean(ss, craftRule->keepCraftAfterFailedMission(), "keepCraftAfterFailedMission");
+
+	addHeading("_calculatedValues");
+	{
+		if (craftRule->calculateRange(0) != -1)
+		{
+			addIntegerNauticalMiles(ss, craftRule->calculateRange(0), "_maxRange");
+			addIntegerNauticalMiles(ss, craftRule->calculateRange(1), "_minRange");
+			addIntegerNauticalMiles(ss, craftRule->calculateRange(2), "_avgRange");
+		}
+		else
+		{
+			addSingleString(ss, "STR_INFINITE_RANGE", "_maxRange");
+			addSingleString(ss, "STR_INFINITE_RANGE", "_minRange");
+			addSingleString(ss, "STR_INFINITE_RANGE", "_avgRange");
+		}
+		endHeading();
+	}
+
+	if (_showDebug)
+	{
+		addSection(L"{Modding section}", L"You don't need this info as a player", _white, true);
+
+		addSection(L"{Naming}", L"", _white);
+		addSingleString(ss, craftRule->getType(), "type");
+		addInteger(ss, craftRule->getListOrder(), "listOrder");
+
+		addSection(L"{Geoscape}", L"", _white);
+		addInteger(ss, craftRule->getSprite(), "sprite (Minimized)", -1);
+		addSpriteResourcePath(ss, mod, "INTICON.PCK", craftRule->getSprite());
+		addInteger(ss, craftRule->getSprite() + 11, "_sprite (Dogfight)", 10);
+		addSpriteResourcePath(ss, mod, "INTICON.PCK", craftRule->getSprite() + 11);
+		addInteger(ss, craftRule->getSprite() + 33, "_sprite (Base)", 32);
+		addSpriteResourcePath(ss, mod, "BASEBITS.PCK", craftRule->getSprite() + 33);
+		addInteger(ss, craftRule->getMarker(), "marker", -1);
+		//addSpriteResourcePath(ss, mod, "GlobeMarkers", craftRule->getMarker());
+		addInteger(ss, craftRule->getScore(), "score");
+
+		addSection(L"{Battlescape}", L"", _white);
+		addBoolean(ss, craftRule->getBattlescapeTerrainData() != 0, "battlescapeTerrainData", false); // just say if there is any or not
+		addBoolean(ss, craftRule->isMapVisible(), "mapVisible", true);
+		addVectorOfIntegers(ss, craftRule->getCraftInventoryTile(), "craftInventoryTile");
+		if (craftRule->getDeployment().empty())
+		{
+			std::vector<int> dummy;
+			addVectorOfIntegers(ss, dummy, "deployment");
+		}
+		else
+		{
+			addHeading("deployment");
+			{
+				for (auto &d : craftRule->getDeployment())
+				{
+					addVectorOfIntegers(ss, d, "");
+				}
+				endHeading();
+			}
+		}
+	}
+}
+
+/**
+ * Adds a HuntMode to the table.
+ */
+void StatsForNerdsState::addHuntMode(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	switch (value)
+	{
+	case 0: ss << tr("HM_INTERCEPTORS"); break;
+	case 1: ss << tr("HM_TRANSPORTS"); break;
+	case 2: ss << tr("HM_RANDOM"); break;
+	default: ss << tr("STR_UNKNOWN"); break;
+	}
+	if (_showIds)
+	{
+		ss << L" [" << value << L"]";
+	}
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Adds a HuntBehavior to the table.
+ */
+void StatsForNerdsState::addHuntBehavior(std::wostringstream &ss, const int &value, const std::string &propertyName, const int &defaultvalue)
+{
+	if (value == defaultvalue && !_showDefaults)
+	{
+		return;
+	}
+	resetStream(ss);
+	switch (value)
+	{
+	case 0: ss << tr("HB_FLEE"); break;
+	case 1: ss << tr("HB_KAMIKAZE"); break;
+	case 2: ss << tr("HB_RANDOM"); break;
+	default: ss << tr("STR_UNKNOWN"); break;
+	}
+	if (_showIds)
+	{
+		ss << L" [" << value << L"]";
+	}
+	_lstRawData->addRow(2, trp(propertyName).c_str(), ss.str().c_str());
+	++_counter;
+	if (value != defaultvalue)
+	{
+		_lstRawData->setCellColor(_lstRawData->getTexts() - 1, 1, _pink);
+	}
+}
+
+/**
+ * Shows the "raw" RuleUfo data.
+ */
+void StatsForNerdsState::initUfoList()
+{
+	_lstRawData->clearList();
+	_lstRawData->setIgnoreSeparators(true);
+
+	std::wostringstream ssTopic;
+	ssTopic << tr(_topicId);
+	if (_showIds)
+	{
+		ssTopic << L" [" << Language::utf8ToWstr(_topicId) << L"]";
+	}
+
+	_txtArticle->setText(tr("STR_ARTICLE").arg(ssTopic.str()));
+
+	Mod *mod = _game->getMod();
+	RuleUfo *ufoRule = mod->getUfo(_topicId);
+	if (!ufoRule)
+		return;
+
+	_filterOptions.clear();
+	_cbxRelatedStuff->setVisible(false);
+
+	std::wostringstream ss;
+
+	addSingleString(ss, ufoRule->getSize(), "size");
+
+	addIntegerPercent(ss, ufoRule->getHunterKillerPercentage(), "hunterKillerPercentage");
+	addHuntMode(ss, ufoRule->getHuntMode(), "huntMode");
+	addIntegerPercent(ss, ufoRule->getHuntSpeed(), "huntSpeed", 100);
+	addHuntBehavior(ss, ufoRule->getHuntBehavior(), "huntBehavior", 2);
+
+	addInteger(ss, ufoRule->getWeaponPower(), "power");
+	addIntegerKm(ss, ufoRule->getWeaponRange(), "range");
+	addIntegerSeconds(ss, ufoRule->getWeaponReload(), "reload");
+	addIntegerSeconds(ss, ufoRule->getBreakOffTime(), "breakOffTime");
+	addInteger(ss, ufoRule->getScore(), "score");
+	addInteger(ss, ufoRule->getMissionScore(), "missionScore", 1);
+
+	addHeading("stats");
+	{
+		addInteger(ss, ufoRule->getStats().damageMax, "damageMax");
+		addInteger(ss, ufoRule->getStats().armor, "armor");
+		addIntegerPercent(ss, ufoRule->getStats().avoidBonus, "avoidBonus");
+		addIntegerPercent(ss, ufoRule->getStats().powerBonus, "powerBonus");
+		addIntegerPercent(ss, ufoRule->getStats().hitBonus, "hitBonus");
+		addInteger(ss, ufoRule->getStats().fuelMax, "fuelMax");
+		addIntegerKnots(ss, ufoRule->getStats().speedMax, "speedMax");
+		addInteger(ss, ufoRule->getStats().accel, "accel");
+		addIntegerNauticalMiles(ss, ufoRule->getStats().radarRange, "radarRange", 672);
+		addIntegerPercent(ss, ufoRule->getStats().radarChance, "radarChance");
+		addIntegerNauticalMiles(ss, ufoRule->getStats().sightRange, "sightRange", 268);
+		addInteger(ss, ufoRule->getStats().shieldCapacity, "shieldCapacity");
+		addInteger(ss, ufoRule->getStats().shieldRecharge, "shieldRecharge");
+		addInteger(ss, ufoRule->getStats().shieldRechargeInGeoscape, "shieldRechargeInGeoscape");
+		addInteger(ss, ufoRule->getStats().shieldBleedThrough, "shieldBleedThrough");
+		// UFO-specific
+		addSingleString(ss, ufoRule->getStats().craftCustomDeploy, "craftCustomDeploy");
+		addSingleString(ss, ufoRule->getStats().missionCustomDeploy, "missionCustomDeploy");
+		endHeading();
+	}
+
+	addHeading("_calculatedValues", "STR_FOR_DIFFICULTY", true);
+	{
+		int escapeCountdown = ufoRule->getBreakOffTime() - 30 * _game->getSavedGame()->getDifficultyCoefficient();
+		addIntegerSeconds(ss, escapeCountdown, "_escapeCountdown", 0, escapeCountdown + ufoRule->getBreakOffTime());
+
+		int fireCountdown = std::max(1, (ufoRule->getWeaponReload() - 2 * _game->getSavedGame()->getDifficultyCoefficient()));
+		addIntegerSeconds(ss, fireCountdown, "_fireRate", 0, fireCountdown * 2);
+
+		// not considering race bonus
+		int totalPower = ufoRule->getWeaponPower() * (ufoRule->getStats().powerBonus + 100) / 100;
+		// spread 0-100%
+		double avgDamage = totalPower * 0.5;
+		// not considering craft dodge, pilot dodge and evasive maneuvers
+		int totalAccuracy = 60 + ufoRule->getStats().hitBonus;
+		// spread 100-200%
+		double avgFireRate = fireCountdown * 1.5;
+		double avgDpm = avgDamage * (totalAccuracy / 100.0) * (60.0 / avgFireRate);
+		addInteger(ss, Round(avgDpm), "_averageDPM");
+
+		endHeading();
+	}
+
+	for (auto raceBonus : ufoRule->getRaceBonusRaw())
+	{
+		if (!raceBonus.first.empty())
+		{
+			addHeading("STR_RACE_BONUS", raceBonus.first);
+			{
+				addInteger(ss, raceBonus.second.damageMax, "damageMax");
+				addInteger(ss, raceBonus.second.armor, "armor");
+				addIntegerPercent(ss, raceBonus.second.avoidBonus, "avoidBonus");
+				addIntegerPercent(ss, raceBonus.second.powerBonus, "powerBonus");
+				addIntegerPercent(ss, raceBonus.second.hitBonus, "hitBonus");
+				addInteger(ss, raceBonus.second.fuelMax, "fuelMax");
+				addIntegerKnots(ss, raceBonus.second.speedMax, "speedMax");
+				addInteger(ss, raceBonus.second.accel, "accel");
+				addIntegerNauticalMiles(ss, raceBonus.second.radarRange, "radarRange", 0);
+				addIntegerPercent(ss, raceBonus.second.radarChance, "radarChance");
+				addIntegerNauticalMiles(ss, raceBonus.second.sightRange, "sightRange", 0);
+				addInteger(ss, raceBonus.second.shieldCapacity, "shieldCapacity");
+				addInteger(ss, raceBonus.second.shieldRecharge, "shieldRecharge");
+				addInteger(ss, raceBonus.second.shieldRechargeInGeoscape, "shieldRechargeInGeoscape");
+				addInteger(ss, raceBonus.second.shieldBleedThrough, "shieldBleedThrough");
+				// UFO-specific
+				addSingleString(ss, raceBonus.second.craftCustomDeploy, "craftCustomDeploy");
+				addSingleString(ss, raceBonus.second.missionCustomDeploy, "missionCustomDeploy");
+				endHeading();
+			}
+		}
+	}
+
+	if (_showDebug)
+	{
+		addSection(L"{Modding section}", L"You don't need this info as a player", _white, true);
+
+		addSection(L"{Naming}", L"", _white);
+		addSingleString(ss, ufoRule->getType(), "type");
+
+		addSection(L"{Visuals}", L"", _white);
+		addInteger(ss, ufoRule->getSprite(), "sprite", -1); // INTERWIN.DAT
+		addSingleString(ss, ufoRule->getModSprite(), "modSprite", "", false);
+		addInteger(ss, ufoRule->getMarker(), "marker", -1);
+		addInteger(ss, ufoRule->getLandedMarker(), "landedMarker", -1);
+		addBoolean(ss, ufoRule->getBattlescapeTerrainData() != 0, "battlescapeTerrainData", false); // just say if there is any or not
+
+		addSection(L"{Sounds}", L"", _white);
+		addInteger(ss, ufoRule->getFireSound(), "fireSound", -1);
+		std::vector<int> tmpSoundVector;
+		tmpSoundVector.push_back(ufoRule->getFireSound());
+		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
+
+		addInteger(ss, ufoRule->getAlertSound(), "alertSound", -1);
+		tmpSoundVector.clear();
+		tmpSoundVector.push_back(ufoRule->getAlertSound());
+		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
 	}
 }
 

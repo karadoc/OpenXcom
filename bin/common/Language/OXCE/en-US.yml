@@ -281,6 +281,8 @@ en-US:
   STR_HOUR_SHORT: "{0}h"
 #MonthlyReportState.cpp
   STR_PERFORMANCE_BONUS: "Performance Bonus"
+  STR_COUNTRY_HAS_CANCELLED_A_SECRET_PACT: "{0} has renounced the pact with alien forces and was allowed to return to the project."
+  STR_COUNTRIES_HAVE_CANCELLED_A_SECRET_PACT: "{0} have renounced the pact with alien forces and were allowed to return to the project."
 #NewPossibleCraftState.cpp
   STR_WE_CAN_NOW_RENT: "We can now rent"
 #NewPossibleFacilityState.cpp
@@ -326,6 +328,9 @@ en-US:
   STR_INFO_UFOPEDIA: "INFO"
 #ArticleStateCraft.cpp
   STR_COCKPIT_CAPACITY: "PILOTS>{ALT}{0}{ALT}"
+  STR_MAXIMUM_RANGE: "MAX RANGE>{ALT}{0}{ALT}"
+  STR_MINIMUM_RANGE: "MIN RANGE>{ALT}{0}{ALT}"
+  STR_INFINITE_RANGE: "N/A"
 #ArticleStateItem.cpp
   STR_WEIGHT_PEDIA1: "Wt: {0}"
   STR_WEIGHT_PEDIA2: "Wt: {0}/{1}"
@@ -365,6 +370,8 @@ en-US:
   STR_COST_MORALE: "morale"
   STR_COST_HEALTH: "health"
   STR_COST_STUN: "stun"
+  STR_COST_BUILD: "build"
+  STR_COST_REFUND: "refund"
 #
   STR_DAMAGE_10: "10"
   STR_DAMAGE_11: "11"
@@ -376,3 +383,9 @@ en-US:
   STR_DAMAGE_17: "17"
   STR_DAMAGE_18: "18"
   STR_DAMAGE_19: "19"
+#
+  STR_NAUTICAL_MILES: "{0} nautical miles"
+  STR_KILOMETERS_PER_HOUR: "{0} km/h"
+  STR_SECONDS_LONG: "{0} seconds"
+  STR_RACE_BONUS: "Race bonus"
+  STR_FOR_DIFFICULTY: "for difficulty: {0}"
