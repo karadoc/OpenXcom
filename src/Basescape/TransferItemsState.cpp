@@ -748,6 +748,8 @@ void TransferItemsState::increase()
  */
 void TransferItemsState::increaseByValue(int change)
 {
+	change = std::min(change, getRow().qtySrc - getRow().amount);
+
 	if (0 >= change || getRow().qtySrc <= getRow().amount) return;
 	std::wstring errorMessage;
 	RuleItem *selItem = 0;
@@ -803,7 +805,7 @@ void TransferItemsState::increaseByValue(int change)
 		case TRANSFER_SOLDIER:
 		case TRANSFER_SCIENTIST:
 		case TRANSFER_ENGINEER:
-			change = std::min(std::min(freeQuarters, getRow().qtySrc - getRow().amount), change);
+			change = std::min(freeQuarters, change);
 			_pQty += change;
 			getRow().amount += change;
 			_total += getRow().cost * change;
@@ -826,13 +828,13 @@ void TransferItemsState::increaseByValue(int change)
 				double freeStoresForItem = (double)(INT_MAX);
 
 				freeStoresForItem = (freeStores + 0.005) / storesNeededPerItem;
-				change = std::min(std::min((int)freeStoresForItem, getRow().qtySrc - getRow().amount), change);
+				change = std::min((int)freeStoresForItem, change);
 				_iQty += change * selItem->getSize();
 			}
 			if (selItem->isAlien())
 			{
 				int freeContainment = Options::storageLimitsEnforced ? _baseTo->getAvailableContainment(selItem->getPrisonType()) - _baseTo->getUsedContainment(selItem->getPrisonType()) - _aQty : INT_MAX;
-				change = std::min(std::min(freeContainment, getRow().qtySrc - getRow().amount), change);
+				change = std::min(freeContainment, change);
 				_aQty += change;
 			}
 			getRow().amount += change;
