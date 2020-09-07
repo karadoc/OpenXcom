@@ -33,6 +33,7 @@ class Bar : public Surface
 private:
 	Uint8 _color, _color2, _borderColor;
 	double _scale, _max, _value, _value2;
+	int _overflowLayers;
 	bool _secondOnTop;
 public:
 	/// Creates a new bar with the specified size and position.
@@ -65,6 +66,8 @@ public:
 	double getValue2() const;
 	/// Defines whether the second value should be drawn on top.
 	void setSecondValueOnTop(bool onTop);
+	/// Defines how many types we can draw over the top of a bar to represent values beyond the maximum width of the bar.
+	void setOverflowLayers(int overflowLayers);
 	/// Draws the bar.
 	void draw() override;
 	/// set the outline color for the bar.
