@@ -334,6 +334,7 @@ Mod::Mod() :
 	_kneelBonusGlobal(115), _oneHandedPenaltyGlobal(80),
 	_enableCloseQuartersCombat(0), _closeQuartersAccuracyGlobal(100), _closeQuartersTuCostGlobal(12), _closeQuartersEnergyCostGlobal(8),
 	_noLOSAccuracyPenaltyGlobal(-1),
+	_enableOffCentreShooting(true),
 	_surrenderMode(0),
 	_bughuntMinTurn(999), _bughuntMaxEnemies(2), _bughuntRank(0), _bughuntLowMorale(40), _bughuntTimeUnitsLeft(60),
 	_manaEnabled(false), _manaBattleUI(false), _manaTrainingPrimary(false), _manaTrainingSecondary(false), _manaReplenishAfterMission(true),
@@ -2390,6 +2391,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 	_closeQuartersTuCostGlobal = doc["closeQuartersTuCostGlobal"].as<int>(_closeQuartersTuCostGlobal);
 	_closeQuartersEnergyCostGlobal = doc["closeQuartersEnergyCostGlobal"].as<int>(_closeQuartersEnergyCostGlobal);
 	_noLOSAccuracyPenaltyGlobal = doc["noLOSAccuracyPenaltyGlobal"].as<int>(_noLOSAccuracyPenaltyGlobal);
+	_enableOffCentreShooting = doc["enableOffCentreShooting"].as<bool>(_enableOffCentreShooting);
 	_surrenderMode = doc["surrenderMode"].as<int>(_surrenderMode);
 	_bughuntMinTurn = doc["bughuntMinTurn"].as<int>(_bughuntMinTurn);
 	_bughuntMaxEnemies = doc["bughuntMaxEnemies"].as<int>(_bughuntMaxEnemies);

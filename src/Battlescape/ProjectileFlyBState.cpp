@@ -324,32 +324,34 @@ void ProjectileFlyBState::init()
 			}
 			else
 			{
-				if (!_parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer))
+				bool foundLoF = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
+
+				if (foundLoF == false && _parent->getMod()->getEnableOffCentreShooting())
 				{
 					// If we can't target from the standard shooting position, try left and right of the centre.
 					// TODO: it would be nice to check all shooting positions, and then choose the best one.
 					// For now, we just pick the first one that works.
-					bool found_angle = false;
 					for (auto& rel_pos : {BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT})
 					{
 						_action.relativeOrigin = rel_pos;
 						originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
-						found_angle = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
-						if (found_angle)
+						foundLoF = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
+						if (foundLoF)
 						{
 							break;
 						}
 					}
-					if (found_angle == false)
-					{
-						// Failed to find LOF
-						_action.relativeOrigin = BattleActionOrigin::CENTRE; // reset to the normal origin
+				}
 
-						_targetVoxel = TileEngine::invalid.toVoxel(); // out of bounds, even after voxel to tile calculation.
-						if (isPlayer)
-						{
-							forceEnableObstacles = true;
-						}
+				if (foundLoF == false)
+				{
+					// Failed to find LOF
+					_action.relativeOrigin = BattleActionOrigin::CENTRE; // reset to the normal origin
+
+					_targetVoxel = TileEngine::invalid.toVoxel(); // out of bounds, even after voxel to tile calculation.
+					if (isPlayer)
+					{
+						forceEnableObstacles = true;
 					}
 				}
 			}

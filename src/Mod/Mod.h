@@ -217,6 +217,7 @@ private:
 	int _kneelBonusGlobal, _oneHandedPenaltyGlobal;
 	int _enableCloseQuartersCombat, _closeQuartersAccuracyGlobal, _closeQuartersTuCostGlobal, _closeQuartersEnergyCostGlobal;
 	int _noLOSAccuracyPenaltyGlobal;
+	bool _enableOffCentreShooting;
 	int _surrenderMode;
 	int _bughuntMinTurn, _bughuntMaxEnemies, _bughuntRank, _bughuntLowMorale, _bughuntTimeUnitsLeft;
 
@@ -715,6 +716,8 @@ public:
 	int getCloseQuartersEnergyCostGlobal() const { return _closeQuartersEnergyCostGlobal; }
 	/// Gets the default accuracy penalty for having no LOS to the target (default = 0 is no penalty)
 	int getNoLOSAccuracyPenaltyGlobal() const { return _noLOSAccuracyPenaltyGlobal; }
+	/// Gets whether off-centre shooting is enabled (default true)
+	bool getEnableOffCentreShooting() const { return _enableOffCentreShooting; }
 	/// Gets the surrender mode (default = 0).
 	int getSurrenderMode() const { return _surrenderMode; }
 	/// Gets the bug hunt mode minimum turn requirement (default = 20).
