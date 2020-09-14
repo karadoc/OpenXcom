@@ -326,12 +326,10 @@ void ProjectileFlyBState::init()
 			{
 				bool foundLoF = _parent->getTileEngine()->canTargetUnit(&originVoxel, targetTile, &_targetVoxel, _unit, isPlayer);
 
-				if (foundLoF == false && _parent->getMod()->getEnableOffCentreShooting())
+				if (!foundLoF && Options::oxceEnableOffCentreShooting)
 				{
-					// If we can't target from the standard shooting position, try left and right of the centre.
-					// TODO: it would be nice to check all shooting positions, and then choose the best one.
-					// For now, we just pick the first one that works.
-					for (auto& rel_pos : {BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT})
+					// If we can't target from the standard shooting position, try a bit left and right from the centre.
+					for (auto& rel_pos : { BattleActionOrigin::LEFT, BattleActionOrigin::RIGHT })
 					{
 						_action.relativeOrigin = rel_pos;
 						originVoxel = _parent->getTileEngine()->getOriginVoxel(_action, _parent->getSave()->getTile(_origin));
@@ -343,7 +341,7 @@ void ProjectileFlyBState::init()
 					}
 				}
 
-				if (foundLoF == false)
+				if (!foundLoF)
 				{
 					// Failed to find LOF
 					_action.relativeOrigin = BattleActionOrigin::CENTRE; // reset to the normal origin

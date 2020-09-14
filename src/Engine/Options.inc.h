@@ -71,6 +71,7 @@ OPT bool oxceAutoSell;
 OPT int oxceAutoNightVisionThreshold;
 OPT bool oxceRememberDisabledCraftWeapons;
 OPT bool showBarOverflowLayers; // Karadoc's option for using different colours to represent overflow in status bars (such as the stamina bar in the battlescape).
+OPT bool oxceEnableOffCentreShooting;
 
 // OXCE hidden, accessible only via options.cfg
 OPT bool oxceHighlightNewTopicsHidden;
