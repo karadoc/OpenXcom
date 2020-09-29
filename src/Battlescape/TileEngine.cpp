@@ -2035,10 +2035,11 @@ bool TileEngine::tryReaction(ReactionScore *reaction, BattleUnit *target, const 
 			int meleeReactionChance = Mod::EXTENDED_MELEE_REACTIONS > 0 ? 100 : 0;
 			int reactionChance = BA_HIT != originalAction.type ? 100 : meleeReactionChance;
 			int dist = Position::distance2d(unit->getPositionVexels(), target->getPositionVexels());
+			int arc = getArcDirection(getDirectionTo(unit->getPositionVexels(), target->getPositionVexels()), unit->getDirection());
 			auto *origTarg = _save->getTile(originalAction.target) ? _save->getTile(originalAction.target)->getUnit() : nullptr;
 
 			ModScript::ReactionCommon::Output arg{ reactionChance, dist };
-			ModScript::ReactionCommon::Worker worker{ target, unit, originalAction.weapon, originalAction.type, origTarg, moveType };
+			ModScript::ReactionCommon::Worker worker{ target, unit, action.weapon, action.type, originalAction.weapon, originalAction.skillRules, originalAction.type, origTarg, moveType, arc, _save };
 			if (originalAction.weapon)
 			{
 				worker.execute(originalAction.weapon->getRules()->getScript<ModScript::ReactionWeaponAction>(), arg);
@@ -3888,13 +3889,15 @@ int TileEngine::psiAttackCalculate(BattleActionAttack::ReadOnly attack, const Ba
 	psiAttackResult = ModScript::scriptFunc1<ModScript::TryPsiAttackItem>(
 		weapon->getRules(),
 		psiAttackResult,
-		weapon, attacker, victim, attackStrength, defenseStrength, type, &rng, (int)dis, (int)weapon->getRules()->getPsiAccuracyRangeReduction(dis)
+		weapon, attacker, victim, attack.skill_rules, attackStrength, defenseStrength, type, &rng, (int)dis, (int)weapon->getRules()->getPsiAccuracyRangeReduction(dis),
+		_save
 	);
 
 	psiAttackResult =  ModScript::scriptFunc1<ModScript::TryPsiAttackUnit>(
 		victim->getArmor(),
 		psiAttackResult,
-		weapon, attacker, victim, attackStrength, defenseStrength, type
+		weapon, attacker, victim, attack.skill_rules, attackStrength, defenseStrength, type,
+		_save
 	);
 
 	return psiAttackResult;
@@ -3977,13 +3980,51 @@ bool TileEngine::psiAttack(BattleActionAttack attack, BattleUnit *victim)
 }
 
 /**
+ * Calculate success rate of melee attack action.
+ */
+int TileEngine::meleeAttackCalculate(BattleActionAttack::ReadOnly attack, const BattleUnit *victim)
+{
+	if (!victim)
+		return 0;
+
+	int attackStrength = BattleUnit::getFiringAccuracy(attack, _save->getBattleGame()->getMod());
+	int defenseStrength = victim->getArmor()->getMeleeDodge(victim);
+	int arc = getArcDirection(getDirectionTo(victim->getPositionVexels(), attack.attacker->getPositionVexels()), victim->getDirection());
+	int defenseStrengthPenalty = Clamp((int)(defenseStrength * (arc * victim->getArmor()->getMeleeDodgeBackPenalty() / 4.0f)), 0, defenseStrength);
+
+	auto type = attack.type;
+	auto attacker = attack.attacker;
+	auto weapon = attack.weapon_item;
+
+	auto rng = RNG::globalRandomState().subSequence();
+
+	int meleeAttackResult = 0;
+
+	meleeAttackResult = ModScript::scriptFunc1<ModScript::TryMeleeAttackItem>(
+		weapon->getRules(),
+		meleeAttackResult,
+		weapon, attacker, victim, attack.skill_rules, attackStrength, defenseStrength, type, &rng, arc, defenseStrengthPenalty,
+		_save
+	);
+
+	meleeAttackResult =  ModScript::scriptFunc1<ModScript::TryMeleeAttackUnit>(
+		victim->getArmor(),
+		meleeAttackResult,
+		weapon, attacker, victim, attack.skill_rules, attackStrength, defenseStrength, type,
+		_save
+	);
+
+
+	return meleeAttackResult;
+}
+
+/**
  *  Attempts a melee attack action.
  * @param action Pointer to an action.
  * @return Whether it failed or succeeded.
  */
 bool TileEngine::meleeAttack(BattleActionAttack attack, BattleUnit *victim)
 {
-	int hitChance = BattleUnit::getFiringAccuracy(attack, _save->getBattleGame()->getMod());
 	if (attack.type != BA_CQB)
 	{
 		// hit log - new melee attack
@@ -3996,20 +4037,7 @@ bool TileEngine::meleeAttack(BattleActionAttack attack, BattleUnit *victim)
 		}
 	}
 
-	if (victim)
-	{
-		int arc = _save->getTileEngine()->getArcDirection(_save->getTileEngine()->getDirectionTo(victim->getPositionVexels(), attack.attacker->getPositionVexels()), victim->getDirection());
-		float penalty = 1.0f - arc * victim->getArmor()->getMeleeDodgeBackPenalty() / 4.0f;
-		if (penalty > 0)
-		{
-			hitChance -= victim->getArmor()->getMeleeDodge(victim) * penalty;
-		}
-	}
-	if (!RNG::percent(hitChance))
-	{
-		return false;
-	}
-	return true;
+	return meleeAttackCalculate(attack, victim) > 0;
 }
 
 /**

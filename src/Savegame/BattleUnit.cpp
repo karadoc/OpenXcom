@@ -5360,6 +5360,12 @@ std::string debugDisplayScript(const BattleUnit* bu)
 			s += "\" race: \"";
 			s += unit->getRace();
 		}
+		auto soldier = bu->getGeoscapeSoldier();
+		if (soldier)
+		{
+			s += "\" name: \"";
+			s += soldier->getName();
+		}
 		s += "\" id: ";
 		s += std::to_string(bu->getId());
 		s += " faction: ";
@@ -5583,6 +5589,7 @@ void battleActionImpl(BindBase& b)
 	b.addCustomConst("battle_action_use", BA_USE);
 	b.addCustomConst("battle_action_mindcontrol", BA_MINDCONTROL);
 	b.addCustomConst("battle_action_panic", BA_PANIC);
+	b.addCustomConst("battle_action_cqb", BA_CQB);
 }
 
 void moveTypesImpl(BindBase& b)
@@ -5654,8 +5661,11 @@ ModScript::SelectMoveSoundUnitParser::SelectMoveSoundUnitParser(ScriptGlobal* sh
 ModScript::ReactionUnitParser::ReactionUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
 	"reaction_chance",
 	"distance",
-	"action_unit", "reaction_unit", "weapon", "battle_action", "action_target",
-	"move", }
+
+	"action_unit",
+	"reaction_unit", "reaction_weapon", "reaction_battle_action",
+	"weapon", "skill", "battle_action", "action_target",
+	"move", "arc_to_action_unit", "battle_game" }
 {
 	BindBase b { this };
 
@@ -5712,12 +5722,36 @@ ModScript::DamageUnitParser::DamageUnitParser(ScriptGlobal* shared, const std::s
 
 ModScript::TryPsiAttackUnitParser::TryPsiAttackUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
 	"psi_attack_success",
+
 	"item",
 	"attacker",
 	"victim",
+	"skill",
 	"attack_strength",
 	"defense_strength",
-	"battle_action" }
+	"battle_action",
+	"battle_game",
+}
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+
+	battleActionImpl(b);
+}
+
+ModScript::TryMeleeAttackUnitParser::TryMeleeAttackUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"melee_attack_success",
+
+	"item",
+	"attacker",
+	"victim",
+	"skill",
+	"attack_strength",
+	"defense_strength",
+	"battle_action",
+	"battle_game",
+}
 {
 	BindBase b { this };
 
