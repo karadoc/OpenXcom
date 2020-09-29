@@ -48,6 +48,7 @@ BriefingLightState::BriefingLightState(AlienDeployment *deployment)
 	_txtTitle = new Text(300, 32, 16, 24);
 	_txtBriefing = new Text(288, 104, 16, 56);
 	_txtArmors = new Text(288, 104, 16, 56);
+	_txtTimeout = new Text(100, 9, 16, 46);
 
 	std::string title = deployment->getType();
 	std::string desc = deployment->getAlertDescription();
@@ -62,6 +63,7 @@ BriefingLightState::BriefingLightState(AlienDeployment *deployment)
 	add(_txtTitle, "text", "briefing");
 	add(_txtBriefing, "text", "briefing");
 	add(_txtArmors, "text", "briefing");
+	add(_txtTimeout, "text", "briefing");
 
 	centerAllSurfaces();
 
@@ -92,6 +94,25 @@ BriefingLightState::BriefingLightState(AlienDeployment *deployment)
 	{
 		_btnArmors->setVisible(false);
 	}
+
+	// (minimum) timeout indicator
+	{
+		std::ostringstream ss;
+		int hours = deployment->getDurationMin();
+		std::vector<std::pair<int, std::string>> symbol_values
+				({{168, "#"}, {24, "="}, {6, "-"}});
+
+		for (auto& sym : symbol_values)
+		{
+			while (hours >= std::get<0>(sym))
+			{
+				hours -= std::get<0>(sym);
+				ss << std::get<1>(sym);
+			}
+		}
+		_txtTimeout->setText(ss.str());
+	}
+	//
 }
 
 /**

@@ -38,7 +38,7 @@ private:
 	TextButton *_btnOk;
 	ToggleTextButton *_btnArmors;
 	Window *_window;
-	Text *_txtTitle, *_txtBriefing, *_txtArmors;
+	Text *_txtTitle, *_txtBriefing, *_txtArmors, *_txtTimeout;
 	// Checks the starting condition
 	std::string checkStartingCondition(AlienDeployment *deployment);
 public:
