@@ -10,6 +10,7 @@ en-US:
   STR_CANNOT_BUILD_QUEUE_OFF: "CANNOT BUILD HERE!{SMALLLINE}Connecting facilities must finish construction first."
   STR_FACILITY_FORBIDDEN_BY_OTHER: "CANNOT BUILD HERE!{SMALLLINE}Some existing facility forbids building this facility."
   STR_FACILITY_OTHER_FORBIDDEN_BY_THIS: "CANNOT BUILD HERE!{SMALLLINE}Some existing facility would be forbidden by this facility."
+  STR_NOT_ENOUGH_ITEMS: "NOT ENOUGH MATERIALS!{SMALLLINE}We need more resources to build this facility.{NEWLINE}Missing> {0}: {1}"
 #ChangeHeadquartersState.cpp
   STR_MOVE_HQ_TO: "Move HQ to"
 #CraftArmorState.cpp
@@ -71,6 +72,7 @@ en-US:
   STR_END_OF_SEARCH: "End of search."
 #ManufactureInfoState.cpp
   STR_REFUND_PRODUCTION: "REFUND!"
+  STR_HOURS_PER_UNIT: "HOURS PER UNIT>{ALT}{0}"
 #ManufactureStartState.cpp
   STR_PERSON_JOINING: "Person Joining"
   STR_RANDOM_PRODUCTION_DISCLAIMER: "Random production!"
@@ -83,6 +85,10 @@ en-US:
   STR_FILTER_DEFAULT_NO_SUPPLIES: "Default (no supplies)"
   STR_FILTER_FACILITY_REQUIRED: "Facility Missing"
   STR_FILTER_HIDDEN: "Hidden"
+#NewResearchListState.cpp
+  STR_SORT_DEFAULT: "Default"
+  STR_SORT_BY_COST: "By cost"
+  STR_SORT_BY_NAME: "By name"
 #ProductionCompleteState.cpp
   STR_RANDOM_PRODUCTION_SUMMARY: "Summary"
 #PurchaseState.cpp
@@ -93,6 +99,7 @@ en-US:
   STR_SELECT_AVATAR_FOR: "SELECT AVATAR FOR{NEWLINE}{0}"
 #SoldierBonusState.cpp
   STR_SOLDIER_BONUSES_FOR: "SOLDIER BONUSES FOR{NEWLINE}{0}"
+  STR_SUMMARY: "Summary"
 #SoldierInfoState.cpp
   STR_MANA_RECOVERY: "MANA RECOVERY> {ALT}{0}"
   STR_HEALTH_RECOVERY: "HEALTH RECOVERY> {ALT}{0}"
@@ -110,6 +117,17 @@ en-US:
   STR_CHANGES_MIN: "Changes (min)"
   STR_CHANGES_MAX: "Changes (max)"
   STR_BONUS_STATS: "Bonus stats"
+#SoldierTransformationListState.cpp
+  STR_TRANSFORMATIONS_OVERVIEW: "Transformations Overview"
+  STR_PROJECT_NAME: "PROJECT NAME"
+  STR_AVAILABLE_MATERIALS: "AVAILABLE MATERIALS"
+  STR_ELIGIBLE_SOLDIERS: "ELIGIBLE SOLDIERS"
+  STR_SHOW_ONLY_ELIGIBLE: "Show Only Eligible"
+  STR_ALL_SOLDIER_TYPES: "All Soldier Types"
+  STR_ALL_SOLDIERS: "All Soldiers"
+  STR_HEALTHY_SOLDIERS: "Healthy Soldiers"
+  STR_WOUNDED_SOLDIERS: "Wounded Soldiers"
+  STR_DEAD_SOLDIERS: "Dead Soldiers"
 #StoresState.cpp
   STR_GRAND_TOTAL: "Grand Total"
 #TechTreeSelectState.cpp
@@ -120,6 +138,11 @@ en-US:
   STR_F_FLAG: " [f]"
   STR_I_FLAG: " [i]"
 #TechTreeViewerState.cpp
+  STR_THIS_FEATURE_IS_DISABLED_1: "This feature is disabled."
+  STR_THIS_FEATURE_IS_DISABLED_2: "This feature is disabled."
+  STR_THIS_FEATURE_IS_DISABLED_3: "This feature is disabled."
+  STR_THIS_FEATURE_IS_DISABLED_4: "This feature is disabled."
+  STR_THIS_FEATURE_IS_DISABLED_5: "This feature is disabled."
   STR_TECH_TREE_VIEWER: "Tech Tree Viewer"
   STR_SELECT_TOPIC: "Select Topic"
   STR_RESEARCH_PROGRESS: "Progress>{ALT} {0}%"
@@ -136,6 +159,7 @@ en-US:
   STR_IS_LOOKUP_OF: "Is lookup of:"
   STR_LOOKUP: "Lookup:"
   STR_SPAWNED_ITEM: "Spawned item:"
+  STR_SPAWNED_EVENT: "Spawned event:"
   STR_REQUIRED_BY: "Required by:"
   STR_LEADS_TO: "Leads to:"
   STR_UNLOCKS: "Unlocks:"
@@ -146,6 +170,8 @@ en-US:
   STR_RESEARCH_REQUIRED_USE: "Research required (use):"
   STR_RESEARCH_REQUIRED_BUY: "Research required (buy):"
   STR_SERVICES_REQUIRED_BUY: "Services required (buy):"
+  STR_PRODUCED_BY: "Produced by:"
+  STR_SPAWNED_BY: "Spawned by:"
   STR_MATERIALS_REQUIRED: "Materials required:"
   STR_ITEMS_PRODUCED: "Items produced:"
   STR_PERSON_RECRUITED: "Person recruited:"
@@ -158,6 +184,8 @@ en-US:
   STR_AFFECTS_GAME_PROGRESSION: "Affects game progression!"
 #TransferItemsState.cpp
   STR_ITEMS_AT_DESTINATION: "Items at destination"
+  STR_PRISONERS: "Prisoners"
+  STR_ARMORS: "Armors"
 #=================== Battlescape ===================
 #ActionMenuState.cpp
   STR_MUST_USE_BOTH_HANDS: "Both hands are required for this!"
@@ -246,7 +274,7 @@ en-US:
   STR_NIGHT_VISION_COLOR: "Select Night Vision color"
   STR_NIGHT_VISION_COLOR_DESC: "Values from 1 to 15, each representing a different shade color."
   STR_AUTO_NIGHT_VISION_THRESHOLD: "Auto Night Vision threshold"
-  STR_AUTO_NIGHT_VISION_THRESHOLD_DESC: "If darker than this threshold, toggle Night Vision on and Personal Lights off automatically."
+  STR_AUTO_NIGHT_VISION_THRESHOLD_DESC: "If darker than this threshold, toggle Night Vision on automatically."
   STR_AUTO_SELL: "Auto-Sell Manager"
   STR_AUTO_SELL_DESC: "In the battle debriefing sell screen, any item types you sold in previous battles will be automatically marked for selling."
   STR_REMEMBER_DISABLED_CRAFT_WEAPONS: "Remember disabled craft weapons"
@@ -297,6 +325,7 @@ en-US:
   STR_STARTING_CONDITION_SOLDIER_TYPE_ALLOWED: "Some soldiers cannot participate in this mission.{NEWLINE}{NEWLINE}Allowed soldier types: {0}"
   STR_STARTING_CONDITION_SOLDIER_TYPE_FORBIDDEN: "Some soldiers cannot participate in this mission.{NEWLINE}{NEWLINE}Forbidden soldier types: {0}"
   STR_STARTING_CONDITION_ITEM: "This mission requires specific item(s):{NEWLINE}{NEWLINE}{0}"
+  STR_NOT_ENOUGH_FUEL_TO_REACH_TARGET: "NOT ENOUGH FUEL!{SMALLLINE}The destination is too far for the range of the craft."
 #CraftNotEnoughPilotsState.cpp
   STR_ASSIGN_PILOTS: "Assign pilots..."
   STR_NOT_ENOUGH_PILOTS: "Not enough pilots!{NEWLINE}Minimum: {0}"
@@ -345,6 +374,7 @@ en-US:
   STR_DESPAWN_PENALTY: "Despawn penalty> {0}"
 #TrainingFinishedState.cpp
   STR_TRAINING_FINISHED: "Training Finished{NEWLINE}at {0}"
+  STR_PSI_TRAINING_FINISHED: "Psi Training Finished{NEWLINE}at {0}"
 #UfoDetectedState.cpp
   STR_IGNORE_UC: "IGNORE"
 #UfoTrackerState.cpp
@@ -353,6 +383,9 @@ en-US:
 #MainMenuState.cpp
   STR_UPDATE: "Update"
   STR_LATEST_VERSION_INFO: "You are using the latest OpenXcom version."
+#NotesState.cpp
+  STR_NOTES: "Notes"
+  STR_NEW_NOTE: "<NEW NOTE>"
 #OptionsAdvancedState.cpp
   STR_OXCE: "Extended"
 #OptionsBaseState.cpp

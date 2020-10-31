@@ -49,6 +49,7 @@ namespace YAML
 		{
 			Node node;
 			node["alienRank"] = rhs.alienRank;
+			node["customUnitType"] = rhs.customUnitType;
 			node["lowQty"] = rhs.lowQty;
 			node["highQty"] = rhs.highQty;
 			node["dQty"] = rhs.dQty;
@@ -65,6 +66,7 @@ namespace YAML
 				return false;
 
 			rhs.alienRank = node["alienRank"].as<int>(rhs.alienRank);
+			rhs.customUnitType = node["customUnitType"].as<std::string>(rhs.customUnitType);
 			rhs.lowQty = node["lowQty"].as<int>(rhs.lowQty);
 			rhs.highQty = node["highQty"].as<int>(rhs.highQty);
 			rhs.dQty = node["dQty"].as<int>(rhs.dQty);
@@ -322,6 +324,21 @@ int AlienDeployment::getBughuntMinTurn() const
 const std::vector<DeploymentData>* AlienDeployment::getDeploymentData() const
 {
 	return &_data;
+}
+
+/**
+ * Gets the highest used alien rank.
+ * @return Highest used alien rank.
+ */
+int AlienDeployment::getMaxAlienRank() const
+{
+	int max = 0;
+	for (auto& dd : _data)
+	{
+		if (dd.alienRank > max)
+			max = dd.alienRank;
+	}
+	return max;
 }
 
 /**

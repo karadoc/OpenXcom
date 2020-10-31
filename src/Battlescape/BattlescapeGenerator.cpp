@@ -1354,7 +1354,7 @@ void BattlescapeGenerator::deployAliens(const AlienDeployment *deployment)
 				}
 			}
 
-			std::string alienName = race->getMember((*d).alienRank);
+			std::string alienName = (*d).customUnitType.empty() ? race->getMember((*d).alienRank) : (*d).customUnitType;
 
 			bool outside = RNG::generate(0,99) < (*d).percentageOutsideUfo;
 			if (_ufo == 0)
@@ -2677,7 +2677,7 @@ void BattlescapeGenerator::generateBaseMap()
 	// add modules based on the base's layout
 	for (std::vector<BaseFacility*>::const_iterator i = _base->getFacilities()->begin(); i != _base->getFacilities()->end(); ++i)
 	{
-		if ((*i)->getBuildTime() == 0 || (*i)->getIfHadPreviousFacility())
+		if ((*i)->isBuiltOrHadPreviousFacility())
 		{
 			int num = 0;
 			int xLimit = (*i)->getX() + (*i)->getRules()->getSize() -1;

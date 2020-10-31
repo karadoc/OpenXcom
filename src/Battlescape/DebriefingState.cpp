@@ -59,6 +59,7 @@
 #include "../Menu/ErrorMessageState.h"
 #include "../Menu/MainMenuState.h"
 #include "../Interface/Cursor.h"
+#include "../Engine/Exception.h"
 #include "../Engine/Options.h"
 #include "../Engine/RNG.h"
 #include "../Basescape/ManageAlienContainmentState.h"
@@ -959,7 +960,7 @@ void DebriefingState::prepareDebriefing()
 	for (std::vector<std::string>::const_iterator i = _game->getMod()->getItemsList().begin(); i != _game->getMod()->getItemsList().end(); ++i)
 	{
 		RuleItem *rule = _game->getMod()->getItem(*i);
-		if (rule->getSpecialType() > 1)
+		if (rule->getSpecialType() > 1 && rule->getSpecialType() < DEATH_TRAPS)
 		{
 			RecoveryItem *item = new RecoveryItem();
 			item->name = *i;
@@ -1695,7 +1696,7 @@ void DebriefingState::prepareDebriefing()
 					if (battle->getTile(i)->getMapData(tp))
 					{
 						size_t specialType = battle->getTile(i)->getMapData(tp)->getSpecialType();
-						if (specialType != nonRecoverType && _recoveryStats.find(specialType) != _recoveryStats.end())
+						if (specialType != nonRecoverType && specialType < (size_t)DEATH_TRAPS && _recoveryStats.find(specialType) != _recoveryStats.end())
 						{
 							addStat(_recoveryStats[specialType]->name, 1, _recoveryStats[specialType]->value);
 						}
@@ -2421,6 +2422,20 @@ void DebriefingState::recoverAlien(BattleUnit *from, Base *base)
 		// Ignore everything else, e.g. no points for live/dead aliens (since you did NOT recover them)
 		// Also no points or anything else for the recovered items
 		return;
+	}
+
+	// This ain't good! Let's display at least some useful info before we crash...
+	if (!liveAlienItemRule)
+	{
+		std::ostringstream ss;
+		ss << "Live alien item definition is missing. Unit ID = " << from->getId();
+		ss << "; Type = " << from->getType();
+		ss << "; Status = " << from->getStatus();
+		ss << "; Faction = " << from->getFaction();
+		ss << "; Orig. faction = " << from->getOriginalFaction();
+		ss << "; Spawn unit = [" << from->getSpawnUnit()->getType() << "]";
+		ss << "; isSurrendering = " << from->isSurrendering();
+		throw Exception(ss.str());
 	}
 
 	std::string type = from->getType();

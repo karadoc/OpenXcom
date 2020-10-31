@@ -1113,6 +1113,12 @@
     <ClCompile Include="Geoscape\DogfightExperienceState.cpp">
       <Filter>Geoscape</Filter>
     </ClCompile>
+    <ClCompile Include="Basescape\SoldierTransformationListState.cpp">
+      <Filter>Basescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Menu\NotesState.cpp">
+      <Filter>Menu</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
@@ -2286,6 +2292,12 @@
     </ClInclude>
     <ClInclude Include="Engine\Functions.h">
       <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Basescape\SoldierTransformationListState.h">
+      <Filter>Basescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Menu\NotesState.h">
+      <Filter>Menu</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -115,7 +115,7 @@ en-GB:
   underwaterOnly: "Underwater only?"
   landOnly: "Land only?"
   psiRequired: "Psi skill required?"
-  psiTargetMatrix: "Psi-amp targets"
+  targetMatrix: "Item targets"
   manaRequired: "Mana required?"
   LOSRequired: "Sight required?"
 #
@@ -153,6 +153,8 @@ en-GB:
   costPanic: "Panic cost"
 #
   weight: "Weight"
+  throwRange: "Throw range"
+  underwaterThrowRange: "Underwater throw range"
   throwMultiplier: "Throwing acc. multiplier"
   accuracyThrow: "Throwing accuracy"
   costThrow: "Throwing cost"
@@ -312,6 +314,7 @@ en-GB:
   specialWeapon: "Special weapon"
   heatVision: "Thermal vision"
   psiVision: "Psi sense"
+  psiCamouflage: "Psi camouflage"
   visibilityAtDay: "Visibility at day"
   visibilityAtDark: "Visibility at night"
   camouflageAtDay: "Camouflage at day"

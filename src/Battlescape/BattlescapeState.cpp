@@ -540,7 +540,7 @@ BattlescapeState::BattlescapeState() :
 	if (_save->getGlobalShade() > Options::oxceAutoNightVisionThreshold)
 	{
 		// turn personal lights off
-		_save->getTileEngine()->togglePersonalLighting();
+		//_save->getTileEngine()->togglePersonalLighting();
 		// turn night vision on
 		_map->toggleNightVision();
 	}
@@ -2124,9 +2124,9 @@ void BattlescapeState::blinkHealthBar()
 
 	if (++color > maxcolor) color = maxcolor - 3;
 
-	for (int i = 0; i < 6; i++)
+	for (int i = 0; i < BODYPART_MAX; i++)
 	{
-		if (bu->getFatalWound(i) > 0)
+		if (bu->getFatalWound((UnitBodyPart)i) > 0)
 		{
 			_barHealth->setColor(_barHealthColor + color);
 			return;
@@ -2360,7 +2360,11 @@ inline void BattlescapeState::handle(Action *action)
 				{
 					if (_save->getSide() == FACTION_PLAYER)
 					{
-						if (altPressed)
+						if (Options::oxceDisableHitLog)
+						{
+							_game->pushState(new InfoboxState(tr("STR_THIS_FEATURE_IS_DISABLED_4")));
+						}
+						else if (altPressed)
 						{
 							// turn diary
 							_game->pushState(new TurnDiaryState(_save->getHitLog()));
@@ -3517,6 +3521,14 @@ void BattlescapeState::stopScrolling(Action *action)
 void BattlescapeState::autosave()
 {
 	_autosave = true;
+}
+
+/**
+ * Is busy?
+ */
+bool BattlescapeState::isBusy() const
+{
+	return (_map->getCursorType() == CT_NONE || _battleGame->isBusy());
 }
 
 }

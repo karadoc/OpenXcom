@@ -1203,6 +1203,10 @@ void SavedBattleGame::endTurn()
 			{
 				(*i)->setTurnsSinceSpotted(0);
 			}
+			if ((*i)->getAIModule())
+			{
+				(*i)->getAIModule()->reset(); // clean up AI state
+			}
 
 			if ((*i)->getTurnsLeftSpottedForSnipers() != 0)
 			{
@@ -1332,6 +1336,19 @@ BattlescapeGame *SavedBattleGame::getBattleGame()
 const BattlescapeGame *SavedBattleGame::getBattleGame() const
 {
 	return _battleState->getBattleGame();
+}
+
+/**
+ * Is BattlescapeState busy?
+ * @return True, if busy.
+ */
+bool SavedBattleGame::isBattlescapeStateBusy() const
+{
+	if (_battleState)
+	{
+		return _battleState->isBusy();
+	}
+	return false;
 }
 
 /**

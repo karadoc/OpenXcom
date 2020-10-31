@@ -405,8 +405,7 @@ void CraftInfoState::btnWClick(Action * act)
 }
 
 /**
- * Toggles the enabled/disabled status
- * of the weapon for renaming.
+ * Toggles the enabled/disabled status of the weapon.
  * @param action Pointer to an action.
  */
 void CraftInfoState::btnWIconClick(Action *action)

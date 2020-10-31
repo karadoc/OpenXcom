@@ -298,6 +298,7 @@ private:
 	Unit* _vehicleUnit;
 	double _size;
 	int _costBuy, _costSell, _transferTime, _weight;
+	int _throwRange, _underwaterThrowRange;
 	int _bigSprite;
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
@@ -361,7 +362,7 @@ private:
 	std::map<std::string, std::string> _zombieUnitByArmorMale, _zombieUnitByArmorFemale, _zombieUnitByType;
 	std::string _zombieUnit, _spawnUnit;
 	int _spawnUnitFaction;
-	int _psiTargetMatrix;
+	int _targetMatrix;
 	bool _LOSRequired, _underwaterOnly, _landOnly, _psiReqiured, _manaRequired;
 	int _meleePower, _specialType, _vaporColor, _vaporDensity, _vaporProbability;
 	int _vaporColorSurface, _vaporDensitySurface, _vaporProbabilitySurface;
@@ -441,6 +442,12 @@ public:
 	int getTransferTime() const;
 	/// Gets the item's weight.
 	int getWeight() const;
+	/// Gets the item's maximum throw range.
+	int getThrowRange() const { return _throwRange; }
+	int getThrowRangeSq() const { return _throwRange * _throwRange; }
+	/// Gets the item's maximum underwater throw range.
+	int getUnderwaterThrowRange() const { return _underwaterThrowRange; }
+	int getUnderwaterThrowRangeSq() const { return _underwaterThrowRange * _underwaterThrowRange; }
 	/// Gets the item's reference in BIGOBS.PCK for use in inventory.
 	int getBigSprite() const;
 	/// Gets the item's reference in FLOOROB.PCK for use in battlescape.
@@ -806,9 +813,9 @@ public:
 	const std::string &getSpawnUnit() const;
 	/// Gets which faction the spawned unit should have.
 	int getSpawnUnitFaction() const;
-	/// Checks the psiamp's allowed targets. Not used in AI. Mind control of the same faction is hardcoded disabled.
-	bool isPsiTargetAllowed(UnitFaction targetFaction) const;
-	int getPsiTargetMatrixRaw() const { return _psiTargetMatrix; }
+	/// Checks if this item can be used to target a given faction.
+	bool isTargetAllowed(UnitFaction targetFaction) const;
+	int getTargetMatrixRaw() const { return _targetMatrix; }
 	/// Check if LOS is required to use this item (only applies to psionic type items)
 	bool isLOSRequired() const;
 	/// Is this item restricted to underwater use?

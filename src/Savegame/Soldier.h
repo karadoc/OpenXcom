@@ -94,7 +94,7 @@ public:
 	/// Cleans up the soldier.
 	~Soldier();
 	/// Loads the soldier from YAML.
-	void load(const YAML::Node& node, const Mod *mod, SavedGame *save, const ScriptGlobal *shared);
+	void load(const YAML::Node& node, const Mod *mod, SavedGame *save, const ScriptGlobal *shared, bool soldierTemplate = false);
 	/// Saves the soldier to YAML.
 	YAML::Node save(const ScriptGlobal *shared) const;
 	/// Gets the soldier's name.
@@ -230,6 +230,8 @@ public:
 	void trainPsi();
 	/// Trains a soldier's psionic abilities (anytimePsiTraining option).
 	void trainPsi1Day();
+	/// Is the soldier already fully psi-trained?
+	bool isFullyPsiTrained();
 	/// Returns whether the unit is in psi training or not
 	bool isInPsiTraining() const;
 	/// set the psi training status

@@ -154,7 +154,7 @@ NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *stat
 	// environmental effects
 	std::string message;
 
-	if (sc)
+	if (sc && !_battleGame->getBattleGame()->areAllEnemiesNeutralized())
 	{
 		if (_battleGame->getSide() == FACTION_PLAYER)
 		{
@@ -340,7 +340,7 @@ bool NextTurnState::applyEnvironmentalConditionToFaction(UnitFaction faction, En
 
 		for (std::vector<BattleUnit*>::iterator j = _battleGame->getUnits()->begin(); j != _battleGame->getUnits()->end(); ++j)
 		{
-			if ((*j)->getOriginalFaction() == faction && (*j)->getStatus() != STATUS_DEAD)
+			if ((*j)->getOriginalFaction() == faction && (*j)->getStatus() != STATUS_DEAD && (*j)->getStatus() != STATUS_IGNORE_ME)
 			{
 				if (RNG::percent(condition.chancePerTurn))
 				{

@@ -238,6 +238,12 @@ void create()
 	_info.push_back(OptionInfo("oxceManufactureScrollSpeedWithCtrl", &oxceManufactureScrollSpeedWithCtrl, 1, "", "HIDDEN"));
 	_info.push_back(OptionInfo("oxceResearchScrollSpeed", &oxceResearchScrollSpeed, 10, "", "HIDDEN"));
 	_info.push_back(OptionInfo("oxceResearchScrollSpeedWithCtrl", &oxceResearchScrollSpeedWithCtrl, 1, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceGeoSlowdownFactor", &oxceGeoSlowdownFactor, 1, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableTechTreeViewer", &oxceDisableTechTreeViewer, false, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableStatsForNerds", &oxceDisableStatsForNerds, false, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableProductionDependencyTree", &oxceDisableProductionDependencyTree, false, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableHitLog", &oxceDisableHitLog, false, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableAlienInventory", &oxceDisableAlienInventory, false, "", "HIDDEN"));
 
 	_info.push_back(OptionInfo("oxceRecommendedOptionsWereSet", &oxceRecommendedOptionsWereSet, false));
 
@@ -654,6 +660,10 @@ void refreshMods()
 	}
 	Log(LOG_INFO) << "Scanning user mods in '" << getUserFolder() << "'...";
 	FileMap::scanModDir(getUserFolder(), "mods", false);
+#ifdef __MOBILE__
+	Log(LOG_INFO) << "Scanning user mods in '" << getDataFolder() << "'...";
+	FileMap::scanModDir(getDataFolder(), "mods", false);
+#endif
 
 	// Check mods' dependencies on other mods and extResources (UFO, TFTD, etc),
 	// also breaks circular dependency loops.

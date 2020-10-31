@@ -149,6 +149,8 @@ bool Mod::EXTENDED_ITEM_RELOAD_COST;
 bool Mod::EXTENDED_RUNNING_COST;
 bool Mod::EXTENDED_HWP_LOAD_ORDER;
 int Mod::EXTENDED_MELEE_REACTIONS;
+int Mod::EXTENDED_TERRAIN_MELEE;
+int Mod::EXTENDED_UNDERWATER_THROW_FACTOR;
 
 constexpr size_t MaxDifficultyLevels = 5;
 
@@ -226,6 +228,8 @@ void Mod::resetGlobalStatics()
 	EXTENDED_RUNNING_COST = false;
 	EXTENDED_HWP_LOAD_ORDER = false;
 	EXTENDED_MELEE_REACTIONS = 0;
+	EXTENDED_TERRAIN_MELEE = 0;
+	EXTENDED_UNDERWATER_THROW_FACTOR = 0;
 }
 
 /**
@@ -344,7 +348,7 @@ Mod::Mod() :
 	_crewEmergencyEvacuationSurvivalChance(100), _pilotsEmergencyEvacuationSurvivalChance(100),
 	_soldiersPerSergeant(5), _soldiersPerCaptain(11), _soldiersPerColonel(23), _soldiersPerCommander(30),
 	_pilotAccuracyZeroPoint(55), _pilotAccuracyRange(40), _pilotReactionsZeroPoint(55), _pilotReactionsRange(60),
-	_performanceBonusFactor(0), _useCustomCategories(false), _shareAmmoCategories(false), _showDogfightDistanceInKm(false), _showFullNameInAlienInventory(false),
+	_performanceBonusFactor(0), _enableNewResearchSorting(false), _displayCustomCategories(0), _shareAmmoCategories(false), _showDogfightDistanceInKm(false), _showFullNameInAlienInventory(false),
 	_alienInventoryOffsetX(80), _alienInventoryOffsetBigUnit(32),
 	_hidePediaInfoButton(false), _extraNerdyPediaInfo(false),
 	_giveScoreAlsoForResearchedArtifacts(false), _statisticalBulletConservation(false), _stunningImprovesMorale(false),
@@ -1616,7 +1620,7 @@ void Mod::loadAll()
 	ModScript parser{ _scriptGlobal, this };
 	auto mods = FileMap::getRulesets();
 
-	Log(LOG_INFO) << "Loading rulesets...";
+	Log(LOG_INFO) << "Loading begins...";
 	_scriptGlobal->beginLoad();
 	_modData.clear();
 	_modData.resize(mods.size());
@@ -1645,6 +1649,7 @@ void Mod::loadAll()
 		offset += size;
 	}
 
+	Log(LOG_INFO) << "Pre-loading rulesets...";
 	// load rulesets that can affect loading vanilla resources
 	for (size_t i = 0; _modData.size() > i; ++i)
 	{
@@ -1659,6 +1664,7 @@ void Mod::loadAll()
 		}
 	}
 
+	Log(LOG_INFO) << "Loading vanilla resources...";
 	// vanilla resources load
 	_modCurrent = &_modData.at(0);
 	loadVanillaResources();
@@ -1672,6 +1678,7 @@ void Mod::loadAll()
 	_soundOffsetBattle = _sounds["BATTLE.CAT"]->getMaxSharedSounds();
 	_soundOffsetGeo = _sounds["GEO.CAT"]->getMaxSharedSounds();
 
+	Log(LOG_INFO) << "Loading rulesets...";
 	// load rest rulesets
 	for (size_t i = 0; mods.size() > i; ++i)
 	{
@@ -1687,6 +1694,7 @@ void Mod::loadAll()
 			throwModOnErrorHelper(modId, e.what());
 		}
 	}
+	Log(LOG_INFO) << "Loading rulesets done.";
 
 	//back master
 	_modCurrent = &_modData.at(0);
@@ -1845,6 +1853,7 @@ void Mod::loadAll()
 	{
 		_fixedUserOptions.erase("oxceUpdateCheck");
 		_fixedUserOptions.erase("maximizeInfoScreens"); // FIXME: make proper categorisations in the next release
+		_fixedUserOptions.erase("oxceAutoNightVisionThreshold");
 
 		const std::vector<OptionInfo> &options = Options::getOptionInfo();
 		for (std::vector<OptionInfo>::const_iterator i = options.begin(); i != options.end(); ++i)
@@ -1857,6 +1866,7 @@ void Mod::loadAll()
 		Options::save();
 	}
 
+	Log(LOG_INFO) << "Loading ended.";
 
 	sortLists();
 	loadExtraResources();
@@ -2027,6 +2037,8 @@ void Mod::loadConstants(const YAML::Node &node)
 	EXTENDED_RUNNING_COST = node["extendedRunningCost"].as<bool>(EXTENDED_RUNNING_COST);
 	EXTENDED_HWP_LOAD_ORDER = node["extendedHwpLoadOrder"].as<bool>(EXTENDED_HWP_LOAD_ORDER);
 	EXTENDED_MELEE_REACTIONS = node["extendedMeleeReactions"].as<int>(EXTENDED_MELEE_REACTIONS);
+	EXTENDED_TERRAIN_MELEE = node["extendedTerrainMelee"].as<int>(EXTENDED_TERRAIN_MELEE);
+	EXTENDED_UNDERWATER_THROW_FACTOR = node["extendedUnderwaterThrowFactor"].as<int>(EXTENDED_UNDERWATER_THROW_FACTOR);
 }
 
 /**
@@ -2355,6 +2367,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 	_fontName = doc["fontName"].as<std::string>(_fontName);
 	_psiUnlockResearch = doc["psiUnlockResearch"].as<std::string>(_psiUnlockResearch);
 	_fakeUnderwaterBaseUnlockResearch = doc["fakeUnderwaterBaseUnlockResearch"].as<std::string>(_fakeUnderwaterBaseUnlockResearch);
+	_newBaseUnlockResearch = doc["newBaseUnlockResearch"].as<std::string>(_newBaseUnlockResearch);
 	_destroyedFacility = doc["destroyedFacility"].as<std::string>(_destroyedFacility);
 
 	_aiUseDelayGrenade = doc["turnAIUseGrenade"].as<int>(_aiUseDelayGrenade);
@@ -2459,7 +2472,8 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		}
 	}
 	_performanceBonusFactor = doc["performanceBonusFactor"].as<int>(_performanceBonusFactor);
-	_useCustomCategories = doc["useCustomCategories"].as<bool>(_useCustomCategories);
+	_enableNewResearchSorting = doc["enableNewResearchSorting"].as<bool>(_enableNewResearchSorting);
+	_displayCustomCategories = doc["displayCustomCategories"].as<int>(_displayCustomCategories);
 	_shareAmmoCategories = doc["shareAmmoCategories"].as<bool>(_shareAmmoCategories);
 	_showDogfightDistanceInKm = doc["showDogfightDistanceInKm"].as<bool>(_showDogfightDistanceInKm);
 	_showFullNameInAlienInventory = doc["showFullNameInAlienInventory"].as<bool>(_showFullNameInAlienInventory);
@@ -4626,7 +4640,15 @@ void Mod::loadVanillaResources()
 		for (size_t i = 0; i < ARRAYLEN(surfaceNames); ++i)
 		{
 			SurfaceSet* s = _sets[surfaceNames[i]];
-			s->setMaxSharedFrames((int)s->getTotalFrames());
+			if (s)
+			{
+				s->setMaxSharedFrames((int)s->getTotalFrames());
+			}
+			else
+			{
+				Log(LOG_ERROR) << "Surface set " << surfaceNames[i] << " not found.";
+				throw Exception("Surface set " + surfaceNames[i] + " not found.");
+			}
 		}
 		//special case for surface set that is loaded later
 		{

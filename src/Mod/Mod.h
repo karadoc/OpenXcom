@@ -237,7 +237,9 @@ private:
 	int _pilotAccuracyZeroPoint, _pilotAccuracyRange, _pilotReactionsZeroPoint, _pilotReactionsRange;
 	int _pilotBraveryThresholds[3];
 	int _performanceBonusFactor;
-	bool _useCustomCategories, _shareAmmoCategories, _showDogfightDistanceInKm, _showFullNameInAlienInventory;
+	bool _enableNewResearchSorting;
+	int _displayCustomCategories;
+	bool _shareAmmoCategories, _showDogfightDistanceInKm, _showFullNameInAlienInventory;
 	int _alienInventoryOffsetX, _alienInventoryOffsetBigUnit;
 	bool _hidePediaInfoButton, _extraNerdyPediaInfo;
 	bool _giveScoreAlsoForResearchedArtifacts, _statisticalBulletConservation, _stunningImprovesMorale;
@@ -247,7 +249,7 @@ private:
 	int _defeatScore, _defeatFunds;
 	bool _difficultyDemigod;
 	std::pair<std::string, int> _alienFuel;
-	std::string _fontName, _finalResearch, _psiUnlockResearch, _fakeUnderwaterBaseUnlockResearch;
+	std::string _fontName, _finalResearch, _psiUnlockResearch, _fakeUnderwaterBaseUnlockResearch, _newBaseUnlockResearch;
 
 	std::string _destroyedFacility;
 	YAML::Node _startingBaseDefault, _startingBaseBeginner, _startingBaseExperienced, _startingBaseVeteran, _startingBaseGenius, _startingBaseSuperhuman;
@@ -368,6 +370,8 @@ public:
 	static bool EXTENDED_RUNNING_COST;
 	static bool EXTENDED_HWP_LOAD_ORDER;
 	static int EXTENDED_MELEE_REACTIONS;
+	static int EXTENDED_TERRAIN_MELEE;
+	static int EXTENDED_UNDERWATER_THROW_FACTOR;
 
 	// reset all the statics in all classes to default values
 	static void resetGlobalStatics();
@@ -761,6 +765,8 @@ public:
 
 	/// Gets the research topic required for building XCOM bases on fakeUnderwater globe textures.
 	const std::string &getFakeUnderwaterBaseUnlockResearch() const { return _fakeUnderwaterBaseUnlockResearch; }
+	/// Gets the research topic required for building XCOM bases.
+	const std::string &getNewBaseUnlockResearch() const { return _newBaseUnlockResearch; }
 
 	/// Gets the threshold for defining a glancing hit on a ufo during interception
 	int getUfoGlancingHitThreshold() const { return _ufoGlancingHitThreshold; }
@@ -804,8 +810,10 @@ public:
 	int getPilotBraveryThresholdNormal() const { return _pilotBraveryThresholds[2]; }
 	/// Gets a performance bonus factor
 	int getPerformanceBonusFactor() const { return _performanceBonusFactor; }
-	/// Should custom categories be used in Buy/Sell/Transfer GUIs?
-	bool getUseCustomCategories() const { return _useCustomCategories; }
+	/// Should the player have the option to sort the 'New Research' list?
+	bool getEnableNewResearchSorting() const { return _enableNewResearchSorting; }
+	/// Should custom categories be used in Buy/Sell/Transfer GUIs? 0=no, 1=yes, custom only, 2=both vanilla and custom.
+	int getDisplayCustomCategories() const { return _displayCustomCategories; }
 	/// Should weapons "inherit" categories of their ammo?
 	bool getShareAmmoCategories() const { return _shareAmmoCategories; }
 	/// Should distance in dogfight GUI be shown in kilometers?

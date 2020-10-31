@@ -37,6 +37,7 @@ struct ItemSet
 struct DeploymentData
 {
 	int alienRank;
+	std::string customUnitType;
 	int lowQty, highQty, dQty, extraQty;
 	int percentageOutsideUfo;
 	std::vector<ItemSet> itemSets, extraRandomItems;
@@ -117,6 +118,8 @@ public:
 	int getBughuntMinTurn() const;
 	/// Gets a pointer to the data.
 	const std::vector<DeploymentData>* getDeploymentData() const;
+	/// Gets the highest used alien rank.
+	int getMaxAlienRank() const;
 	/// Gets dimensions.
 	void getDimensions(int *width, int *length, int *height) const;
 	/// Gets civilians.

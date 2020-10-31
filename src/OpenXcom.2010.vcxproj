@@ -285,6 +285,7 @@
     <ClCompile Include="Basescape\SoldierMemorialState.cpp" />
     <ClCompile Include="Basescape\SoldierSortUtil.cpp" />
     <ClCompile Include="Basescape\SoldiersState.cpp" />
+    <ClCompile Include="Basescape\SoldierTransformationListState.cpp" />
     <ClCompile Include="Basescape\SoldierTransformationState.cpp" />
     <ClCompile Include="Basescape\StoresState.cpp" />
     <ClCompile Include="Basescape\TechTreeSelectState.cpp" />
@@ -467,6 +468,7 @@
     <ClCompile Include="Menu\ListLoadState.cpp" />
     <ClCompile Include="Menu\ListSaveState.cpp" />
     <ClCompile Include="Menu\LoadGameState.cpp" />
+    <ClCompile Include="Menu\NotesState.cpp" />
     <ClCompile Include="Menu\OptionsAdvancedState.cpp" />
     <ClCompile Include="Menu\DeleteGameState.cpp" />
     <ClCompile Include="Menu\ErrorMessageState.cpp" />
@@ -664,6 +666,7 @@
     <ClInclude Include="Basescape\SoldierMemorialState.h" />
     <ClInclude Include="Basescape\SoldierSortUtil.h" />
     <ClInclude Include="Basescape\SoldiersState.h" />
+    <ClInclude Include="Basescape\SoldierTransformationListState.h" />
     <ClInclude Include="Basescape\SoldierTransformationState.h" />
     <ClInclude Include="Basescape\StoresState.h" />
     <ClInclude Include="Basescape\TechTreeSelectState.h" />
@@ -862,6 +865,7 @@
     <ClInclude Include="Menu\ListLoadState.h" />
     <ClInclude Include="Menu\ListSaveState.h" />
     <ClInclude Include="Menu\LoadGameState.h" />
+    <ClInclude Include="Menu\NotesState.h" />
     <ClInclude Include="Menu\OptionsAdvancedState.h" />
     <ClInclude Include="Menu\DeleteGameState.h" />
     <ClInclude Include="Menu\ErrorMessageState.h" />
