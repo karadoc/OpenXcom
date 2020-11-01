@@ -36,6 +36,7 @@ en-GB:
 #CraftInfoState.cpp
   STR_PILOTS: "PILOTS"
   STR_SHIELD: "SHIELD>{ALT}{0}"
+  STR_CRAFT_SKIN_ID: "[{0}]"
 #CraftPilotSelectState.cpp
   STR_SELECT_PILOT: "Select Pilot"
 #CraftPilotsState.cpp
@@ -312,6 +313,7 @@ en-GB:
   STR_NO_QUEUED: "+"
   STR_NO_DONE: "DONE"
 #BaseDefenseState.cpp
+  STR_NO_AMMO: "NO AMMO!"
   STR_START_FIRING: "Fire!"
   STR_SKIP_FIRING: "Let them in..."
 #BaseDestroyedState.cpp
