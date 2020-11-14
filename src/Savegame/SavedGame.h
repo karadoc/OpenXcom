@@ -269,6 +269,8 @@ public:
 	void setResearchRuleStatus(const std::string &researchRule, int newStatus);
 	/// Sets the item as hidden or unhidden
 	void setHiddenPurchaseItemsStatus(const std::string &itemName, bool hidden);
+	/// Selects a "getOneFree" topic for the given research rule.
+	const RuleResearch* selectGetOneFree(const RuleResearch* research);
 	/// Remove a research from the "already discovered" list
 	void removeDiscoveredResearch(const RuleResearch *research);
 	/// Add a finished ResearchProject
@@ -407,8 +409,6 @@ public:
 	void setLastSelectedArmor(const std::string &value);
 	/// Gets the last selected armor
 	std::string getLastSelectedArmor() const;
-	/// Returns the craft corresponding to the specified unique id.
-	Craft *findCraftByUniqueId(const CraftId& craftId) const;
 	/// Gets the name of a global equipment layout at specified index.
 	const std::string &getGlobalEquipmentLayoutName(int index) const;
 	/// Sets the name of a global equipment layout at specified index.

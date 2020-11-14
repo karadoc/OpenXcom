@@ -2971,6 +2971,9 @@ void BattlescapeState::finishBattle(bool abort, int inExitArea)
 		}
 	}
 
+	// let's count summoned player-controlled VIPs before we remove them :)
+	_battleGame->tallySummonedVIPs();
+	// this removes player-controlled VIPs (not civilian VIPs)
 	_battleGame->removeSummonedPlayerUnits();
 
 	AlienDeployment *ruleDeploy = _game->getMod()->getDeployment(_save->getMissionType());

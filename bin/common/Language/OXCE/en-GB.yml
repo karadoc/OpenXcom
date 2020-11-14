@@ -224,6 +224,8 @@ en-GB:
   STR_SELL: "SELL"
   STR_LIVE_ALIENS_SURRENDERED: "ENEMIES SURRENDERED"
   STR_MISSION_ABORTED: "MISSION ABORTED"
+  STR_VIPS_SAVED: "VIPS SAVED"
+  STR_VIPS_LOST: "VIPS LOST"
   STR_BOUNTY: "BOUNTY"
   STR_MANA_ABBREVIATION: "MAN"
 #Inventory.cpp
@@ -242,6 +244,8 @@ en-GB:
   STR_LOAD_PERSONAL_EQUIPMENT: "Load Personal Equipment"
   STR_PERSONAL_EQUIPMENT_SAVED: "Personal equipment saved."
 #NextTurnState.cpp
+  STR_TELL_ME_MORE: "Tell me more..."
+  STR_REINFORCEMENTS_ALERT: "Reinforcements alert!"
   STR_HIT_LOG_NEW_TURN: "New Turn"
 #ProjectileFlyBState.cpp
   STR_FAILED_CQB_CHECK: "Enemy managed to interrupt your attack!"

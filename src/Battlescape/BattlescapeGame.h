@@ -114,6 +114,13 @@ struct BattlescapeTally
 	int inExit = 0;
 	/// number of live soldiers in the middle of the battlefield.
 	int inField = 0;
+
+	/// number of live VIPs on entrance tiles
+	int vipInEntrance = 0;
+	/// number of live VIPs on exit tiles.
+	int vipInExit = 0;
+	/// number of live VIPs in the middle of the battlefield.
+	int vipInField = 0;
 };
 
 /**
@@ -222,6 +229,8 @@ public:
 	void spawnFromPrimedItems();
 	/// Removes spawned units that belong to the player to avoid dealing with recovery
 	void removeSummonedPlayerUnits();
+	/// Tally summoned player-controlled VIPs. We may still need to correct this in the Debriefing.
+	void tallySummonedVIPs();
 	/// Handles kneeling action.
 	bool kneel(BattleUnit *bu);
 	/// Cancels the current action.

@@ -120,7 +120,6 @@ private:
 	int _fireMaxHit;
 	int _smokeMaxHit;
 	int _moraleRestored;
-	int _coverReserve;
 	BattleUnit *_charging;
 	int _turnsSinceSpotted, _turnsLeftSpottedForSnipers, _turnsSinceStunned = 255;
 	const Unit *_spawnUnit = nullptr;
@@ -159,12 +158,13 @@ private:
 	bool _breathing;
 	bool _hidingForTurn, _floorAbove, _respawn, _alreadyRespawned;
 	bool _isLeeroyJenkins;	// always charges enemy, never retreats.
-	bool _summonedPlayerUnit;
+	bool _summonedPlayerUnit, _resummonedFakeCivilian;
 	bool _pickUpWeaponsMoreActively;
 	bool _disableIndicators;
 	MovementType _movementType;
 	std::vector<std::pair<Uint8, Uint8> > _recolor;
 	bool _capturable;
+	bool _vip;
 	ScriptValues<BattleUnit> _scriptValues;
 
 	/// Calculate stat improvement.
@@ -625,8 +625,6 @@ public:
 	bool tookFireDamage() const;
 	/// switch the state of the fire damage tracker.
 	void toggleFireDamage();
-	void setCoverReserve(int reserve);
-	int getCoverReserve() const;
 	/// Is this unit selectable?
 	bool isSelectable(UnitFaction faction, bool checkReselect, bool checkInventory) const;
 	/// Does this unit have an inventory?
@@ -719,6 +717,14 @@ public:
 	void setSummonedPlayerUnit(bool summonedPlayerUnit);
 	/// Was this unit summoned by an item?
 	bool isSummonedPlayerUnit() const;
+	/// Marks this unit as resummoned fake civilian and therefore won't count for civilian scoring in the Debriefing.
+	void markAsResummonedFakeCivilian() { _resummonedFakeCivilian = true; }
+	/// Is this unit a resummoned fake civilian?
+	bool isResummonedFakeCivilian() const { return _resummonedFakeCivilian; }
+	/// Marks this unit as VIP.
+	void markAsVIP() { _vip = true; }
+	/// Is this a VIP unit?
+	bool isVIP() const { return _vip; }
 	/// Is the unit eagerly picking up weapons?
 	bool getPickUpWeaponsMoreActively() const { return _pickUpWeaponsMoreActively; }
 	/// Show indicators for this unit or not?

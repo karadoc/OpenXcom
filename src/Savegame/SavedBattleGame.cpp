@@ -59,10 +59,13 @@ namespace OpenXcom
  */
 SavedBattleGame::SavedBattleGame(Mod *rule, Language *lang) :
 	_battleState(0), _rule(rule), _mapsize_x(0), _mapsize_y(0), _mapsize_z(0), _selectedUnit(0),
-	_lastSelectedUnit(0), _pathfinding(0), _tileEngine(0), _enviroEffects(nullptr), _ecEnabledFriendly(false), _ecEnabledHostile(false), _ecEnabledNeutral(false),
+	_lastSelectedUnit(0), _pathfinding(0), _tileEngine(0),
+	_reinforcementsItemLevel(0), _enviroEffects(nullptr), _ecEnabledFriendly(false), _ecEnabledHostile(false), _ecEnabledNeutral(false),
 	_globalShade(0), _side(FACTION_PLAYER), _turn(0), _bughuntMinTurn(20), _animFrame(0), _nameDisplay(false),
-	_debugMode(false), _bughuntMode(false), _aborted(false), _itemId(0), _objectiveType(-1), _objectivesDestroyed(0), _objectivesNeeded(0), _unitsFalling(false),
-	_cheating(false), _tuReserved(BA_NONE), _kneelReserved(false), _depth(0),
+	_debugMode(false), _bughuntMode(false), _aborted(false), _itemId(0),
+	_vipEscapeType(ESCAPE_NONE), _vipSurvivalPercentage(0), _vipsSaved(0), _vipsLost(0), _vipsWaitingOutside(0), _vipsSavedScore(0), _vipsLostScore(0), _vipsWaitingOutsideScore(0),
+	_objectiveType(-1), _objectivesDestroyed(0), _objectivesNeeded(0),
+	_unitsFalling(false), _cheating(false), _tuReserved(BA_NONE), _kneelReserved(false), _depth(0),
 	_ambience(-1), _ambientVolume(0.5), _minAmbienceRandomDelay(20), _maxAmbienceRandomDelay(60), _currentAmbienceDelay(0),
 	_turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE), _beforeGame(true)
 {
@@ -148,6 +151,13 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 	_ecEnabledNeutral = node["ecEnabledNeutral"].as<bool>(_ecEnabledNeutral);
 	_alienCustomDeploy = node["alienCustomDeploy"].as<std::string>(_alienCustomDeploy);
 	_alienCustomMission = node["alienCustomMission"].as<std::string>(_alienCustomMission);
+	_reinforcementsDeployment = node["reinforcementsDeployment"].as<std::string>(_reinforcementsDeployment);
+	_reinforcementsRace = node["reinforcementsRace"].as<std::string>(_reinforcementsRace);
+	_reinforcementsItemLevel = node["reinforcementsItemLevel"].as<int>(_reinforcementsItemLevel);
+	_reinforcementsMemory = node["reinforcementsMemory"].as< std::map<std::string, int> >(_reinforcementsMemory);
+	_reinforcementsBlocks = node["reinforcementsBlocks"].as< std::vector< std::vector<int> > >(_reinforcementsBlocks);
+	_flattenedMapTerrainNames = node["flattenedMapTerrainNames"].as< std::vector< std::vector<std::string> > >(_flattenedMapTerrainNames);
+	_flattenedMapBlockNames = node["flattenedMapBlockNames"].as< std::vector< std::vector<std::string> > >(_flattenedMapBlockNames);
 	_globalShade = node["globalshade"].as<int>(_globalShade);
 	_turn = node["turn"].as<int>(_turn);
 	_bughuntMinTurn = node["bughuntMinTurn"].as<int>(_bughuntMinTurn);
@@ -374,6 +384,14 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 			++weaponi;
 		}
 	}
+	_vipEscapeType = (EscapeType)(node["vipEscapeType"].as<int>(_vipEscapeType));
+	_vipSurvivalPercentage = node["vipSurvivalPercentage"].as<int>(_vipSurvivalPercentage);
+	_vipsSaved = node["vipsSaved"].as<int>(_vipsSaved);
+	_vipsLost = node["vipsLost"].as<int>(_vipsLost);
+	_vipsWaitingOutside = node["vipsWaitingOutside"].as<int>(_vipsWaitingOutside);
+	_vipsSavedScore = node["vipsSavedScore"].as<int>(_vipsSavedScore);
+	_vipsLostScore = node["vipsLostScore"].as<int>(_vipsLostScore);
+	_vipsWaitingOutsideScore = node["vipsWaitingOutsideScore"].as<int>(_vipsWaitingOutsideScore);
 	_objectiveType = node["objectiveType"].as<int>(_objectiveType);
 	_objectivesDestroyed = node["objectivesDestroyed"].as<int>(_objectivesDestroyed);
 	_objectivesNeeded = node["objectivesNeeded"].as<int>(_objectivesNeeded);
@@ -437,6 +455,17 @@ void SavedBattleGame::loadMapResources(Mod *mod)
 YAML::Node SavedBattleGame::save() const
 {
 	YAML::Node node;
+	if (_vipSurvivalPercentage > 0)
+	{
+		node["vipEscapeType"] = (int)_vipEscapeType;
+		node["vipSurvivalPercentage"] = _vipSurvivalPercentage;
+		node["vipsSaved"] = _vipsSaved;
+		node["vipsLost"] = _vipsLost;
+		node["vipsWaitingOutside"] = _vipsWaitingOutside;
+		node["vipsSavedScore"] = _vipsSavedScore;
+		node["vipsLostScore"] = _vipsLostScore;
+		node["vipsWaitingOutsideScore"] = _vipsWaitingOutsideScore;
+	}
 	if (_objectivesNeeded)
 	{
 		node["objectivesDestroyed"] = _objectivesDestroyed;
@@ -459,6 +488,13 @@ YAML::Node SavedBattleGame::save() const
 	node["ecEnabledNeutral"] = _ecEnabledNeutral;
 	node["alienCustomDeploy"] = _alienCustomDeploy;
 	node["alienCustomMission"] = _alienCustomMission;
+	node["reinforcementsDeployment"] = _reinforcementsDeployment;
+	node["reinforcementsRace"] = _reinforcementsRace;
+	node["reinforcementsItemLevel"] = _reinforcementsItemLevel;
+	node["reinforcementsMemory"] = _reinforcementsMemory;
+	node["reinforcementsBlocks"] = _reinforcementsBlocks;
+	node["flattenedMapTerrainNames"] = _flattenedMapTerrainNames;
+	node["flattenedMapBlockNames"] = _flattenedMapBlockNames;
 	node["globalshade"] = _globalShade;
 	node["turn"] = _turn;
 	node["bughuntMinTurn"] = _bughuntMinTurn;
@@ -2596,6 +2632,137 @@ const std::string &SavedBattleGame::getMusic() const
 void SavedBattleGame::setMusic(const std::string &track)
 {
 	_music = track;
+}
+
+/**
+ * Sets the VIP escape type.
+ */
+void SavedBattleGame::setVIPEscapeType(EscapeType vipEscapeType)
+{
+	_vipEscapeType = vipEscapeType;
+}
+
+/**
+ * Gets the VIP escape type.
+ */
+EscapeType SavedBattleGame::getVIPEscapeType() const
+{
+	return _vipEscapeType;
+}
+
+/**
+ * Sets the percentage of VIPs that must survive in order to accomplish the mission.
+ * If the mission has multiple stages, the biggest setting is used at the end.
+ */
+void SavedBattleGame::setVIPSurvivalPercentage(int vipSurvivalPercentage)
+{
+	_vipSurvivalPercentage = std::max(_vipSurvivalPercentage, vipSurvivalPercentage);
+}
+
+/**
+ * Gets the percentage of VIPs that must survive in order to accomplish the mission.
+ */
+int SavedBattleGame::getVIPSurvivalPercentage() const
+{
+	return _vipSurvivalPercentage;
+}
+
+/**
+ * Increase the saved VIPs counter and score.
+ */
+void SavedBattleGame::addSavedVIP(int score)
+{
+	_vipsSaved++;
+	_vipsSavedScore += score;
+}
+
+/**
+ * Gets the saved VIPs counter.
+ */
+int SavedBattleGame::getSavedVIPs() const
+{
+	return _vipsSaved;
+}
+
+/**
+ * Gets the saved VIPs total score.
+ */
+int SavedBattleGame::getSavedVIPsScore() const
+{
+	return _vipsSavedScore;
+}
+
+/**
+ * Increase the lost VIPs counter and score.
+ */
+void SavedBattleGame::addLostVIP(int score)
+{
+	_vipsLost++;
+	_vipsLostScore -= score;
+}
+
+/**
+ * Gets the lost VIPs counter.
+ */
+int SavedBattleGame::getLostVIPs() const
+{
+	return _vipsLost;
+}
+
+/**
+ * Gets the lost VIPs total score.
+ */
+int SavedBattleGame::getLostVIPsScore() const
+{
+	return _vipsLostScore;
+}
+
+/**
+ * Increase the waiting outside VIPs counter and score.
+ */
+void SavedBattleGame::addWaitingOutsideVIP(int score)
+{
+	_vipsWaitingOutside++;
+	_vipsWaitingOutsideScore += score;
+}
+
+/**
+ * Corrects the VIP stats based on the final mission outcome.
+ */
+void SavedBattleGame::correctVIPStats(bool success, bool retreated)
+{
+	if (success)
+	{
+		// if we won, all waiting VIPs are saved
+		_vipsSaved += _vipsWaitingOutside;
+		_vipsWaitingOutside = 0;
+
+		_vipsSavedScore += _vipsWaitingOutsideScore;
+		_vipsWaitingOutsideScore = 0;
+	}
+	else
+	{
+		// if we lost, all waiting VIPs are lost
+		_vipsLost += _vipsWaitingOutside;
+		_vipsWaitingOutside = 0;
+
+		_vipsLostScore -= _vipsWaitingOutsideScore;
+		_vipsWaitingOutsideScore = 0;
+
+		if (retreated)
+		{
+			// if we retreated, keep all VIPs waiting in the craft alive
+		}
+		else
+		{
+			// if nobody from xcom survived, all VIPs are lost too
+			_vipsLost += _vipsSaved;
+			_vipsSaved = 0;
+
+			_vipsLostScore -= _vipsSavedScore;
+			_vipsSavedScore = 0;
+		}
+	}
 }
 
 /**
