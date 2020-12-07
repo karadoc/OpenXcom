@@ -1577,7 +1577,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 			// look for more attractive target
 			for (auto craft : *crafts)
 			{
-				if (!craft->getMissionComplete())
+				if (!craft->getMissionComplete() && !craft->getRules()->isUndetectable())
 				{
 					int tmpAttraction = craft->getHunterKillerAttraction((*ufo)->getHuntMode());
 					if (tmpAttraction < newAttraction && (*ufo)->insideRadarRange(craft))
@@ -1658,7 +1658,7 @@ void GeoscapeState::baseHunting()
 				for (auto craft : *crafts)
 				{
 					// Craft is flying (i.e. not in base)
-					if (craft->getStatus() == "STR_OUT" && !craft->isDestroyed())
+					if (craft->getStatus() == "STR_OUT" && !craft->isDestroyed() && !craft->getRules()->isUndetectable())
 					{
 						// Craft is close enough and RNG is in our favour
 						if (craft->getDistance((*ab)) < Nautical((*ab)->getDeployment()->getBaseDetectionRange()) && RNG::percent((*ab)->getDeployment()->getBaseDetectionChance()))
@@ -3282,7 +3282,7 @@ void GeoscapeState::handleBaseDefense(Base *base, Ufo *ufo)
 	int ufoDamagePercentage = 0;
 	if (_game->getMod()->getLessAliensDuringBaseDefense())
 	{
-		ufoDamagePercentage = ufo->getDamage() * 100 / ufo->getCraftStats().damageMax;
+		ufoDamagePercentage = ufo->getDamagePercentage();
 	}
 
 	// Whatever happens in the base defense, the UFO has finished its duty

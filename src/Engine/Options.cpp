@@ -244,6 +244,7 @@ void create()
 	_info.push_back(OptionInfo("oxceDisableProductionDependencyTree", &oxceDisableProductionDependencyTree, false, "", "HIDDEN"));
 	_info.push_back(OptionInfo("oxceDisableHitLog", &oxceDisableHitLog, false, "", "HIDDEN"));
 	_info.push_back(OptionInfo("oxceDisableAlienInventory", &oxceDisableAlienInventory, false, "", "HIDDEN"));
+	_info.push_back(OptionInfo("oxceDisableInventoryTuCost", &oxceDisableInventoryTuCost, false, "", "HIDDEN"));
 
 	_info.push_back(OptionInfo("oxceRecommendedOptionsWereSet", &oxceRecommendedOptionsWereSet, false));
 
@@ -661,8 +662,15 @@ void refreshMods()
 	Log(LOG_INFO) << "Scanning user mods in '" << getUserFolder() << "'...";
 	FileMap::scanModDir(getUserFolder(), "mods", false);
 #ifdef __MOBILE__
-	Log(LOG_INFO) << "Scanning user mods in '" << getDataFolder() << "'...";
-	FileMap::scanModDir(getDataFolder(), "mods", false);
+	if (getDataFolder() == getUserFolder())
+	{
+		Log(LOG_INFO) << "Skipped scanning user mods in the data folder, because it's the same folder as the user folder.";
+	}
+	else
+	{
+		Log(LOG_INFO) << "Scanning user mods in '" << getDataFolder() << "'...";
+		FileMap::scanModDir(getDataFolder(), "mods", false);
+	}
 #endif
 
 	// Check mods' dependencies on other mods and extResources (UFO, TFTD, etc),

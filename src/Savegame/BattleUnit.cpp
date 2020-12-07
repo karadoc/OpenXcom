@@ -4094,15 +4094,6 @@ void BattleUnit::setTimeUnits(int tu)
 }
 
 /**
- * Set a specific number of energy.
- * @param energy energy.
- */
-void BattleUnit::setEnergy(int energy)
-{
-	_energy = energy;
-}
-
-/**
  * Get the faction the unit was killed by.
  * @return faction
  */
@@ -5516,8 +5507,8 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.addFunc<getRightHandWeaponConstScript>("getRightHandWeapon");
 	bu.addFunc<getLeftHandWeaponScript>("getLeftHandWeapon");
 	bu.addFunc<getLeftHandWeaponConstScript>("getLeftHandWeapon");
-	bu.addFunc<reduceByBraveryScript>("reduceByBravery");
-	bu.addFunc<reduceByResistanceScript>("reduceByResistance");
+	bu.addFunc<reduceByBraveryScript>("reduceByBravery", "change first arg1 to `(110 - bravery) * arg1 / 100`");
+	bu.addFunc<reduceByResistanceScript>("reduceByResistance", "change first arg1 to `arg1 * resist[arg2]`");
 
 	bu.add<&getPositionXScript>("getPosition.getX");
 	bu.add<&getPositionYScript>("getPosition.getY");

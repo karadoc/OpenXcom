@@ -336,7 +336,7 @@ Mod::Mod() :
 	_maxLookVariant(0), _tooMuchSmokeThreshold(10), _customTrainingFactor(100), _minReactionAccuracy(0), _chanceToStopRetaliation(0), _lessAliensDuringBaseDefense(false),
 	_allowCountriesToCancelAlienPact(false), _buildInfiltrationBaseCloseToTheCountry(false), _allowAlienBasesOnWrongTextures(true),
 	_kneelBonusGlobal(115), _oneHandedPenaltyGlobal(80),
-	_enableCloseQuartersCombat(0), _closeQuartersAccuracyGlobal(100), _closeQuartersTuCostGlobal(12), _closeQuartersEnergyCostGlobal(8),
+	_enableCloseQuartersCombat(0), _closeQuartersAccuracyGlobal(100), _closeQuartersTuCostGlobal(12), _closeQuartersEnergyCostGlobal(8), _closeQuartersSneakUpGlobal(0),
 	_noLOSAccuracyPenaltyGlobal(-1),
 	_enableOffCentreShooting(true),
 	_surrenderMode(0),
@@ -2221,7 +2221,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		if (rule != 0)
 		{
 			_researchListOrder += 100;
-			rule->load(*i, this, _researchListOrder);
+			rule->load(*i, this, parsers, _researchListOrder);
 			if ((*i)["unlockFinalMission"].as<bool>(false))
 			{
 				_finalResearch = (*i)["name"].as<std::string>(_finalResearch);
@@ -2403,6 +2403,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 	_closeQuartersAccuracyGlobal = doc["closeQuartersAccuracyGlobal"].as<int>(_closeQuartersAccuracyGlobal);
 	_closeQuartersTuCostGlobal = doc["closeQuartersTuCostGlobal"].as<int>(_closeQuartersTuCostGlobal);
 	_closeQuartersEnergyCostGlobal = doc["closeQuartersEnergyCostGlobal"].as<int>(_closeQuartersEnergyCostGlobal);
+	_closeQuartersSneakUpGlobal = doc["closeQuartersSneakUpGlobal"].as<int>(_closeQuartersSneakUpGlobal);
 	_noLOSAccuracyPenaltyGlobal = doc["noLOSAccuracyPenaltyGlobal"].as<int>(_noLOSAccuracyPenaltyGlobal);
 	_enableOffCentreShooting = doc["enableOffCentreShooting"].as<bool>(_enableOffCentreShooting);
 	_surrenderMode = doc["surrenderMode"].as<int>(_surrenderMode);

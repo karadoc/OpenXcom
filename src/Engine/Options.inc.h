@@ -93,6 +93,7 @@ OPT bool oxceDisableStatsForNerds;
 OPT bool oxceDisableProductionDependencyTree;
 OPT bool oxceDisableHitLog;
 OPT bool oxceDisableAlienInventory;
+OPT bool oxceDisableInventoryTuCost;
 
 OPT bool oxceRecommendedOptionsWereSet;
 

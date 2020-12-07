@@ -4262,26 +4262,6 @@ Tile *TileEngine::applyGravity(Tile *t)
 		occupant->updateTileFloorState(_save);
 		if (occupant->haveNoFloorBelow())
 		{
-			// we already know that we can fall, skip first check because `updateTileFloorState` did it already
-			Position unitpos = occupant->getPosition() - Position(0, 0, 1);
-			while (unitpos.z > 0)
-			{
-				bool canFall = true;
-				for (int y = 0; y < occupant->getArmor()->getSize() && canFall; ++y)
-				{
-					for (int x = 0; x < occupant->getArmor()->getSize() && canFall; ++x)
-					{
-						auto rt = _save->getTile(Position(unitpos.x+x, unitpos.y+y, unitpos.z));
-						if (!rt->hasNoFloor(_save))
-						{
-							canFall = false;
-						}
-					}
-				}
-				if (!canFall)
-					break;
-				unitpos.z--;
-			}
 			if (!occupant->isOutThresholdExceed())
 			{
 				if (occupant->getMovementType() == MT_FLY)
@@ -4617,15 +4597,11 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 		// diagonal directions are not supported
 		return false;
 	}
-	if (attacker->getArmor()->getSize() > 1)
-	{
-		// 2x2 units are not supported
-		return false;
-	}
 	Position p;
 	Pathfinding::directionToVector(direction, &p);
 
 	Tile* originTile = _save->getTile(pos);
+	Tile* originTile2 = originTile;
 	if (originTile && originTile->getTerrainLevel() <= -16)
 	{
 		// if we are on the upper part of stairs, target one tile above
@@ -4633,6 +4609,39 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 		originTile = _save->getTile(pos);
 	}
 	Tile* neighbouringTile = _save->getTile(pos + p);
+	Tile* neighbouringTile2 = nullptr;
+	int size = attacker->getArmor()->getSize();
+	if (size > 1)
+	{
+		if (direction == 0)
+		{
+			// North
+			originTile2 = _save->getTile(pos + Position(1, 0, 0));
+			neighbouringTile2 = _save->getTile(pos + p + Position(1, 0, 0));
+		}
+		else if (direction == 2)
+		{
+			// East
+			neighbouringTile =  _save->getTile(pos + p + Position(1, 0, 0));
+			neighbouringTile2 = _save->getTile(pos + p + Position(1, 1, 0));
+		}
+		else if (direction == 4)
+		{
+			// South
+			neighbouringTile =  _save->getTile(pos + p + Position(0, 1, 0));
+			neighbouringTile2 = _save->getTile(pos + p + Position(1, 1, 0));
+		}
+		else if (direction == 6)
+		{
+			// West
+			originTile2 = _save->getTile(pos + Position(0, 1, 0));
+			neighbouringTile2 = _save->getTile(pos + p + Position(0, 1, 0));
+		}
+		if (!neighbouringTile2 || !originTile2)
+		{
+			return false;
+		}
+	}
 	if (originTile && neighbouringTile)
 	{
 		auto setTarget = [](Tile* tt, TilePart tp, BattleAction* aa) -> bool
@@ -4684,11 +4693,42 @@ bool TileEngine::validTerrainMeleeRange(BattleAction* action)
 			// West: target the west wall of the same tile
 			return true;
 		}
+		if (size > 1)
+		{
+			if (direction == 0 && setTarget(originTile2, O_NORTHWALL, action))
+			{
+				// North
+				return true;
+			}
+			else if (direction == 2 && setTarget(neighbouringTile2, O_WESTWALL, action))
+			{
+				// East
+				return true;
+			}
+			else if (direction == 4 && setTarget(neighbouringTile2, O_NORTHWALL, action))
+			{
+				// South
+				return true;
+			}
+			else if (direction == 6 && setTarget(originTile2, O_WESTWALL, action))
+			{
+				// West
+				return true;
+			}
+		}
 
 		if (setTarget(neighbouringTile, O_OBJECT, action))
 		{
 			// All directions: target the object on the neighbouring tile
 			return true;
+		}
+		if (size > 1)
+		{
+			if (setTarget(neighbouringTile2, O_OBJECT, action))
+			{
+				// All directions
+				return true;
+			}
 		}
 	}
 

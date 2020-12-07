@@ -2840,12 +2840,15 @@ void StatsForNerdsState::initCraftList()
 		for (int i = 0; i < RuleCraft::WeaponMax; ++i)
 		{
 			std::ostringstream ss2;
-			ss2 << "{";
-			ss2 << craftRule->getWeaponTypesRaw(i, 0);
+			auto weaponType = craftRule->getWeaponTypesRaw(i, 0);
+			ss2 << "{" << weaponType;
 			for (int j = 1; j < RuleCraft::WeaponTypeMax; ++j)
 			{
-				ss2 << ",";
-				ss2 << craftRule->getWeaponTypesRaw(i, j);
+				if (weaponType != craftRule->getWeaponTypesRaw(i, j))
+				{
+					weaponType = craftRule->getWeaponTypesRaw(i, j);
+					ss2 << "," << weaponType;
+				}
 			}
 			ss2 << "}";
 			tmp.push_back(ss2.str());
@@ -2882,6 +2885,7 @@ void StatsForNerdsState::initCraftList()
 	addBoolean(ss, craftRule->getAllowLanding(), "allowLanding", true);
 	addBoolean(ss, craftRule->notifyWhenRefueled(), "notifyWhenRefueled");
 	addBoolean(ss, craftRule->canAutoPatrol(), "autoPatrol");
+	addBoolean(ss, craftRule->isUndetectable(), "undetectable");
 
 	addBoolean(ss, craftRule->keepCraftAfterFailedMission(), "keepCraftAfterFailedMission");
 
