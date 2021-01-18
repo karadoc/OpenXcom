@@ -215,7 +215,7 @@ void SoldierDiary::updateDiary(BattleUnitStatistics *unitStatistics, std::vector
 		_KIA++;
 	if (unitStatistics->MIA)
 		_MIA++;
-	_woundsHealedTotal = unitStatistics->woundsHealed++;
+	_woundsHealedTotal += unitStatistics->woundsHealed;
 	if (getUFOTotal(allMissionStatistics).size() >= rules->getUfosList().size())
 		_allUFOs = 1;
 	if ((getUFOTotal(allMissionStatistics).size() + getTypeTotal(allMissionStatistics).size()) == (rules->getUfosList().size() + rules->getDeploymentsList().size() - 2))
