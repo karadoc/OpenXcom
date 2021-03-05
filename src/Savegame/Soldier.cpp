@@ -181,12 +181,6 @@ void Soldier::load(const YAML::Node& node, const Mod *mod, SavedGame *save, cons
 	_training = node["training"].as<bool>(_training);
 	_returnToTrainingWhenHealed = node["returnToTrainingWhenHealed"].as<bool>(_returnToTrainingWhenHealed);
 
-	// This is here just to fix older saves, can be removed in year 2020 :)
-	if (isWounded())
-		_training = false;
-	else
-		_returnToTrainingWhenHealed = false;
-
 	_improvement = node["improvement"].as<int>(_improvement);
 	_psiStrImprovement = node["psiStrImprovement"].as<int>(_psiStrImprovement);
 	if (const YAML::Node &layout = node["equipmentLayout"])
@@ -1905,6 +1899,12 @@ bool Soldier::prepareStatsWithBonuses(const Mod *mod)
 
 	// 6. stats with all bonuses
 	_tmpStatsWithAllBonuses = UnitStats::obeyFixedMinimum(tmp);
+
+	// 7. pilot armors count as soldier bonuses
+	if (_armor->isPilotArmor())
+	{
+		_tmpStatsWithSoldierBonuses = _tmpStatsWithAllBonuses;
+	}
 
 	return hasSoldierBonus;
 }

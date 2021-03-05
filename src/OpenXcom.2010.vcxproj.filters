@@ -624,7 +624,6 @@
     <ClCompile Include="Interface\ToggleTextButton.cpp">
       <Filter>Interface</Filter>
     </ClCompile>
-    <ClCompile Include="pch.cpp" />
     <ClCompile Include="Savegame\SerializationHelper.cpp">
       <Filter>Savegame</Filter>
     </ClCompile>
@@ -964,9 +963,6 @@
     <ClCompile Include="Savegame\SoldierAvatar.cpp">
       <Filter>Savegame</Filter>
     </ClCompile>
-    <ClCompile Include="Basescape\ChangeHeadquartersState.cpp">
-      <Filter>Basescape</Filter>
-    </ClCompile>
     <ClCompile Include="Battlescape\ConfirmEndMissionState.cpp">
       <Filter>Battlescape</Filter>
     </ClCompile>
@@ -1118,6 +1114,15 @@
     </ClCompile>
     <ClCompile Include="Menu\NotesState.cpp">
       <Filter>Menu</Filter>
+    </ClCompile>
+    <ClCompile Include="Geoscape\ExtendedGeoscapeLinksState.cpp">
+      <Filter>Geoscape</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\ExtendedBattlescapeLinksState.cpp">
+      <Filter>Battlescape</Filter>
+    </ClCompile>
+    <ClCompile Include="Battlescape\ExtendedInventoryLinksState.cpp">
+      <Filter>Battlescape</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1753,7 +1758,6 @@
     <ClInclude Include="Interface\ToggleTextButton.h">
       <Filter>Interface</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h" />
     <ClInclude Include="Engine\ShaderDraw.h">
       <Filter>Engine</Filter>
     </ClInclude>
@@ -2125,9 +2129,6 @@
     <ClInclude Include="Savegame\SoldierAvatar.h">
       <Filter>Savegame</Filter>
     </ClInclude>
-    <ClInclude Include="Basescape\ChangeHeadquartersState.h">
-      <Filter>Basescape</Filter>
-    </ClInclude>
     <ClInclude Include="Battlescape\ConfirmEndMissionState.h">
       <Filter>Battlescape</Filter>
     </ClInclude>
@@ -2298,6 +2299,15 @@
     </ClInclude>
     <ClInclude Include="Menu\NotesState.h">
       <Filter>Menu</Filter>
+    </ClInclude>
+    <ClInclude Include="Geoscape\ExtendedGeoscapeLinksState.h">
+      <Filter>Geoscape</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\ExtendedBattlescapeLinksState.h">
+      <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Battlescape\ExtendedInventoryLinksState.h">
+      <Filter>Battlescape</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

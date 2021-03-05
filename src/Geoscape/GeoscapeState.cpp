@@ -69,6 +69,7 @@
 #include "../Menu/ErrorMessageState.h"
 #include "GraphsState.h"
 #include "FundingState.h"
+#include "ExtendedGeoscapeLinksState.h"
 #include "MonthlyReportState.h"
 #include "ProductionCompleteState.h"
 #include "UfoDetectedState.h"
@@ -295,7 +296,7 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_btnOptions->setGeoscapeButton(true);
 
 	_btnFunding->initText(_game->getMod()->getFont("FONT_GEO_BIG"), _game->getMod()->getFont("FONT_GEO_SMALL"), _game->getLanguage());
-	_btnFunding->setText(tr("STR_FUNDING_UC"));
+	_btnFunding->setText(Options::oxceLinks ? tr("STR_EXTENDED_UC") : tr("STR_FUNDING_UC"));
 	_btnFunding->onMouseClick((ActionHandler)&GeoscapeState::btnFundingClick);
 	_btnFunding->onKeyboardPress((ActionHandler)&GeoscapeState::btnFundingClick, Options::keyGeoFunding);
 	_btnFunding->setGeoscapeButton(true);
@@ -495,7 +496,7 @@ void GeoscapeState::handle(Action *action)
 	if (action->getDetails()->type == SDL_KEYDOWN)
 	{
 		// "ctrl-d" - enable debug mode
-		if (Options::debug && action->getDetails()->key.keysym.sym == SDLK_d && (SDL_GetModState() & KMOD_CTRL) != 0)
+		if (Options::debug && action->getDetails()->key.keysym.sym == SDLK_d && _game->isCtrlPressed())
 		{
 			_game->getSavedGame()->setDebugMode();
 			if (_game->getSavedGame()->getDebugMode())
@@ -509,7 +510,7 @@ void GeoscapeState::handle(Action *action)
 			_cbxRegion->setVisible(_game->getSavedGame()->getDebugMode());
 			_cbxZone->setVisible(_game->getSavedGame()->getDebugMode());
 		}
-		if (Options::debug && _game->getSavedGame()->getDebugMode() && (SDL_GetModState() & KMOD_CTRL) != 0)
+		if (Options::debug && _game->getSavedGame()->getDebugMode() && _game->isCtrlPressed())
 		{
 			// "ctrl-1"
 			if (action->getDetails()->key.keysym.sym == SDLK_1)
@@ -2943,7 +2944,14 @@ void GeoscapeState::btnFundingClick(Action *)
 	{
 		return;
 	}
-	_game->pushState(new FundingState);
+	if (Options::oxceLinks)
+	{
+		_game->pushState(new ExtendedGeoscapeLinksState(this));
+	}
+	else
+	{
+		_game->pushState(new FundingState);
+	}
 }
 
 /**
@@ -3810,7 +3818,7 @@ bool GeoscapeState::processCommand(RuleMissionScript *command)
 						{
 							validAreas.push_back(std::make_pair(region->getType(), counter));
 						}
-						else if (!(*j).isPoint())
+						else if (!(*j).isPoint() && (*j).texture < 0)
 						{
 							validAreas.push_back(std::make_pair(region->getType(), counter));
 						}

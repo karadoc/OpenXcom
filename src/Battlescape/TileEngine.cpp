@@ -1171,7 +1171,7 @@ bool TileEngine::isTileInLOS(BattleAction *action, Tile *tile)
 	std::vector<Position> _trajectory;
 	bool seen = false;
 
-	bool forceFire = Options::forceFire && (SDL_GetModState() & KMOD_CTRL) != 0 && _save->getSide() == FACTION_PLAYER;
+	bool forceFire = Options::forceFire && _save->isCtrlPressed(true) && _save->getSide() == FACTION_PLAYER;
 
 	// Primary LOF check
 	if (forceFire)
@@ -1852,7 +1852,9 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 						{
 							BattleItem *weapon = rs.weapon;
 							int accuracy = BattleUnit::getFiringAccuracy(BattleActionAttack::GetBeforeShoot(rs.attackType, rs.unit, weapon), _save->getBattleGame()->getMod());
-							int distance = Position::distance2d((*i)->getPosition(), unit->getPosition());
+							int distanceSq = unit->distance3dToUnitSq((*i));
+							int distance = (int)std::ceil(sqrt(float(distanceSq)));
+
 							int upperLimit = weapon->getRules()->getSnapRange();
 							int lowerLimit = weapon->getRules()->getMinRange();
 							if (distance > upperLimit)
@@ -1864,7 +1866,7 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 								accuracy -= (lowerLimit - distance) * weapon->getRules()->getDropoff();
 							}
 
-							bool outOfRange = distance > weapon->getRules()->getMaxRange() + 1; // special handling for short ranges and diagonals simplified by +1
+							bool outOfRange = weapon->getRules()->isOutOfRange(distanceSq);
 
 							if (accuracy > _save->getBattleGame()->getMod()->getMinReactionAccuracy() && !outOfRange)
 							{
@@ -1980,7 +1982,7 @@ TileEngine::ReactionScore TileEngine::determineReactionType(BattleUnit *unit, Ba
 	{
 		// has a gun capable of snap shot with ammo
 		if (weapon->getRules()->getBattleType() == BT_FIREARM &&
-			Position::distance2d(unit->getPosition(), target->getPosition()) < weapon->getRules()->getMaxRange() &&
+			!weapon->getRules()->isOutOfRange(unit->distance3dToUnitSq(target)) &&
 			weapon->getAmmoForAction(BA_SNAPSHOT) &&
 			BattleActionCost(BA_SNAPSHOT, unit, weapon).haveTU())
 		{
@@ -2304,16 +2306,16 @@ bool TileEngine::hitUnit(BattleActionAttack attack, BattleUnit *target, const Po
 		return false;
 	}
 
-	const int wounds = target->getFatalWounds();
 	const int healthOrig = target->getHealth();
 	const int stunLevelOrig = target->getStunlevel();
 	const int adjustedDamage = target->damage(relative, damage, type, _save, attack);
 
+	const int healthDamage = healthOrig - target->getHealth();
+	const int stunDamage = target->getStunlevel() - stunLevelOrig;
+
 	// hit log
 	if (attack.attacker)
 	{
-		int healthDamage = healthOrig - target->getHealth();
-		int stunDamage = target->getStunlevel() - stunLevelOrig;
 		if (healthDamage > 0 || stunDamage > 0)
 		{
 			int damagePercent = ((healthDamage + stunDamage) * 100) / target->getBaseStats()->health;
@@ -2329,15 +2331,6 @@ bool TileEngine::hitUnit(BattleActionAttack attack, BattleUnit *target, const Po
 		else
 		{
 			_save->appendToHitLog(HITLOG_NO_DAMAGE, attack.attacker->getFaction());
-		}
-	}
-
-	if (attack.attacker && target->getFaction() != FACTION_PLAYER)
-	{
-		// if it's going to bleed to death and it's not a player, give credit for the kill.
-		if (wounds < target->getFatalWounds())
-		{
-			target->killedBy(attack.attacker->getFaction());
 		}
 	}
 
@@ -2394,7 +2387,17 @@ bool TileEngine::hitUnit(BattleActionAttack attack, BattleUnit *target, const Po
 		}
 	}
 
-	if (attack.attacker)
+	// Use case: an xcom soldier throwing a smoke grenade on a dying unit should not override the previously remembered murderer
+	bool isRelevant = true;
+	if (attack.attacker
+		&& healthDamage <= 0
+		&& target->getMurdererId() > 0
+		&& (target->getFire() > 0 || target->getFatalWounds() > 0 || target->hasNegativeHealthRegen()))
+	{
+		isRelevant = false;
+	}
+
+	if (isRelevant && attack.attacker)
 	{
 		// Record the last unit to hit our victim. If a victim dies without warning*, this unit gets the credit.
 		// *Because the unit died in a fire or bled out.
@@ -3930,12 +3933,41 @@ bool TileEngine::psiAttack(BattleActionAttack attack, BattleUnit *victim)
 	// Mana experience - this is a temporary/experimental approach, can be improved later after modder feedback
 	attack.attacker->addManaExp(attack.weapon_item->getRules()->getManaExperience());
 
-	attack.attacker->addPsiSkillExp();
-	if (Options::allowPsiStrengthImprovement) victim->addPsiStrengthExp();
+	bool isDefaultExpTrainingMode = (attack.weapon_item->getRules()->getExperienceTrainingMode() == ETM_DEFAULT);
+	bool isNaturallyPsiCapable = true;
+	if (attack.attacker->getGeoscapeSoldier() && attack.attacker->getGeoscapeSoldier()->getCurrentStats()->psiSkill <= 0)
+	{
+		isNaturallyPsiCapable = false;
+	}
+	bool isPsiRequired = attack.weapon_item->getRules()->isPsiRequired();
+
+	if (isDefaultExpTrainingMode)
+	{
+		if (isNaturallyPsiCapable)
+		{
+			attack.attacker->addPsiSkillExp();
+		}
+	}
+	if (Options::allowPsiStrengthImprovement && isPsiRequired)
+	{
+		victim->addPsiStrengthExp(); // experience for the victim, not the attacker
+	}
+
 	if (psiAttackCalculate(attack, victim) > 0)
 	{
-		attack.attacker->addPsiSkillExp();
-		attack.attacker->addPsiSkillExp();
+		if (isDefaultExpTrainingMode)
+		{
+			if (isNaturallyPsiCapable)
+			{
+				attack.attacker->addPsiSkillExp();
+				attack.attacker->addPsiSkillExp();
+			}
+		}
+		else if (attack.type == BA_PANIC || attack.type == BA_MINDCONTROL)
+		{
+			// Note: BA_USE is handled elsewhere
+			awardExperience(attack, victim, false);
+		}
 
 		BattleUnitKills killStat;
 		killStat.setUnitStats(victim);
@@ -3985,9 +4017,9 @@ bool TileEngine::psiAttack(BattleActionAttack attack, BattleUnit *victim)
 	}
 	else
 	{
-		if (Options::allowPsiStrengthImprovement)
+		if (Options::allowPsiStrengthImprovement && isPsiRequired)
 		{
-			victim->addPsiStrengthExp();
+			victim->addPsiStrengthExp(); // experience for the victim, not the attacker
 		}
 		return false;
 	}
@@ -4364,6 +4396,20 @@ void TileEngine::itemDropInventory(Tile *t, BattleUnit *unit, bool unprimeItems,
 			{
 				if (deleteFixedItems)
 				{
+					// first unload all ammo
+					for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
+					{
+						if (i->needsAmmoForSlot(slot) && i->getAmmoForSlot(slot))
+						{
+							// unload the existing ammo (if any) from the weapon
+							BattleItem* oldAmmo = i->setAmmoForSlot(slot, nullptr);
+							if (oldAmmo)
+							{
+								itemDrop(t, oldAmmo, false);
+							}
+						}
+					}
+
 					// delete fixed items completely (e.g. when changing armor)
 					i->setOwner(nullptr);
 					_save->removeItem(i);
@@ -4377,6 +4423,12 @@ void TileEngine::itemDropInventory(Tile *t, BattleUnit *unit, bool unprimeItems,
 			}
 		}
 	);
+
+	// handle special built-in items
+	if (deleteFixedItems)
+	{
+		unit->removeSpecialWeapons(_save);
+	}
 }
 
 /**

@@ -49,6 +49,10 @@ interfaces:
         color: 239   # bright green
       - id: button2
         color: 133   # minty green
+      - id: list
+        color: 133   # minty green
+        color2: 138  # yellow
+        border: 239  # bright green
   - type: newGameMenu
     backgroundImage: BACK01.SCR
     elements:
@@ -802,6 +806,17 @@ interfaces:
         color2: 138  # yellow
       - id: button
         color: 239   # bright green
+  - type: oxceLinks
+    backgroundImage: BACK01.SCR
+    elements:
+      - id: palette
+        color: 0     # brown
+      - id: window
+        color: 239   # bright green
+      - id: text
+        color: 138   # yellow
+      - id: button
+        color: 133   # minty green
   - type: geoscapeEvent
     elements:
       - id: palette
@@ -1153,18 +1168,6 @@ interfaces:
       - id: text
         color: 218   # blue
         color2: 208  # white
-  - type: changeHeadquarters
-    backgroundImage: BACK13.SCR
-    palette: PAL_BASESCAPE
-    elements:
-      - id: palette
-        color: 6     # oxide
-      - id: window
-        color: 241   # pink
-      - id: button
-        color: 246   # purple
-      - id: text
-        color: 218   # blue
   - type: manufactureMenu
     backgroundImage: BACK17.SCR
     palette: PAL_BASESCAPE

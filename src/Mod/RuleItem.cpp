@@ -146,9 +146,9 @@ const float TilesToVexels = 16.0f;
 RuleItem::RuleItem(const std::string &type) :
 	_type(type), _name(type), _vehicleUnit(nullptr), _size(0.0), _costBuy(0), _costSell(0), _transferTime(24), _weight(3), _throwRange(0), _underwaterThrowRange(0),
 	_bigSprite(-1), _floorSprite(-1), _handSprite(120), _bulletSprite(-1), _specialIconSprite(-1),
-	_hitAnimation(0), _hitMissAnimation(-1),
-	_meleeAnimation(0), _meleeMissAnimation(-1),
-	_psiAnimation(-1), _psiMissAnimation(-1),
+	_hitAnimation(0), _hitAnimFrames(-1), _hitMissAnimation(-1), _hitMissAnimFrames(-1),
+	_meleeAnimation(0), _meleeAnimFrames(-1), _meleeMissAnimation(-1), _meleeMissAnimFrames(-1),
+	_psiAnimation(-1), _psiAnimFrames(-1), _psiMissAnimation(-1), _psiMissAnimFrames(-1),
 	_power(0), _hidePower(false), _powerRangeReduction(0), _powerRangeThreshold(0),
 	_accuracyUse(0), _accuracyMind(0), _accuracyPanic(20), _accuracyThrow(100), _accuracyCloseQuarters(-1),
 	_noLOSAccuracyPenalty(-1),
@@ -322,6 +322,7 @@ void RuleItem::loadConfAction(RuleItemAction& a, const YAML::Node& node, const s
 	if (const YAML::Node& conf = node["conf" + name])
 	{
 		a.shots = conf["shots"].as<int>(a.shots);
+		a.spendPerShot = conf["spendPerShot"].as<int>(a.spendPerShot);
 		a.followProjectiles = conf["followProjectiles"].as<bool>(a.followProjectiles);
 		a.name = conf["name"].as<std::string>(a.name);
 		loadAmmoSlotChecked(a.ammoSlot, conf["ammoSlot"], _name);
@@ -411,6 +412,14 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	mod->loadSpriteOffset(_type, _meleeMissAnimation, node["meleeMissAnimation"], "HIT.PCK");
 	mod->loadSpriteOffset(_type, _psiAnimation, node["psiAnimation"], "HIT.PCK");
 	mod->loadSpriteOffset(_type, _psiMissAnimation, node["psiMissAnimation"], "HIT.PCK");
+
+	_hitAnimFrames = node["hitAnimFrames"].as<int>(_hitAnimFrames);
+	_hitMissAnimFrames = node["hitMissAnimFrames"].as<int>(_hitMissAnimFrames);
+	_meleeAnimFrames = node["meleeAnimFrames"].as<int>(_meleeAnimFrames);
+	_meleeMissAnimFrames = node["meleeMissAnimFrames"].as<int>(_meleeMissAnimFrames);
+	_psiAnimFrames = node["psiAnimFrames"].as<int>(_psiAnimFrames);
+	_psiMissAnimFrames = node["psiMissAnimFrames"].as<int>(_psiMissAnimFrames);
+
 	mod->loadSoundOffset(_type, _meleeHitSound, node["meleeHitSound"], "BATTLE.CAT");
 	mod->loadSoundOffset(_type, _explosionHitSound, node["explosionHitSound"], "BATTLE.CAT");
 
@@ -610,10 +619,6 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	_moraleRecovery = node["moraleRecovery"].as<int>(_moraleRecovery);
 	_painKillerRecovery = node["painKillerRecovery"].as<float>(_painKillerRecovery);
 	_medikitType = (BattleMediKitType)node["medikitType"].as<int>(_medikitType);
-	{
-		// FIXME: deprecated, backwards-compatibility only, remove by mid 2020
-		_medikitTargetSelf = node["allowSelfHeal"].as<bool>(_medikitTargetSelf);
-	}
 	_medikitTargetSelf = node["medikitTargetSelf"].as<bool>(_medikitTargetSelf);
 	_medikitTargetImmune = node["medikitTargetImmune"].as<bool>(_medikitTargetImmune);
 	_medikitTargetMatrix = node["medikitTargetMatrix"].as<int>(_medikitTargetMatrix);
@@ -745,7 +750,13 @@ void RuleItem::afterLoad(const Mod* mod)
 	for (int i = 0; i < AmmoSlotMax; ++i)
 	{
 		mod->linkRule(_compatibleAmmo[i], _compatibleAmmoNames[i]);
-		Collections::sortVector(_compatibleAmmo[i]);
+		for (auto a : _compatibleAmmo[i])
+		{
+			if (_compatibleAmmoSlots.count(a) == 0)
+			{
+				_compatibleAmmoSlots.insert(std::make_pair(a, i));
+			}
+		}
 	}
 	if (_vehicleUnit)
 	{
@@ -1536,12 +1547,10 @@ const std::vector<const RuleItem*> *RuleItem::getPrimaryCompatibleAmmo() const
  */
 int RuleItem::getSlotForAmmo(const RuleItem* type) const
 {
-	for (int i = 0; i < AmmoSlotMax; ++i)
+	auto f = _compatibleAmmoSlots.find(type);
+	if (f != _compatibleAmmoSlots.end())
 	{
-		if (Collections::sortVectorHave(_compatibleAmmo[i], type))
-		{
-			return i;
-		}
+		return f->second;
 	}
 	return -1;
 }
@@ -2149,6 +2158,31 @@ int RuleItem::getMaxRange() const
 }
 
 /**
+ * Checks whether a given distance is out of range for this item.
+ * @param distanceSq Given distance squared.
+ * @return True, if out of range.
+ */
+bool RuleItem::isOutOfRange(int distanceSq) const
+{
+	bool outOfRange = distanceSq > (_maxRange * _maxRange);
+	// special handling for short ranges and diagonals
+	if (outOfRange)
+	{
+		// special handling for maxRange 1: allow it to target diagonally adjacent tiles (one diagonal move)
+		if (_maxRange == 1 && distanceSq <= 3)
+		{
+			outOfRange = false;
+		}
+		// special handling for maxRange 2: allow it to target diagonally adjacent tiles (one diagonal move + one straight move)
+		else if (_maxRange == 2 && distanceSq <= 6)
+		{
+			outOfRange = false;
+		}
+	}
+	return outOfRange;
+}
+
+/**
  * Gets the maximum effective range of this weapon when using Aimed Shot.
  * @return The maximum range.
  */
@@ -2638,6 +2672,11 @@ void getRandomTypeScript(const RuleDamageType* rdt, int &ret)
 	ret = rdt ? rdt->RandomType : 0;
 }
 
+void getArmorEffectivenessScript(const RuleDamageType* rdt, int& ret)
+{
+	ret = rdt ? round(rdt->ArmorEffectiveness * 100) : 0;
+}
+
 template<float RuleDamageType::* Ptr>
 void getDamageToScript(const RuleDamageType* rdt, int &ret, int value)
 {
@@ -2712,6 +2751,8 @@ void RuleItem::ScriptRegister(ScriptParserBase* parser)
 
 		rs.add<&getResistTypeScript>("getResistType", "which damage resistance type is used for damage reduction");
 		rs.add<&getRandomTypeScript>("getRandomType", "how to calculate randomized weapon damage from the weapon's power");
+
+		rs.add<&getArmorEffectivenessScript>("getArmorEffectiveness", "how effective is a unit's armor against this damage, % (value multiplied by 100 compared to ruleset value)");
 
 		rs.add<&getDamageToScript<&RuleDamageType::ToArmorPre>>("getDamageToArmorPre", "calculated damage value multiplied by the corresponding modifier");
 		rs.add<&getDamageToScript<&RuleDamageType::ToArmor>>("getDamageToArmor", "calculated damage value multiplied by the corresponding modifier");

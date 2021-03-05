@@ -425,12 +425,13 @@ void BattleItem::setAmmoQuantity(int qty)
 
 /**
  * Spends a bullet from the ammo in this item.
+ * (Or spends a certain amount of energy from this battery item.)
  * @return True if there are bullets left.
  */
-bool BattleItem::spendBullet()
+bool BattleItem::spendBullet(int spendPerShot)
 {
-	if (_ammoQuantity > 0)
-		_ammoQuantity--;
+	if (_ammoQuantity >= spendPerShot)
+		_ammoQuantity -= spendPerShot;
 
 	if (_ammoQuantity == 0)
 		return false;
@@ -453,6 +454,16 @@ void BattleItem::spendHealingItemUse(BattleMediKitAction mediKitAction)
 		setHealQuantity(getHealQuantity() - 1);
 	}
 }
+
+
+/**
+ * Check if owner is removed from game.
+ */
+bool BattleItem::isOwnerIgnored() const
+{
+	return _owner && _owner->isIgnored();
+}
+
 /**
  * Gets the item's owner.
  * @return Pointer to Battleunit.
@@ -839,15 +850,17 @@ const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
  * Get ammo used by action.
  * @param action Battle Action done using this item.
  * @param message Error message if weapon don't have ammo.
+ * @param spendPerShot How much ammo should be spent for one shot.
  * @return
  */
-BattleItem *BattleItem::getAmmoForAction(BattleActionType action, std::string* message)
+BattleItem *BattleItem::getAmmoForAction(BattleActionType action, std::string* message, int* spendPerShot)
 {
 	auto conf = getActionConf(action);
 	if (!conf)
 	{
 		return nullptr;
 	}
+	if (spendPerShot) *spendPerShot = conf->spendPerShot;
 	if (conf->ammoSlot == RuleItem::AmmoSlotSelfUse)
 	{
 		return this;
@@ -859,9 +872,12 @@ BattleItem *BattleItem::getAmmoForAction(BattleActionType action, std::string* m
 		if (message) *message = "STR_NO_AMMUNITION_LOADED";
 		return nullptr;
 	}
-	if (ammo->getAmmoQuantity() == 0)
+	if (ammo->getAmmoQuantity() < conf->spendPerShot)
 	{
-		if (message) *message = "STR_NO_ROUNDS_LEFT";
+		if (message)
+		{
+			*message = "STR_NO_ROUNDS_LEFT"; // no rounds left (or not enough energy left in the battery)
+		}
 		return nullptr;
 	}
 	return ammo;
@@ -879,10 +895,11 @@ void BattleItem::spendAmmoForAction(BattleActionType action, SavedBattleGame* sa
 		return;
 	}
 
-	auto ammo = getAmmoForAction(action);
+	int spendPerShot = 1;
+	auto ammo = getAmmoForAction(action, nullptr, &spendPerShot);
 	if (ammo)
 	{
-		if (ammo->getRules()->getClipSize() > 0 && ammo->spendBullet() == false)
+		if (ammo->getRules()->getClipSize() > 0 && ammo->spendBullet(spendPerShot) == false)
 		{
 			save->removeItem(ammo);
 			ammo->setIsAmmo(false);
@@ -1451,6 +1468,7 @@ void BattleItem::ScriptRegister(ScriptParserBase* parser)
 	bi.add<&BattleItem::getGlow>("getGlow");
 	bi.add<&BattleItem::getTotalWeight>("getTotalWeight");
 	bi.add<&BattleItem::isAmmo>("isAmmo");
+	bi.add<&BattleItem::isSpecialWeapon>("isSpecialWeapon");
 
 	bi.add<&BattleItem::getAmmoQuantity>("getAmmoQuantity");
 	bi.add<&setAmmoQuantityScript>("setAmmoQuantity");

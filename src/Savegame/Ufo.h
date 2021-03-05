@@ -81,6 +81,7 @@ private:
 	int _huntMode, _huntBehavior;
 	bool _isHunting, _isEscorting;
 	Waypoint *_origWaypoint;
+	ScriptValues<Ufo> _scriptValues;
 
 	using MovingTarget::load;
 	using MovingTarget::save;
@@ -92,11 +93,11 @@ public:
 	/// Cleans up the UFO.
 	~Ufo();
 	/// Loads the UFO from YAML.
-	void load(const YAML::Node& node, const Mod &ruleset, SavedGame &game);
+	void load(const YAML::Node& node, const ScriptGlobal *shared, const Mod &ruleset, SavedGame &game);
 	/// Finishes loading the UFO from YAML (called after XCOM craft are loaded).
 	void finishLoading(const YAML::Node& node, SavedGame &save);
 	/// Saves the UFO to YAML.
-	YAML::Node save(bool newBattle) const;
+	YAML::Node save(const ScriptGlobal *shared, bool newBattle) const;
 	/// Saves the UFO's ID to YAML.
 	YAML::Node saveId() const override;
 	/// Gets the UFO's type.
@@ -216,6 +217,7 @@ public:
 	int getEscapeCountdown() const;
 	void setInterceptionProcessed(bool processed);
 	bool getInterceptionProcessed() const;
+
 	/// Sets the UFO's shield
 	void setShield(int shield);
 	/// Gets the UFO's shield value
@@ -224,6 +226,9 @@ public:
 	void setShieldRechargeHandle(int shieldRechargeHandle);
 	/// Gets which _interceptionNumber in a dogfight handles the UFO shield recharge
 	int getShieldRechargeHandle() const;
+	/// Gets the percent shield remaining
+	int getShieldPercentage() const;
+
 	/// Sets the number of tractor beams locked on to a UFO
 	void setTractorBeamSlowdown(int tractorBeamSlowdown);
 	/// Gets the number of tractor beams locked on to a UFO

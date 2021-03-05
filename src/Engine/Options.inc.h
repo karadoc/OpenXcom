@@ -4,11 +4,11 @@
 // General options
 OPT int displayWidth, displayHeight, maxFrameSkip, baseXResolution, baseYResolution, baseXGeoscape, baseYGeoscape, baseXBattlescape, baseYBattlescape,
 	soundVolume, musicVolume, uiVolume, audioSampleRate, audioBitDepth, audioChunkSize, pauseMode, windowedModePositionX, windowedModePositionY, FPS, FPSInactive,
-	changeValueByMouseWheel, dragScrollTimeTolerance, dragScrollPixelTolerance, mousewheelSpeed, autosaveFrequency;
+	changeValueByMouseWheel, dragScrollTimeTolerance, dragScrollPixelTolerance, mousewheelSpeed, autosaveFrequency, autosaveSlots;
 OPT bool fullscreen, asyncBlit, playIntro, useScaleFilter, useHQXFilter, useXBRZFilter, useOpenGL, checkOpenGLErrors, vSyncForOpenGL, useOpenGLSmoothing,
 	autosave, allowResize, borderless, debug, debugUi, fpsCounter, newSeedOnLoad, keepAspectRatio, nonSquarePixelRatio,
 	cursorInBlackBandsInFullscreen, cursorInBlackBandsInWindow, cursorInBlackBandsInBorderlessWindow, maximizeInfoScreens, musicAlwaysLoop, StereoSound, verboseLogging, soldierDiaries, touchEnabled,
-	rootWindowedMode, rawScreenShots, lazyLoadResources, backgroundMute, listVFSContents, embeddedOnly;
+	thumbButtons, rootWindowedMode, rawScreenShots, lazyLoadResources, backgroundMute, listVFSContents, embeddedOnly;
 OPT std::string language, useOpenGLShader;
 OPT KeyboardType keyboardMode;
 OPT SaveSort saveOrder;
@@ -63,6 +63,7 @@ OPT SDLKey keyBasescapeBuildNewBase, keyBasescapeBaseInfo, keyBasescapeSoldiers,
 // OXCE, accessible via GUI
 OPT bool oxceUpdateCheck;
 
+OPT bool oxceLinks;
 OPT bool oxceUfoLandingAlert;
 OPT int oxceWoundedDefendBaseIf;
 OPT bool oxcePlayBriefingMusicDuringEquipment;
@@ -74,12 +75,14 @@ OPT bool showBarOverflowLayers; // Karadoc's option for using different colours 
 OPT bool oxceEnableOffCentreShooting;
 
 // OXCE hidden, accessible only via options.cfg
+OPT bool oxceFatFingerLinks;
 OPT bool oxceHighlightNewTopicsHidden;
 OPT int oxceInterceptGuiMaintenanceTimeHidden;
 OPT bool oxceEnableUnitResponseSounds;
 OPT bool oxceEnableSlackingIndicator;
 OPT bool oxceEnablePaletteFlickerFix;
 OPT bool oxcePersonalLayoutIncludingArmor;
+OPT bool oxceManufactureFilterSuppliesOK;
 
 // OXCE hidden, but moddable via fixedUserOptions and/or recommendedUserOptions
 OPT int oxceStartUpTextMode;

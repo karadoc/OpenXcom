@@ -933,7 +933,7 @@ void SaveConverter::loadDatCraft()
 				std::bitset<7> state(load<int>(cdata + _rules->getOffset("CRAFT.DAT_STATE")));
 				node["lowFuel"] = state.test(1);
 
-				craft->load(node, _mod, _save);
+				craft->load(node, _mod->getScriptGlobal(), _mod, _save);
 
 				if (flight != 0 && dest != 0xFFFF)
 				{
@@ -990,7 +990,7 @@ void SaveConverter::loadDatCraft()
 				std::bitset<7> state(load<int>(cdata + _rules->getOffset("CRAFT.DAT_STATE")));
 				node["hyperDetected"] = state.test(6);
 
-				ufo->load(node, *_mod, *_save);
+				ufo->load(node, _mod->getScriptGlobal(), *_mod, *_save);
 				ufo->setSpeed(ufo->getSpeed());
 				if (ufo->getStatus() == Ufo::CRASHED)
 				{
@@ -1067,7 +1067,15 @@ void SaveConverter::loadDatSoldier()
 			node["currentStats"] = current;
 
 			int armor = load<Uint8>(sdata + _rules->getOffset("SOLDIER.DAT_ARMOR"));
-			node["armor"] = _rules->getArmor()[armor];
+			const std::vector<std::string> &armors = _rules->getArmor();
+			if (armor >= 0 && armor < armors.size())
+			{
+				node["armor"] = armors[armor];
+			}
+			else
+			{
+				throw Exception("Invalid armor index. Modded saves are not supported.");
+			}
 			node["improvement"] = (int)load<Uint8>(sdata + _rules->getOffset("SOLDIER.DAT_PSI"));
 			node["psiTraining"] = (int)load<char>(sdata + _rules->getOffset("SOLDIER.DAT_PSILAB")) != 0;
 			node["gender"] = (int)load<Uint8>(sdata + _rules->getOffset("SOLDIER.DAT_GENDER"));

@@ -138,7 +138,7 @@ void ListLoadOriginalState::init()
 
 	if (_origin == OPT_BATTLESCAPE)
 	{
-		applyBattlescapeTheme();
+		applyBattlescapeTheme("saveMenus");
 	}
 }
 
@@ -188,6 +188,9 @@ void ListLoadOriginalState::btnSlotClick(Action *action)
 		}
 		else
 		{
+			// Reset touch flags
+			_game->resetTouchButtonFlags();
+
 			SaveConverter converter(_saves[n].id, _game->getMod());
 			_game->setSavedGame(converter.loadOriginal());
 			Options::baseXResolution = Options::baseXGeoscape;

@@ -139,6 +139,9 @@ OptionsBaseState::~OptionsBaseState()
 
 void OptionsBaseState::restart(OptionsOrigin origin)
 {
+	// Reset touch flags
+	_game->resetTouchButtonFlags();
+
 	if (origin == OPT_MENU)
 	{
 		_game->setState(new MainMenuState);
@@ -175,7 +178,7 @@ void OptionsBaseState::init()
 	State::init();
 	if (_origin == OPT_BATTLESCAPE)
 	{
-		applyBattlescapeTheme();
+		applyBattlescapeTheme("optionsMenu");
 	}
 }
 

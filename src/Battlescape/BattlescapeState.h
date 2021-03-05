@@ -56,6 +56,8 @@ private:
 	BattlescapeButton *_btnUnitUp, *_btnUnitDown, *_btnMapUp, *_btnMapDown, *_btnShowMap, *_btnKneel;
 	BattlescapeButton *_btnInventory, *_btnCenter, *_btnNextSoldier, *_btnNextStop, *_btnShowLayers, *_btnHelp;
 	BattlescapeButton *_btnEndTurn, *_btnAbort, *_btnLaunch, *_btnPsi, *_btnSpecial, *_btnSkills, *_reserve;
+	BattlescapeButton *_btnCtrl, *_btnAlt, *_btnShift, *_btnRMB, *_btnMMB;
+	bool _touchButtonsEnabled, _touchButtonsEnabledLastTurn;
 	InteractiveSurface *_btnStats;
 	BattlescapeButton *_btnReserveNone, *_btnReserveSnap, *_btnReserveAimed, *_btnReserveAuto, *_btnReserveKneel, *_btnZeroTUs;
 	InteractiveSurface *_btnLeftHandItem, *_btnRightHandItem;
@@ -64,7 +66,6 @@ private:
 	InteractiveSurface *_btnVisibleUnit[VISIBLE_MAX];
 	NumberText *_numVisibleUnit[VISIBLE_MAX];
 	BattleUnit *_visibleUnit[VISIBLE_MAX];
-	InteractiveSurface *_btnToggleNV, *_btnTogglePL;
 	WarningMessage *_warning;
 	Text *_txtName;
 	NumberText *_numTimeUnits, *_numEnergy, *_numHealth, *_numMorale, *_numLayers;
@@ -92,7 +93,7 @@ private:
 	std::string _currentTooltip;
 	Position _cursorPosition;
 	Uint8 _barHealthColor;
-	bool _autosave;
+	int _autosave;
 	int _numberOfDirectlyVisibleUnits, _numberOfEnemiesTotal, _numberOfEnemiesTotalPlusWounded;
 	Uint8 _indicatorTextColor, _indicatorGreen, _indicatorBlue, _indicatorPurple;
 	/// Popups a context sensitive list of actions the user can choose from.
@@ -160,6 +161,7 @@ public:
 	void btnPrevSoldierClick(Action *action);
 	/// Handler for clicking the Show Layers button.
 	void btnShowLayersClick(Action *action);
+	void btnShowLayersClickOrig();
 	/// Handler for clicking the Ufopaedia button.
 	void btnUfopaediaClick(Action *action);
 	/// Handler for clicking the Help button.
@@ -176,10 +178,22 @@ public:
 	void btnRightHandItemClick(Action *action);
 	/// Handler for clicking a visible unit button.
 	void btnVisibleUnitClick(Action *action);
-	/// Handler for clicking the Toggle Night Vision helper button.
-	void btnAndroidNightVisionClick(Action *action);
-	/// Handler for clicking the Toggle Personal Lights helper button.
-	void btnAndroidPersonalLightsClick(Action *action);
+
+	/// Handler for clicking the CTRL touch button.
+	void btnCtrlClick(Action* action);
+	/// Handler for clicking the ALT touch button.
+	void btnAltClick(Action* action);
+	/// Handler for clicking the SHIFT touch button.
+	void btnShiftClick(Action* action);
+	/// Handler for clicking the RMB touch button.
+	void btnRMBClick(Action* action);
+	/// Handler for clicking the MMB touch button.
+	void btnMMBClick(Action* action);
+	/// Handler for pressing the toggle touch buttons hotkey.
+	void btnTouchButtonsClick(Action* action);
+	/// Toggles the touch buttons.
+	void toggleTouchButtons(bool deactivate, bool tryToReactivate);
+
 	/// Handler for clicking the launch rocket button.
 	void btnLaunchClick(Action *action);
 	/// Handler for clicking the use psi button.
@@ -273,7 +287,7 @@ public:
 	/// Move the mouse back to where it started after we finish drag scrolling.
 	void stopScrolling(Action *action);
 	/// Autosave next turn.
-	void autosave();
+	void autosave(int currentTurn);
 	/// Is busy?
 	bool isBusy() const;
 };

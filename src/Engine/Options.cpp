@@ -145,6 +145,7 @@ void create()
 	_info.push_back(OptionInfo("preferredVideo", (int*)&preferredVideo, VIDEO_FMV));
 	_info.push_back(OptionInfo("musicAlwaysLoop", &musicAlwaysLoop, false));
 	_info.push_back(OptionInfo("touchEnabled", &touchEnabled, false));
+	_info.push_back(OptionInfo("thumbButtons", &thumbButtons, false));
 	_info.push_back(OptionInfo("rootWindowedMode", &rootWindowedMode, false));
 	_info.push_back(OptionInfo("rawScreenShots", &rawScreenShots, false));
 	_info.push_back(OptionInfo("backgroundMute", &backgroundMute, false));
@@ -156,6 +157,7 @@ void create()
 	_info.push_back(OptionInfo("playIntro", &playIntro, true, "STR_PLAYINTRO", "STR_GENERAL"));
 	_info.push_back(OptionInfo("autosave", &autosave, true, "STR_AUTOSAVE", "STR_GENERAL"));
 	_info.push_back(OptionInfo("autosaveFrequency", &autosaveFrequency, 5, "STR_AUTOSAVE_FREQUENCY", "STR_GENERAL"));
+	_info.push_back(OptionInfo("autosaveSlots", &autosaveSlots, 1, "STR_AUTOSAVE_SLOTS", "STR_GENERAL"));
 	_info.push_back(OptionInfo("newSeedOnLoad", &newSeedOnLoad, false, "STR_NEWSEEDONLOAD", "STR_GENERAL"));
 	_info.push_back(OptionInfo("lazyLoadResources", &lazyLoadResources, true, "STR_LAZY_LOADING", "STR_GENERAL"));
 	_info.push_back(OptionInfo("mousewheelSpeed", &mousewheelSpeed, 3, "STR_MOUSEWHEEL_SPEED", "STR_GENERAL"));
@@ -214,6 +216,11 @@ void create()
 	_info.push_back(OptionInfo("alienBleeding", &alienBleeding, false, "STR_ALIENBLEEDING", "STR_BATTLESCAPE"));
 
 	// OXCE GUI
+#ifdef __MOBILE__
+	_info.push_back(OptionInfo("oxceLinks", &oxceLinks, true, "STR_OXCE_LINKS", "STR_OXCE"));
+#else
+	_info.push_back(OptionInfo("oxceLinks", &oxceLinks, false, "STR_OXCE_LINKS", "STR_OXCE"));
+#endif
 	_info.push_back(OptionInfo("oxceUfoLandingAlert", &oxceUfoLandingAlert, false, "STR_UFO_LANDING_ALERT", "STR_OXCE"));
 	_info.push_back(OptionInfo("oxceWoundedDefendBaseIf", &oxceWoundedDefendBaseIf, 100, "STR_WOUNDED_DEFEND_BASE_IF", "STR_OXCE"));
 	_info.push_back(OptionInfo("oxcePlayBriefingMusicDuringEquipment", &oxcePlayBriefingMusicDuringEquipment, false, "STR_PLAY_BRIEFING_MUSIC_DURING_EQUIPMENT", "STR_OXCE"));
@@ -225,12 +232,18 @@ void create()
 	_info.push_back(OptionInfo("oxceEnableOffCentreShooting", &oxceEnableOffCentreShooting, false, "STR_OFF_CENTRE_SHOOTING", "STR_OXCE"));
 
 	// OXCE hidden
+#ifdef __MOBILE__
+	_info.push_back(OptionInfo("oxceFatFingerLinks", &oxceFatFingerLinks, true));
+#else
+	_info.push_back(OptionInfo("oxceFatFingerLinks", &oxceFatFingerLinks, false));
+#endif
 	_info.push_back(OptionInfo("oxceHighlightNewTopicsHidden", &oxceHighlightNewTopicsHidden, true));
 	_info.push_back(OptionInfo("oxceInterceptGuiMaintenanceTimeHidden", &oxceInterceptGuiMaintenanceTimeHidden, 2));
 	_info.push_back(OptionInfo("oxceEnableUnitResponseSounds", &oxceEnableUnitResponseSounds, true));
 	_info.push_back(OptionInfo("oxceEnableSlackingIndicator", &oxceEnableSlackingIndicator, true));
 	_info.push_back(OptionInfo("oxceEnablePaletteFlickerFix", &oxceEnablePaletteFlickerFix, false));
 	_info.push_back(OptionInfo("oxcePersonalLayoutIncludingArmor", &oxcePersonalLayoutIncludingArmor, true));
+	_info.push_back(OptionInfo("oxceManufactureFilterSuppliesOK", &oxceManufactureFilterSuppliesOK, false));
 
 	// OXCE hidden but moddable
 	_info.push_back(OptionInfo("oxceStartUpTextMode", &oxceStartUpTextMode, 0, "", "HIDDEN"));
@@ -400,8 +413,8 @@ static bool _gameIsInstalled(const std::string &gameName)
 	std::string dataGameZipFile = CrossPlatform::searchDataFile(gameName + ".zip");
 	std::string userGameFolder = _userFolder + gameName;
 	std::string userGameZipFile = _userFolder + gameName + ".zip";
-	return (CrossPlatform::folderExists(dataGameFolder)	&& CrossPlatform::getFolderContents(dataGameFolder).size() > 8)
-	    || (CrossPlatform::folderExists(userGameFolder)	&& CrossPlatform::getFolderContents(userGameFolder).size() > 8)
+	return (CrossPlatform::folderExists(dataGameFolder)	&& CrossPlatform::getFolderContents(dataGameFolder).size() >= 8)
+	    || (CrossPlatform::folderExists(userGameFolder)	&& CrossPlatform::getFolderContents(userGameFolder).size() >= 8)
 		||  CrossPlatform::fileExists( dataGameZipFile )
 		||  CrossPlatform::fileExists( userGameZipFile );
 }

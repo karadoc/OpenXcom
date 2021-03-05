@@ -58,9 +58,13 @@ struct StatAdjustment;
 
 class Ufo;
 class RuleUfo;
+class Craft;
+class RuleCraft;
 
 class SavedBattleGame;
 class SavedGame;
+
+class StatsForNerdsState;
 
 
 /**
@@ -148,6 +152,11 @@ class ModScript
 		AwardExperienceParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
+	struct StatsForNerdsArmorParser : ScriptParserEvents<ScriptOutputArgs<>, const Armor*, StatsForNerdsState*, const SavedGame*>
+	{
+		StatsForNerdsArmorParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
 	////////////////////////////////////////////////////////////
 	//					item script
 	////////////////////////////////////////////////////////////
@@ -177,6 +186,11 @@ class ModScript
 	struct TryMeleeAttackItemParser : ScriptParserEvents<ScriptOutputArgs<int&>, const BattleItem*, const BattleUnit*, const BattleUnit*, const RuleSkill*, int, int, int, RNG::RandomState*, int, int, const SavedBattleGame*>
 	{
 		TryMeleeAttackItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
+	struct StatsForNerdsItemParser : ScriptParserEvents<ScriptOutputArgs<>, const RuleItem*, StatsForNerdsState*, const SavedGame*>
+	{
+		StatsForNerdsItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
 	////////////////////////////////////////////////////////////
@@ -229,9 +243,23 @@ class ModScript
 		DetectUfoFromBaseParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
-	struct DetectUfoFromCraftParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, int, int, int, int>
+	struct DetectUfoFromCraftParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, const Craft*, int, int, int, int>
 	{
 		DetectUfoFromCraftParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
+	struct StatsForNerdsUfoParser : ScriptParserEvents<ScriptOutputArgs<>, const RuleUfo*, StatsForNerdsState*, const SavedGame*>
+	{
+		StatsForNerdsUfoParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
+	////////////////////////////////////////////////////////////
+	//					craft script
+	////////////////////////////////////////////////////////////
+
+	struct StatsForNerdsCraftParser : ScriptParserEvents<ScriptOutputArgs<>, const RuleCraft*, StatsForNerdsState*, const SavedGame*>
+	{
+		StatsForNerdsCraftParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
 	////////////////////////////////////////////////////////////
@@ -277,6 +305,8 @@ public:
 
 	using VisibilityUnit = MACRO_NAMED_SCRIPT("visibilityUnit", VisibilityUnitParser);
 
+	using StatsForNerdsArmor = MACRO_NAMED_SCRIPT("statsForNerdsArmor", StatsForNerdsArmorParser);
+
 	////////////////////////////////////////////////////////////
 	//					item script
 	////////////////////////////////////////////////////////////
@@ -290,6 +320,8 @@ public:
 
 	using CreateItem = MACRO_NAMED_SCRIPT("createItem", CreateItemParser);
 	using NewTurnItem = MACRO_NAMED_SCRIPT("newTurnItem", NewTurnItemParser);
+
+	using StatsForNerdsItem = MACRO_NAMED_SCRIPT("statsForNerdsItem", StatsForNerdsItemParser);
 
 	////////////////////////////////////////////////////////////
 	//					bonus stat script
@@ -332,6 +364,14 @@ public:
 	using DetectUfoFromBase = MACRO_NAMED_SCRIPT("detectUfoFromBase", DetectUfoFromBaseParser);
 	using DetectUfoFromCraft = MACRO_NAMED_SCRIPT("detectUfoFromCraft", DetectUfoFromCraftParser);
 
+	using StatsForNerdsUfo = MACRO_NAMED_SCRIPT("statsForNerdsUfo", StatsForNerdsUfoParser);
+
+	////////////////////////////////////////////////////////////
+	//					craft script
+	////////////////////////////////////////////////////////////
+
+	using StatsForNerdsCraft = MACRO_NAMED_SCRIPT("statsForNerdsCraft", StatsForNerdsCraftParser);
+
 	////////////////////////////////////////////////////////////
 	//					soldier bonus stat script
 	////////////////////////////////////////////////////////////
@@ -361,7 +401,9 @@ public:
 
 		AwardExperience,
 
-		VisibilityUnit
+		VisibilityUnit,
+
+		StatsForNerdsArmor
 	>;
 
 	using BattleItemScripts = ScriptGroup<Mod,
@@ -373,7 +415,9 @@ public:
 		TryMeleeAttackItem,
 
 		CreateItem,
-		NewTurnItem
+		NewTurnItem,
+
+		StatsForNerdsItem
 	>;
 
 	using BonusStatsScripts = ScriptGroup<Mod,
@@ -408,7 +452,13 @@ public:
 
 	using UfoScripts = ScriptGroup<Mod,
 		DetectUfoFromBase,
-		DetectUfoFromCraft
+		DetectUfoFromCraft,
+
+		StatsForNerdsUfo
+	>;
+
+	using CraftScripts = ScriptGroup<Mod,
+		StatsForNerdsCraft
 	>;
 
 	using SoldierBonusScripts = ScriptGroup<Mod,
@@ -423,6 +473,7 @@ public:
 	BonusStatsScripts bonusStatsScripts = { _shared, _mod, "bonuses" };
 	SkillScripts skillScripts = { _shared, _mod, "skill" };
 	UfoScripts ufoScripts = { _shared, _mod, "ufo" };
+	CraftScripts craftScripts = { _shared, _mod, "craft" };
 	SoldierBonusScripts soldierBonusScripts = { _shared, _mod, "soldier" };
 
 

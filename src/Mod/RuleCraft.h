@@ -21,12 +21,15 @@
 #include <string>
 #include <yaml-cpp/yaml.h>
 #include "RuleBaseFacilityFunctions.h"
+#include "ModScript.h"
 
 namespace OpenXcom
 {
 
 class RuleTerrain;
 class Mod;
+class ModScript;
+class ScriptParserBase;
 
 /**
  * Battle statistic of craft type and bonus from craft weapons.
@@ -146,6 +149,11 @@ public:
 	/// Maximum of different types in one weapon slot.
 	static const int WeaponTypeMax = 8;
 
+	/// Name of class used in script.
+	static constexpr const char *ScriptName = "RuleCraft";
+	/// Register all useful function used by script.
+	static void ScriptRegister(ScriptParserBase* parser);
+
 private:
 	std::string _type;
 	std::vector<std::string> _requires;
@@ -156,6 +164,7 @@ private:
 	char _weaponTypes[WeaponMax][WeaponTypeMax];
 	std::string _refuelItem;
 	std::string _weaponStrings[WeaponMax];
+	std::string _fixedWeaponNames[WeaponMax];
 	int _repairRate, _refuelRate, _transferTime, _score;
 	RuleTerrain *_battlescapeTerrainData;
 	int _maxSkinIndex;
@@ -167,13 +176,17 @@ private:
 	RuleCraftStats _stats;
 	int _shieldRechargeAtBase;
 	bool _mapVisible, _forceShowInMonthlyCosts;
+
+	ModScript::CraftScripts::Container _craftScripts;
+	ScriptValues<RuleCraft> _scriptValues;
+
 public:
 	/// Creates a blank craft ruleset.
 	RuleCraft(const std::string &type);
 	/// Cleans up the craft ruleset.
 	~RuleCraft();
 	/// Loads craft data from YAML.
-	void load(const YAML::Node& node, Mod *mod, int listOrder);
+	void load(const YAML::Node& node, Mod *mod, int listOrder, const ModScript &parsers);
 	/// Gets the craft's type.
 	const std::string &getType() const;
 	/// Gets the craft's requirements.
@@ -254,6 +267,8 @@ public:
 	int getWeaponTypesRaw(int slot, int subslot) const;
 	/// Get description string of weapon slot.
 	const std::string &getWeaponSlotString(int slot) const;
+	/// Gets the string ID of a fixed weapon in a given slot.
+	const std::string &getFixedWeaponInSlot(int slot) const;
 	/// Get basic statistic of craft.
 	const RuleCraftStats& getStats() const;
 	/// Gets how high this craft can go.
@@ -268,6 +283,12 @@ public:
 	bool forceShowInMonthlyCosts() const;
 	/// Calculate the theoretical range of the craft in nautical miles
 	int calculateRange(int type);
+
+	/// Gets script.
+	template<typename Script>
+	const typename Script::Container &getScript() const { return _craftScripts.get<Script>(); }
+	/// Get all script values.
+	const ScriptValues<RuleCraft>& getScriptValuesRaw() const { return _scriptValues; }
 };
 
 }

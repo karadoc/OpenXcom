@@ -669,17 +669,21 @@ void UnitInfoState::handle(Action *action)
 	State::handle(action);
 	if (action->getDetails()->type == SDL_MOUSEBUTTONDOWN)
 	{
-		if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+		if (_game->isRightClick(action))
 		{
 			exitClick(action);
+			return;
 		}
-		else if (action->getDetails()->button.button == SDL_BUTTON_X1)
+		if (Options::thumbButtons)
 		{
-			if (!_mindProbe) btnNextClick(action);
-		}
-		else if (action->getDetails()->button.button == SDL_BUTTON_X2)
-		{
-			if (!_mindProbe) btnPrevClick(action);
+			if (action->getDetails()->button.button == SDL_BUTTON_X1)
+			{
+				if (!_mindProbe) btnNextClick(action);
+			}
+			else if (action->getDetails()->button.button == SDL_BUTTON_X2)
+			{
+				if (!_mindProbe) btnPrevClick(action);
+			}
 		}
 	}
 }

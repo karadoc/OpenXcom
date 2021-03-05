@@ -34,6 +34,7 @@
 #include "ShaderMove.h"
 #include "Exception.h"
 #include "../fallthrough.h"
+#include "Collections.h"
 
 namespace OpenXcom
 {
@@ -585,6 +586,12 @@ void ScriptWorkerBase::log_buffer_flush(ProgPos& p)
 namespace
 {
 
+
+////////////////////////////////////////////////////////////
+//			Handle of overload arguments
+////////////////////////////////////////////////////////////
+
+
 /**
  * Test for validity of arguments.
  */
@@ -773,6 +780,12 @@ bool callOverloadProc(ParserWriter& ph, const ScriptRange<ScriptProcData>& proc,
 	}
 }
 
+
+////////////////////////////////////////////////////////////
+//			Pushing operation on proc vector
+////////////////////////////////////////////////////////////
+
+
 /**
  * Helper used to parse line for build in function.
  */
@@ -832,6 +845,12 @@ bool parseCustomProc(const ScriptProcData& spd, ParserWriter& ph, const ScriptRe
 	}
 	return false;
 }
+
+
+////////////////////////////////////////////////////////////
+//		Custom parsers of operation arguments
+////////////////////////////////////////////////////////////
+
 
 constexpr size_t ConditionSize = 6;
 const ScriptRef ConditionNames[ConditionSize] =
@@ -908,6 +927,10 @@ bool parseFullConditionImpl(ParserWriter& ph, ScriptRefData falsePos, const Scri
 		Log(LOG_ERROR) << "Invalid length of condition arguments";
 		return false;
 	}
+
+	// each operation can fail, we can't revent
+	auto correct = true;
+
 	const auto truePos = ph.addLabel();
 	const auto orFunc = begin[0].name == ConditionSpecNames[0];
 	const auto andFunc = begin[0].name == ConditionSpecNames[1];
@@ -919,28 +942,51 @@ bool parseFullConditionImpl(ParserWriter& ph, ScriptRefData falsePos, const Scri
 			auto temp = ph.addLabel();
 			if (orFunc)
 			{
-				if (!parseConditionImpl(ph, truePos, temp, begin, begin + 3))
-				{
-					return false;
-				}
+				correct &= parseConditionImpl(ph, truePos, temp, begin, begin + 3);
 			}
 			else
 			{
-				if (!parseConditionImpl(ph, temp, falsePos, begin, begin + 3))
-				{
-					return false;
-				}
+				correct &= parseConditionImpl(ph, temp, falsePos, begin, begin + 3);
 			}
-			ph.setLabel(temp, ph.getCurrPos());
+			correct &= ph.setLabel(temp, ph.getCurrPos());
 		}
 	}
-	if (!parseConditionImpl(ph, truePos, falsePos, begin, end))
+	correct &= parseConditionImpl(ph, truePos, falsePos, begin, end);
+
+	correct &= ph.setLabel(truePos, ph.getCurrPos());
+	return correct;
+}
+
+/**
+ * Helper used of variable operation declaration.
+ */
+bool parseVariableImpl(ParserWriter& ph, ScriptRefData reg, ScriptRefData val = {})
+{
+	if (!ArgIsReg(reg.type))
 	{
+		Log(LOG_ERROR) << "Invalid register";
 		return false;
 	}
 
-	ph.setLabel(truePos, ph.getCurrPos());
-	return true;
+	if (val)
+	{
+		ScriptRefData setArgs[] =
+		{
+			reg,
+			val,
+		};
+		const auto proc = ph.parser.getProc(ScriptRef{ "set" });
+		return callOverloadProc(ph, proc, std::begin(setArgs), std::end(setArgs));
+	}
+	else
+	{
+		ScriptRefData setArgs[] =
+		{
+			reg,
+		};
+		const auto proc = ph.parser.getProc(ScriptRef{ "clear" });
+		return callOverloadProc(ph, proc, std::begin(setArgs), std::end(setArgs));
+	}
 }
 
 /**
@@ -948,8 +994,9 @@ bool parseFullConditionImpl(ParserWriter& ph, ScriptRefData falsePos, const Scri
  */
 bool parseIf(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
 {
-	ParserWriter::Block block = { BlockIf, ph.addLabel(), ph.addLabel() };
-	ph.codeBlocks.push_back(block);
+	auto& block = ph.pushScopeBlock(BlockIf);
+	block.nextLabel = ph.addLabel();
+	block.finalLabel = ph.addLabel();
 
 	return parseFullConditionImpl(ph, block.nextLabel, begin, end);
 }
@@ -959,28 +1006,216 @@ bool parseIf(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* b
  */
 bool parseElse(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
 {
-	if (ph.codeBlocks.empty() || ph.codeBlocks.back().type != BlockIf)
+	if (ph.codeBlocks.back().type != BlockIf)
 	{
 		Log(LOG_ERROR) << "Unexpected 'else'";
 		return false;
 	}
 
-	ParserWriter::Block& block = ph.codeBlocks.back();
+	// each operation can fail, we can't revent
+	auto correct = true;
+
+	auto& block = ph.clearScopeBlock();
 
 	ph.pushProc(Proc_goto);
-	ph.pushLabelTry(block.finalLabel);
+	correct &= ph.pushLabelTry(block.finalLabel);
 
-	ph.setLabel(block.nextLabel, ph.getCurrPos());
+	correct &= ph.setLabel(block.nextLabel, ph.getCurrPos());
 	if (std::distance(begin, end) == 0)
 	{
 		block.nextLabel = block.finalLabel;
 		block.type = BlockElse;
-		return true;
 	}
 	else
 	{
 		block.nextLabel = ph.addLabel();
-		return parseFullConditionImpl(ph, block.nextLabel, begin, end);
+		correct &= parseFullConditionImpl(ph, block.nextLabel, begin, end);
+	}
+
+
+	if (correct)
+	{
+		return true;
+	}
+	else
+	{
+		Log(LOG_ERROR) << "Error in processing 'else'";
+		return false;
+	}
+}
+
+/**
+ * Parser of `begin` operation.
+ */
+bool parseBegin(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
+{
+	if (std::distance(begin, end) != 0)
+	{
+		Log(LOG_ERROR) << "Unexpected symbols after 'begin'";
+		return false;
+	}
+
+	ph.pushScopeBlock(BlockBegin);
+
+	return true;
+}
+
+/**
+ * Parser of `loop` operation.
+ */
+bool parseLoop(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
+{
+	if (std::distance(begin, end) != 3)
+	{
+		Log(LOG_ERROR) << "Unexpected symbols after 'loop'";
+		return false;
+	}
+	if (begin[0].name != ScriptRef{ "var" })
+	{
+		Log(LOG_ERROR) << "After 'loop' should be 'var'";
+		return false;
+	}
+
+	// each operation can fail, we can't revent
+	auto correct = true;
+
+	auto& loop = ph.pushScopeBlock(BlockLoop);
+	loop.nextLabel = ph.addLabel();
+	loop.finalLabel = ph.addLabel();
+
+	auto limit = ph.addReg({}, ArgSpecAdd(ArgInt, ArgSpecVar));
+	auto curr = ph.addReg({}, ArgSpecAdd(ArgInt, ArgSpecVar));
+	auto var = ph.addReg(begin[1].name, ArgSpecAdd(ArgInt, ArgSpecVar));
+
+	correct &= !!limit;
+	correct &= !!curr;
+	correct &= !!var;
+
+	correct &= parseVariableImpl(ph, limit, begin[2]);
+	correct &= parseVariableImpl(ph, curr);
+
+	correct &= ph.setLabel(loop.nextLabel, ph.getCurrPos());
+
+	ScriptRefData breakCond[] =
+	{
+		ScriptRefData { ScriptRef{ "lt" }, ArgInvalid },
+		curr,
+		limit,
+	};
+	correct &= parseFullConditionImpl(ph, loop.finalLabel, std::begin(breakCond), std::end(breakCond));
+
+	correct &= parseVariableImpl(ph, var, curr);
+
+	ScriptRefData addArgs[] =
+	{
+		curr,
+		{ {}, ArgInt, 1 },
+	};
+	correct &= callOverloadProc(ph, ph.parser.getProc(ScriptRef{ "add" }), std::begin(addArgs), std::end(addArgs));
+
+
+	if (correct)
+	{
+		return true;
+	}
+	else
+	{
+		Log(LOG_ERROR) << "Error in processing 'loop'";
+		return false;
+	}
+}
+
+/**
+ * Get first outer scope of given type.
+ * @param ph Script writer
+ * @param type Type of block
+ * @return Pointer to block or null if there is not bock of given type.
+ */
+ParserWriter::Block* getTopBlockOfType(ParserWriter& ph, BlockEnum type)
+{
+	for (auto& b : Collections::reverse(Collections::range(ph.codeBlocks)))
+	{
+		if (b.type == type)
+		{
+			return &b;
+		}
+	}
+	return nullptr;
+}
+
+/**
+ * Parser of `break` operation.
+ */
+bool parseBreak(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
+{
+	if (std::distance(begin, end) != 0)
+	{
+		Log(LOG_ERROR) << "Unexpected symbols after 'break'";
+		return false;
+	}
+
+	auto* loopBlock = getTopBlockOfType(ph, BlockLoop);
+	if (!loopBlock)
+	{
+		Log(LOG_ERROR) << "Operation 'break' outside 'loop'";
+		return false;
+	}
+
+	// each operation can fail, we can't revent
+	auto correct = true;
+
+	ph.pushProc(Proc_goto);
+	correct &= ph.pushLabelTry(loopBlock->finalLabel);
+
+	//TODO: add handling similar to `break eq x y;`
+
+
+	if (correct)
+	{
+		return true;
+	}
+	else
+	{
+		Log(LOG_ERROR) << "Error in processing 'break'";
+		return false;
+	}
+}
+
+/**
+ * Parser of `continue` operation.
+ */
+bool parseContinue(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
+{
+	if (std::distance(begin, end) != 0)
+	{
+		Log(LOG_ERROR) << "Unexpected symbols after 'continue'";
+		return false;
+	}
+
+	auto* loopBlock = getTopBlockOfType(ph, BlockLoop);
+	if (!loopBlock)
+	{
+		Log(LOG_ERROR) << "Operation 'continue' outside 'loop'";
+		return false;
+	}
+
+	// each operation can fail, we can't revent
+	auto correct = true;
+
+	ph.pushProc(Proc_goto);
+	correct &= ph.pushLabelTry(loopBlock->nextLabel);
+
+	//TODO: add handling similar to `continue eq x y;`
+
+
+	if (correct)
+	{
+		return true;
+	}
+	else
+	{
+		Log(LOG_ERROR) << "Error in processing 'continue'";
+		return false;
 	}
 }
 
@@ -989,7 +1224,7 @@ bool parseElse(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData*
  */
 bool parseEnd(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
 {
-	if (ph.codeBlocks.empty())
+	if (ph.codeBlocks.back().type == BlockMain)
 	{
 		Log(LOG_ERROR) << "Unexpected 'end'";
 		return false;
@@ -1000,15 +1235,47 @@ bool parseEnd(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* 
 		return false;
 	}
 
-	ParserWriter::Block block = ph.codeBlocks.back();
-	ph.codeBlocks.pop_back();
+	// each operation can fail, we can't revent
+	auto correct = true;
 
-	if (block.nextLabel.value != block.finalLabel.value)
+	auto block = ph.popScopeBlock();
+
+	switch (block.type)
 	{
-		ph.setLabel(block.nextLabel, ph.getCurrPos());
+	case BlockIf:
+	case BlockElse:
+		if (block.nextLabel.value != block.finalLabel.value)
+		{
+			correct &= ph.setLabel(block.nextLabel, ph.getCurrPos());
+		}
+		correct &= ph.setLabel(block.finalLabel, ph.getCurrPos());
+		break;
+
+	case BlockBegin:
+		// nothing
+		break;
+
+	case BlockLoop:
+		ph.pushProc(Proc_goto);
+		correct &= ph.pushLabelTry(block.nextLabel);
+
+		correct &= ph.setLabel(block.finalLabel, ph.getCurrPos());
+		break;
+
+	default:
+		throw Exception("Unsuported block type");
 	}
-	ph.setLabel(block.finalLabel, ph.getCurrPos());
-	return true;
+
+
+	if (correct)
+	{
+		return true;
+	}
+	else
+	{
+		Log(LOG_ERROR) << "Error in processing 'end'";
+		return false;
+	}
 }
 
 /**
@@ -1016,12 +1283,6 @@ bool parseEnd(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* 
  */
 bool parseVar(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* begin, const ScriptRefData* end)
 {
-	if (ph.codeBlocks.size() > 0)
-	{
-		Log(LOG_ERROR) << "Can't define variables in code blocks";
-		return false;
-	}
-
 	auto spec = ArgSpecVar;
 	if (begin != end)
 	{
@@ -1045,44 +1306,52 @@ bool parseVar(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* 
 
 	// adding new custom variables of type selected type.
 	auto type_curr = ph.parser.getType(begin[0].name);
-	if (type_curr)
+	if (!type_curr)
 	{
-		if (type_curr->meta.size == 0 && !(spec & ArgSpecPtr))
-		{
-			Log(LOG_ERROR) << "Can't create variable of type '" << begin->name.toString() << "'";
-			return false;
-		}
+		Log(LOG_ERROR) << "Invalid type '" << begin[0].name.toString() << "'";
+		return false;
+	}
 
-		++begin;
-		if (begin[0].type != ArgInvalid || begin[0].name.find('.') != std::string::npos || ph.addReg(begin[0].name, ArgSpecAdd(type_curr->type, spec)) == false)
-		{
-			Log(LOG_ERROR) << "Invalid variable name '" << begin[0].name.toString() << "'";
-			return false;
-		}
-		if (size == 3)
-		{
-			ScriptRefData setArgs[] =
-			{
-				ph.getReferece(begin[0].name),
-				begin[1],
-			};
-			const auto proc = ph.parser.getProc(ScriptRef{ "set" });
-			return callOverloadProc(ph, proc, std::begin(setArgs), std::end(setArgs));
-		}
-		else
-		{
-			ScriptRefData setArgs[] =
-			{
-				ph.getReferece(begin[0].name),
-			};
-			const auto proc = ph.parser.getProc(ScriptRef{ "clear" });
-			return callOverloadProc(ph, proc, std::begin(setArgs), std::end(setArgs));
-		}
+	if (type_curr->meta.size == 0 && !(spec & ArgSpecPtr))
+	{
+		Log(LOG_ERROR) << "Can't create variable of type '" << begin[0].name.toString() << "'";
+		return false;
+	}
+
+	++begin;
+	if (begin[0].type != ArgInvalid || !begin[0].name || begin[0].name.find('.') != std::string::npos)
+	{
+		Log(LOG_ERROR) << "Invalid variable name '" << begin[0].name.toString() << "'";
+		return false;
+	}
+
+	auto reg = ph.addReg(begin[0].name, ArgSpecAdd(type_curr->type, spec));
+	if (!reg)
+	{
+		Log(LOG_ERROR) << "Invalid type for variable '" << begin[0].name.toString() << "'";
+		return false;
+	}
+
+	// each operation can fail, we can't revent
+	auto correct = true;
+
+	if (size == 2)
+	{
+		correct &= parseVariableImpl(ph, reg);
+	}
+	else
+	{
+		correct &= parseVariableImpl(ph, reg, begin[1]);
+	}
+
+
+	if (correct)
+	{
 		return true;
 	}
 	else
 	{
-		Log(LOG_ERROR) << "Invalid type '" << begin[0].name.toString() << "'";
+		Log(LOG_ERROR) << "Error in processing 'end'";
 		return false;
 	}
 }
@@ -1196,6 +1465,7 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 			}
 		}
 	}
+
 	ph.pushProc(Proc_exit);
 	return true;
 }
@@ -1232,6 +1502,12 @@ bool parseDummy(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData
 	Log(LOG_ERROR) << "Reserved operation for future use";
 	return false;
 }
+
+
+////////////////////////////////////////////////////////////
+//					Sort helpers
+////////////////////////////////////////////////////////////
+
 
 /**
  * Add new value to sorted vector by name.
@@ -1760,11 +2036,9 @@ ParserWriter::ParserWriter(
 		const ScriptParserBase& d) :
 	container(c),
 	parser(d),
-	refListCurr(),
-	regIndexUsed(regUsed),
-	constIndexUsed(-1)
+	regIndexUsed(static_cast<RegEnum>(regUsed))
 {
-
+	pushScopeBlock(BlockMain);
 }
 
 /**
@@ -1776,6 +2050,10 @@ void ParserWriter::relese()
 	refLabels.forEachPosition(
 		[&](auto pos, ProgPos value)
 		{
+			if (value == ProgPos::Unknown)
+			{
+				throw Exception("Incorrect label position reference");
+			}
 			updateReserved<ProgPos>(pos, value);
 		}
 	);
@@ -1847,7 +2125,15 @@ void ParserWriter::relese()
  */
 ScriptRefData ParserWriter::getReferece(const ScriptRef& s) const
 {
-	auto ptr = findSortHelper(refListCurr, s);
+	const ScriptRefData* ptr = nullptr;
+	for (const auto& r : regStack)
+	{
+		if (r.name == s)
+		{
+			ptr = &r;
+			break;
+		}
+	}
 	if (ptr == nullptr)
 	{
 		ptr = parser.getRef(s);
@@ -1861,18 +2147,6 @@ ScriptRefData ParserWriter::getReferece(const ScriptRef& s) const
 		return ScriptRefData{ };
 	}
 	return *ptr;
-}
-
-/**
- * Add new reference definition.
- * @param s Name of reference.
- * @param data Data of reference.
- * @return pointer to new created reference.
- */
-ScriptRefData ParserWriter::addReferece(const ScriptRefData& data)
-{
-	addSortHelper(refListCurr, data);
-	return data;
 }
 
 /**
@@ -1949,7 +2223,7 @@ void ParserWriter::updateProc(ReservedPos<ProcOp> pos, int procOffset)
 }
 
 /**
- * Try pushing label arg on proc vector. Can't use this to create loop back label.
+ * Try pushing label arg on proc vector.
  * @param s name of label.
  * @return true if label was successfully added.
  */
@@ -1958,14 +2232,16 @@ bool ParserWriter::pushLabelTry(const ScriptRefData& data)
 	auto temp = data;
 	if (!temp && temp.name)
 	{
-		temp = addReferece(addLabel(data.name));
+//		temp = addReferece(addLabel(data.name));
+		return false;
 	}
 	if (temp.type != ArgLabel)
 	{
 		return false;
 	}
 
-	if ((!data.name && refLabels.getValue(temp.value) != ProgPos::Unknown))
+	// Can't use this to create loop back named label.
+	if (temp.name && refLabels.getValue(temp.value) != ProgPos::Unknown)
 	{
 		return false;
 	}
@@ -1993,7 +2269,8 @@ bool ParserWriter::setLabel(const ScriptRefData& data, ProgPos offset)
 	auto temp = data;
 	if (!temp && temp.name)
 	{
-		temp = addReferece(addLabel(data.name));
+//		temp = addReferece(addLabel(data.name));
+		return false;
 	}
 	if (temp.type != ArgLabel)
 	{
@@ -2054,31 +2331,71 @@ bool ParserWriter::pushRegTry(const ScriptRefData& data, ArgEnum type)
 
 /**
  * Add new reg arg definition.
- * @param s name of reg
+ * @param s optional name of reg
  * @param type type of reg
- * @return true if reg exists and is valid
+ * @return Reg data
  */
-bool ParserWriter::addReg(const ScriptRef& s, ArgEnum type)
+ScriptRefData ParserWriter::addReg(const ScriptRef& s, ArgEnum type)
 {
-	ScriptRefData pos = getReferece(s);
-	type = ArgSpecAdd(type, ArgSpecReg);
-	if (pos)
+	if (s && getReferece(s))
 	{
-		return false;
+		return {};
 	}
+
+	type = ArgSpecAdd(type, ArgSpecReg);
 	auto meta = getRegMeta(parser, type);
 	if (!meta)
 	{
-		return false;
+		return {};
 	}
 	if (meta.needRegSpace(regIndexUsed) > ScriptMaxReg)
 	{
-		return false;
+		return {};
 	}
 	ScriptRefData data = { s, type, static_cast<RegEnum>(meta.nextRegPos(regIndexUsed)) };
-	regIndexUsed = meta.needRegSpace(regIndexUsed);
-	addReferece(data);
-	return true;
+	if (s)
+	{
+		regStack.push_back(data);
+	}
+	regIndexUsed = static_cast<RegEnum>(meta.needRegSpace(regIndexUsed));
+	return data;
+}
+
+/**
+ * Add new code scope.
+ * @return Reference to new block.
+ */
+ParserWriter::Block& ParserWriter::pushScopeBlock(BlockEnum type)
+{
+	return codeBlocks.emplace_back(ParserWriter::Block{ type, regStack.size(), regIndexUsed });
+}
+
+/**
+ * Clear values in code scope.
+ * @return Reference to current block.
+ */
+ParserWriter::Block& ParserWriter::clearScopeBlock()
+{
+	auto& current = codeBlocks.back();
+	regStack.resize(current.regStackSizeFrom);
+	regIndexUsed = current.regIndexUsedFrom;
+	return current;
+}
+
+/**
+ * Pop code scope.
+ * @return Copy of old block.
+ */
+ParserWriter::Block ParserWriter::popScopeBlock()
+{
+	if (codeBlocks.back().type == BlockMain)
+	{
+		throw Exception("Invalid stack popup");
+	}
+
+	auto prev = clearScopeBlock();
+	codeBlocks.pop_back();
+	return prev;
 }
 
 /// Dump to log error info about ref.
@@ -2128,10 +2445,12 @@ ScriptParserBase::ScriptParserBase(ScriptGlobal* shared, const std::string& name
 	buildin("end", &parseEnd);
 	buildin("var", &parseVar);
 	buildin("debug_log", &parseDebugLog);
-	buildin("loop", &parseDummy);
-	buildin("break", &parseDummy);
-	buildin("continue", &parseDummy);
+	buildin("debug_assert", &parseDummy);
+	buildin("loop", &parseLoop);
+	buildin("break", &parseBreak);
+	buildin("continue", &parseContinue);
 	buildin("return", &parseReturn);
+	buildin("begin", &parseBegin);
 
 	addParser<helper::FuncGroup<Func_test_eq_null>>("test_eq", "");
 	addParser<helper::FuncGroup<Func_debug_impl_int>>("debug_impl", "");
@@ -2476,17 +2795,23 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 		SelectedToken op = range.getNextToken();
 		if (!op)
 		{
-			for (auto i = help.refListCurr.begin(); i != help.refListCurr.end(); ++i)
+//			for (auto i = help.refListCurr.begin(); i != help.refListCurr.end(); ++i)
+//			{
+//				if (i->type == ArgLabel && help.refLabels.getValue(i->value) == ProgPos::Unknown)
+//				{
+//					Log(LOG_ERROR) << err << "invalid use of label: '" << i->name.toString() << "' without declaration";
+//					return false;
+//				}
+//			}
+			if (help.codeBlocks.size() > 1)
 			{
-				if (i->type == ArgLabel && help.refLabels.getValue(i->value) == ProgPos::Unknown)
-				{
-					Log(LOG_ERROR) << err << "invalid use of label: '" << i->name.toString() << "' without declaration";
-					return false;
-				}
+				Log(LOG_ERROR) << err << "script have missed 'end;'";
+				return false;
 			}
 			if (!haveLastReturn)
 			{
 				Log(LOG_ERROR) << err << "script need to end with return statement";
+				return false;
 			}
 			help.relese();
 			destScript = std::move(tempScript);
@@ -2504,31 +2829,49 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 			args[0] = range.getNextToken();
 		}
 
-		// change form of "Reg.Function" to "Type.Function Reg".
+		// change form of `Reg.Function` to `Type.Function Reg`.
 		auto op_curr = getProc(op);
 		if (!op_curr)
 		{
 			auto first_dot = op.find('.');
-			if (first_dot != std::string::npos)
+			if (first_dot == std::string::npos)
 			{
-				auto temp = op.substr(0, first_dot);
-				auto ref = help.getReferece(temp);
-				if (ref && ref.type >= ArgMax)
-				{
-					auto name = getTypeName(ref.type);
-					if (name)
-					{
-						op_curr = getProc(name, op.substr(first_dot));
-						if (!op_curr)
-						{
-							Log(LOG_ERROR) << err << "invalid operation name '"<< op.toString() <<"'";
-							return false;
-						}
-						args[1] = args[0];
-						args[0] = { TokenSymbol, temp };
-					}
-				}
+				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
+				return false;
 			}
+
+			auto temp = op.substr(0, first_dot);
+			auto ref = help.getReferece(temp);
+			if (!ref)
+			{
+				Log(LOG_ERROR) << "Unknow variable name '" << temp.toString() << "'";
+				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
+				return false;
+			}
+
+			auto name = getTypeName(ref.type);
+			if (ref.type < ArgMax || !name)
+			{
+				Log(LOG_ERROR) << "Unsupported type for variable '" << ref.name.toString() << "'";
+				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
+				return false;
+			}
+
+			auto name_end = op.substr(first_dot);
+			op_curr = getProc(name, name_end);
+			if (!op_curr)
+			{
+				Log(LOG_ERROR) << "Unknow operation name '" << name.toString() << name_end.toString() << "' for variable '" << ref.name.toString() << "'";
+				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
+				return false;
+			}
+
+			// now we manage to find form `Type.Function Reg`
+
+			// we already loaded op_curr = "Reg.Function", args[0] = "X"
+			// then switch it to op_curr = "Type.Function", args[0] = "Reg", args[1] = "X"
+			args[1] = args[0];
+			args[0] = { TokenSymbol, temp };
 		}
 		for (size_t i = (args[1] ? 2 : 1); i < ScriptMaxArg; ++i)
 			args[i] = range.getNextToken();
@@ -2579,7 +2922,9 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 		// test validity of operation positions
 		auto isReturn = (op == ScriptRef{ "return" });
 		auto isVarDef = (op == ScriptRef{ "var" });
-		auto isEnd = (op == ScriptRef{ "end" }) || (op == ScriptRef{ "else" });
+		auto isBegin = (op == ScriptRef{ "if" }) || (op == ScriptRef{ "else" }) || (op == ScriptRef{ "begin" }) || (op == ScriptRef{ "loop" });
+		auto isEnd = (op == ScriptRef{ "end" }) || (op == ScriptRef{ "else" }); // `else;` is begin and end of scope
+		auto isBreak = (op == ScriptRef{ "continue" } || op == ScriptRef{ "break" });
 
 		if (haveLastReturn && !isEnd)
 		{
@@ -2597,8 +2942,8 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 			return false;
 		}
 
-		haveLastReturn = isReturn;
-		haveCodeNormal = !isVarDef;
+		haveLastReturn = isReturn || isBreak;
+		haveCodeNormal = !(isVarDef || isBegin); // we can have `var` only on begining of new scope
 
 
 		// matching args from operation definition with args available in string

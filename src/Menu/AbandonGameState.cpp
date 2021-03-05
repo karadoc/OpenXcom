@@ -86,7 +86,7 @@ AbandonGameState::AbandonGameState(OptionsOrigin origin) : _origin(origin)
 
 	if (_origin == OPT_BATTLESCAPE)
 	{
-		applyBattlescapeTheme();
+		applyBattlescapeTheme("geoscape");
 	}
 }
 
@@ -104,6 +104,9 @@ AbandonGameState::~AbandonGameState()
  */
 void AbandonGameState::btnYesClick(Action *)
 {
+	// Reset touch flags
+	_game->resetTouchButtonFlags();
+
 	if (_origin == OPT_BATTLESCAPE && _game->getSavedGame()->getSavedBattle()->getAmbientSound() != -1)
 		_game->getMod()->getSoundByDepth(0, _game->getSavedGame()->getSavedBattle()->getAmbientSound())->stopLoop();
 	if (!_game->getSavedGame()->isIronman())

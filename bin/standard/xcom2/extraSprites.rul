@@ -1,4 +1,23 @@
 extraSprites: #done
+  - type: Touch
+    width: 64
+    height: 120
+    subX: 32
+    subY: 24
+    files:
+      0: Resources/Extended/Touch/Touch_TFTD.png
+  - type: oxceLinks
+    width: 32
+    height: 16
+    singleImage: true
+    files:
+      0: Resources/Extended/oxceLinks.png
+  - type: oxceLinksInv
+    width: 23
+    height: 22
+    singleImage: true
+    files:
+      0: Resources/Extended/oxceLinksInv.png
   - type: TinyRanks
     width: 42
     height: 7

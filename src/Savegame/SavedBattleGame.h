@@ -378,8 +378,8 @@ public:
 	BattleItem *createItemForUnit(const RuleItem *rule, BattleUnit *unit, bool fixedWeapon = false);
 	/// Create new item for unit.
 	BattleItem *createItemForUnit(const std::string& type, BattleUnit *unit, bool fixedWeapon = false);
-	/// Create new built-in item for unit.
-	BattleItem *createItemForUnitBuildin(const RuleItem *rule, BattleUnit *unit);
+	/// Create new special built-in item for unit.
+	BattleItem *createItemForUnitSpecialBuiltin(const RuleItem *rule, BattleUnit *unit);
 	/// Create new item for tile.
 	BattleItem *createItemForTile(const RuleItem *rule, Tile *tile);
 	/// Create new item for tile.
@@ -428,6 +428,8 @@ public:
 	bool isBattlescapeStateBusy() const;
 	/// Sets the pointer to the BattlescapeState.
 	void setBattleState(BattlescapeState *bs);
+	/// Is CTRL pressed?
+	bool isCtrlPressed(bool considerTouchButtons = false) const;
 	/// Gets the highest ranked, living XCom unit.
 	BattleUnit* getHighestRankedXCom();
 	/// Gets the morale modifier for the unit passed to this function.

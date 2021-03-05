@@ -251,14 +251,15 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 			unit = new BattleUnit(mod, mod->getUnit(type), originalFaction, id, nullptr, mod->getArmor(armor), mod->getStatAdjustment(savedGame->getDifficulty()), _depth);
 		}
 		unit->load(*i, this->getMod(), this->getMod()->getScriptGlobal());
-		unit->setSpecialWeapon(this);
+		// Handling of special built-in weapons will be done during and after the load of items
+		// unit->setSpecialWeapon(this, true);
 		_units.push_back(unit);
 		if (faction == FACTION_PLAYER)
 		{
 			if ((unit->getId() == selectedUnit) || (_selectedUnit == 0 && !unit->isOut()))
 				_selectedUnit = unit;
 		}
-		if (unit->getStatus() != STATUS_DEAD && unit->getStatus() != STATUS_IGNORE_ME)
+		if (unit->getStatus() != STATUS_DEAD && !unit->isIgnored())
 		{
 			if (const YAML::Node &ai = (*i)["AI"])
 			{
@@ -277,11 +278,23 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 		}
 	}
 
-	std::string fromContainer[3] = { "items", "recoverConditional", "recoverGuaranteed" };
-	std::vector<BattleItem*> *toContainer[3] = {&_items, &_recoverConditional, &_recoverGuaranteed};
-	for (int pass = 0; pass != 3; ++pass)
+	using ItemVec = std::vector<BattleItem*>&;
+
+	// node to load from, vector to load into, offset for maching ammo
+	std::tuple<YAML::Node, ItemVec, size_t> toContainer[] =
 	{
-		for (YAML::const_iterator i = node[fromContainer[pass]].begin(); i != node[fromContainer[pass]].end(); ++i)
+		std::make_tuple(node["items"], std::ref(_items), 0u),
+		std::make_tuple(node["recoverConditional"], std::ref(_recoverConditional), 0u),
+		std::make_tuple(node["recoverGuaranteed"], std::ref(_recoverGuaranteed), 0u),
+		std::make_tuple(node["itemsSpecial"], std::ref(_items), 0u),
+	};
+
+	for (auto& pass : toContainer)
+	{
+		// update start point for maching ammo
+		std::get<size_t>(pass) = std::get<ItemVec>(pass).size();
+
+		for (YAML::const_iterator i = std::get<YAML::Node>(pass).begin(); i != std::get<YAML::Node>(pass).end(); ++i)
 		{
 			std::string type = (*i)["type"].as<std::string>();
 			if (mod->getItem(type))
@@ -300,7 +313,14 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 					if ((*bu)->getId() == owner)
 					{
 						item->setOwner(*bu);
-						(*bu)->getInventory()->push_back(item);
+						if (item->isSpecialWeapon())
+						{
+							(*bu)->addLoadedSpecialWeapon(item);
+						}
+						else
+						{
+							(*bu)->getInventory()->push_back(item);
+						}
 						break;
 					}
 				}
@@ -328,7 +348,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 					if (pos.x != -1)
 						getTile(pos)->addItem(item, item->getSlot());
 				}
-				toContainer[pass]->push_back(item);
+				std::get<ItemVec>(pass).push_back(item);
 			}
 			else
 			{
@@ -338,52 +358,81 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 	}
 	_itemId++;
 
-	// tie ammo items to their weapons, running through the items again
-	std::vector<BattleItem*>::iterator weaponi = _items.begin();
-	for (YAML::const_iterator i = node["items"].begin(); i != node["items"].end(); ++i)
+	// Note: this is for backwards-compatibility with older saves
+	for (auto* unit : _units)
 	{
-		if (mod->getItem((*i)["type"].as<std::string>()))
+		if (unit->isIgnored() || unit->getStatus() == STATUS_DEAD)
 		{
-			auto setItem = [&](int slot, const YAML::Node& n)
+			// dead or "timeout" units do not have special weapons.
+			continue;
+		}
+
+		unit->setSpecialWeapon(this, true);
+	}
+
+	// tie ammo items to their weapons, running through the items again
+	for (auto& pass : toContainer)
+	{
+		for (YAML::const_iterator i = std::get<YAML::Node>(pass).begin(); i != std::get<YAML::Node>(pass).end(); ++i)
+		{
+			if (mod->getItem((*i)["type"].as<std::string>()))
 			{
-				if (n)
+				// get next weapon to match ammo
+				auto* weapon = std::get<ItemVec>(pass)[std::get<size_t>(pass)++];
+
+				auto setItem = [&](int slot, const YAML::Node& n)
 				{
-					int ammoId = n.as<int>(-1);
-					if (ammoId != -1)
+					if (n)
 					{
-						if (ammoId == (*weaponi)->getId())
+						int ammoId = n.as<int>(-1);
+						if (ammoId != -1)
 						{
-							(*weaponi)->setAmmoForSlot(slot, (*weaponi));
-						}
-						else
-						{
-							for (auto item : _items)
+							if (ammoId == weapon->getId())
 							{
-								if (item->getId() == ammoId)
+								weapon->setAmmoForSlot(slot, weapon);
+							}
+							else
+							{
+								for (auto* item : std::get<ItemVec>(pass))
 								{
-									(*weaponi)->setAmmoForSlot(slot, item);
-									break;
+									if (item->getId() == ammoId)
+									{
+										weapon->setAmmoForSlot(slot, item);
+										break;
+									}
 								}
 							}
 						}
 					}
-				}
-			};
+				};
 
-			if (const YAML::Node& ammoSlots = (*i)["ammoItemSlots"])
-			{
-				for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
+				if (const YAML::Node& ammoSlots = (*i)["ammoItemSlots"])
 				{
-					setItem(slot, ammoSlots[slot]);
+					for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
+					{
+						setItem(slot, ammoSlots[slot]);
+					}
+				}
+				else
+				{
+					setItem(0, (*i)["ammoItem"]);
 				}
 			}
-			else
-			{
-				setItem(0, (*i)["ammoItem"]);
-			}
-			++weaponi;
 		}
 	}
+
+	// restore order like before save
+	for (auto& pass : toContainer)
+	{
+		std::sort(
+			std::get<ItemVec>(pass).begin(), std::get<ItemVec>(pass).end(),
+			[](const BattleItem* itemA, const BattleItem* itemB)
+			{
+				return itemA->getId() < itemB->getId();
+			}
+		);
+	}
+
 	_vipEscapeType = (EscapeType)(node["vipEscapeType"].as<int>(_vipEscapeType));
 	_vipSurvivalPercentage = node["vipSurvivalPercentage"].as<int>(_vipSurvivalPercentage);
 	_vipsSaved = node["vipsSaved"].as<int>(_vipsSaved);
@@ -557,7 +606,14 @@ YAML::Node SavedBattleGame::save() const
 	}
 	for (std::vector<BattleItem*>::const_iterator i = _items.begin(); i != _items.end(); ++i)
 	{
-		node["items"].push_back((*i)->save(this->getMod()->getScriptGlobal()));
+		if ((*i)->isSpecialWeapon())
+		{
+			node["itemsSpecial"].push_back((*i)->save(this->getMod()->getScriptGlobal()));
+		}
+		else
+		{
+			node["items"].push_back((*i)->save(this->getMod()->getScriptGlobal()));
+		}
 	}
 	node["tuReserved"] = (int)_tuReserved;
 	node["kneelReserved"] = _kneelReserved;
@@ -1151,7 +1207,7 @@ void SavedBattleGame::newTurnUpdateScripts()
 {
 	for (std::vector<BattleUnit*>::iterator i = _units.begin(); i != _units.end(); ++i)
 	{
-		if ((*i)->getStatus() == STATUS_IGNORE_ME)
+		if ((*i)->isIgnored())
 		{
 			continue;
 		}
@@ -1161,6 +1217,11 @@ void SavedBattleGame::newTurnUpdateScripts()
 
 	for (auto& item : _items)
 	{
+		if (item->isOwnerIgnored())
+		{
+			continue;
+		}
+
 		ModScript::scriptCallback<ModScript::NewTurnItem>(item->getRules(), item, this, this->getTurn(), _side);
 	}
 
@@ -1254,7 +1315,7 @@ void SavedBattleGame::endTurn()
 	// hide all aliens (VOF calculations below will turn them visible again)
 	for (std::vector<BattleUnit*>::iterator i = _units.begin(); i != _units.end(); ++i)
 	{
-		if ((*i)->getStatus() == STATUS_IGNORE_ME)
+		if ((*i)->isIgnored())
 		{
 			continue;
 		}
@@ -1397,6 +1458,18 @@ void SavedBattleGame::setBattleState(BattlescapeState *bs)
 }
 
 /**
+ * Is CTRL pressed?
+ */
+bool SavedBattleGame::isCtrlPressed(bool considerTouchButtons) const
+{
+	if (_battleState)
+	{
+		return _battleState->getGame()->isCtrlPressed(considerTouchButtons);
+	}
+	return false;
+}
+
+/**
  * Resets all the units to their current standing tile(s).
  */
 void SavedBattleGame::resetUnitTiles()
@@ -1477,6 +1550,13 @@ void SavedBattleGame::removeItem(BattleItem *item)
 		return false;
 	};
 
+	if (item->isSpecialWeapon())
+	{
+		// we cannot remove it because load() would create a new one
+		// only when a unit is killed or set to "timeout", we can remove its items.
+		return;
+	}
+
 	if (!purge(_items, item))
 	{
 		return;
@@ -1535,7 +1615,7 @@ void SavedBattleGame::addFixedItems(BattleUnit *unit, const std::vector<const Ru
  */
 void SavedBattleGame::initUnit(BattleUnit *unit, size_t itemLevel)
 {
-	unit->setSpecialWeapon(this);
+	unit->setSpecialWeapon(this, false);
 	Unit* rule = unit->getUnitRules();
 	const Armor* armor = unit->getArmor();
 	// Built in weapons: the unit has this weapon regardless of loadout or what have you.
@@ -1620,13 +1700,15 @@ BattleItem *SavedBattleGame::createItemForUnit(const RuleItem *rule, BattleUnit 
 }
 
 /**
- * Create new built-in item for unit.
+ * Create new special built-in item for unit.
  */
-BattleItem *SavedBattleGame::createItemForUnitBuildin(const RuleItem *rule, BattleUnit *unit)
+BattleItem *SavedBattleGame::createItemForUnitSpecialBuiltin(const RuleItem *rule, BattleUnit *unit)
 {
 	BattleItem *item = new BattleItem(rule, getCurrentItemId());
 	item->setOwner(unit);
-	deleteList(item);
+	item->setSlot(nullptr);
+	_items.push_back(item);
+	initItem(item, unit);
 	return item;
 }
 /**
@@ -2031,7 +2113,7 @@ void SavedBattleGame::reviveUnconsciousUnits(bool noTU)
 {
 	for (std::vector<BattleUnit*>::iterator i = getUnits()->begin(); i != getUnits()->end(); ++i)
 	{
-		if ((*i)->getArmor()->getSize() == 1 && (*i)->getStatus() != STATUS_IGNORE_ME)
+		if ((*i)->getArmor()->getSize() == 1 && !(*i)->isIgnored())
 		{
 			Position originalPosition = (*i)->getPosition();
 			if (originalPosition == Position(-1, -1, -1))
@@ -3057,6 +3139,7 @@ std::string debugDisplayScript(const SavedBattleGame* p)
 void SavedBattleGame::ScriptRegister(ScriptParserBase* parser)
 {
 	parser->registerPointerType<SavedGame>();
+	parser->registerPointerType<Tile>();
 
 	Bind<SavedBattleGame> sbg = { parser };
 

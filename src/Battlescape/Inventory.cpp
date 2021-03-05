@@ -683,7 +683,7 @@ void Inventory::mouseOver(Action *action, State *state)
  */
 void Inventory::mouseClick(Action *action, State *state)
 {
-	if (action->getDetails()->button.button == SDL_BUTTON_LEFT)
+	if (_game->isLeftClick(action))
 	{
 		if (_selUnit == 0)
 			return;
@@ -702,7 +702,7 @@ void Inventory::mouseClick(Action *action, State *state)
 				BattleItem *item = _selUnit->getItem(slot, x, y);
 				if (item != 0)
 				{
-					if ((SDL_GetModState() & KMOD_SHIFT))
+					if (_game->isShiftPressed())
 					{
 						bool quickUnload = false;
 						bool allowed = true;
@@ -736,7 +736,7 @@ void Inventory::mouseClick(Action *action, State *state)
 					{
 						// do nothing!
 					}
-					else if ((SDL_GetModState() & KMOD_CTRL))
+					else if (_game->isCtrlPressed())
 					{
 						RuleInventory *newSlot = _inventorySlotGround;
 						std::string warning = "STR_NOT_ENOUGH_SPACE";
@@ -915,7 +915,7 @@ void Inventory::mouseClick(Action *action, State *state)
 						if (item->getAmmoForSlot(slotAmmo) != 0)
 						{
 							auto tuUnload = item->getRules()->getTUUnload(slotAmmo);
-							if ((SDL_GetModState() & KMOD_SHIFT) && (!_tu || tuUnload))
+							if (_game->isShiftPressed() && (!_tu || tuUnload))
 							{
 								// Quick-swap check
 								if (!_tu)
@@ -1005,7 +1005,7 @@ void Inventory::mouseClick(Action *action, State *state)
 			}
 		}
 	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+	else if (_game->isRightClick(action))
 	{
 		if (_selItem == 0)
 		{
@@ -1068,7 +1068,7 @@ void Inventory::mouseClick(Action *action, State *state)
 			setSelectedItem(0);
 		}
 	}
-	else if (action->getDetails()->button.button == SDL_BUTTON_MIDDLE)
+	else if (_game->isMiddleClick(action))
 	{
 		if (_selUnit == 0)
 			return;

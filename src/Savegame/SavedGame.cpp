@@ -347,6 +347,16 @@ SaveInfo SavedGame::getSaveInfo(const std::string &file, Language *lang)
 		save.displayName = lang->getString("STR_AUTO_SAVE_BATTLESCAPE_SLOT");
 		save.reserved = true;
 	}
+	else if (save.fileName.find(AUTOSAVE_BATTLESCAPE) != std::string::npos)
+	{
+		int turn = 0;
+		if (doc["turn"])
+		{
+			turn = doc["turn"].as<int>(turn);
+		}
+		save.displayName = lang->getString("STR_AUTO_SAVE_BATTLESCAPE_SLOT_WITH_NUMBER").arg(turn);
+		save.reserved = true;
+	}
 	else
 	{
 		if (doc["name"])
@@ -505,7 +515,7 @@ void SavedGame::load(const std::string &filename, Mod *mod, Language *lang)
 		if (mod->getUfo(type))
 		{
 			Ufo *u = new Ufo(mod->getUfo(type), 0);
-			u->load(*i, *mod, *this);
+			u->load(*i, mod->getScriptGlobal(), *mod, *this);
 			_ufos.push_back(u);
 		}
 		else
@@ -871,7 +881,7 @@ void SavedGame::save(const std::string &filename, Mod *mod) const
 	// UFOs must be after missions
 	for (std::vector<Ufo*>::const_iterator i = _ufos.begin(); i != _ufos.end(); ++i)
 	{
-		node["ufos"].push_back((*i)->save(getMonthsPassed() == -1));
+		node["ufos"].push_back((*i)->save(mod->getScriptGlobal(), getMonthsPassed() == -1));
 	}
 	for (std::vector<GeoscapeEvent *>::const_iterator i = _geoscapeEvents.begin(); i != _geoscapeEvents.end(); ++i)
 	{
@@ -1008,6 +1018,16 @@ void SavedGame::setDifficulty(GameDifficulty difficulty)
 int SavedGame::getDifficultyCoefficient() const
 {
 	return Mod::DIFFICULTY_COEFFICIENT[std::min((int)_difficulty, 4)];
+}
+
+/**
+ * Returns the game's sell price coefficient based
+ * on the current difficulty level.
+ * @return Sell price coefficient.
+ */
+int SavedGame::getSellPriceCoefficient() const
+{
+	return Mod::SELL_PRICE_COEFFICIENT[std::min((int)_difficulty, 4)];
 }
 
 /**
@@ -1499,9 +1519,17 @@ void SavedGame::addFinishedResearchSimple(const RuleResearch * research)
  */
 void SavedGame::addFinishedResearch(const RuleResearch * research, const Mod * mod, Base * base, bool score)
 {
+	// process "re-enables"
+	for (auto& ree : research->getReenabled())
+	{
+		if (isResearchRuleStatusDisabled(ree->getName()))
+		{
+			setResearchRuleStatus(ree->getName(), RuleResearch::RESEARCH_STATUS_NEW); // reset status
+		}
+	}
+
 	if (isResearchRuleStatusDisabled(research->getName()))
 	{
-		// make absolutely sure disabled research never gets re-researched again by accident
 		return;
 	}
 
@@ -3157,18 +3185,6 @@ std::string debugDisplayScript(const GameTime* p)
 	}
 }
 
-void getRuleResearch(const Mod* mod, const RuleResearch*& rule, const std::string& name)
-{
-	if (mod)
-	{
-		rule = mod->getResearch(name);
-	}
-	else
-	{
-		rule = nullptr;
-	}
-}
-
 void isResearchedScript(const SavedGame* sg, int& val, const RuleResearch* name)
 {
 	if (sg)
@@ -3242,7 +3258,6 @@ void SavedGame::ScriptRegister(ScriptParserBase* parser)
 	sgg.add<&getTimeScript>("getTime", "Get global time that is Greenwich Mean Time");
 	sgg.add<&getRandomScript>("getRandomState");
 
-	sgg.add<&getRuleResearch>("getRuleResearch");
 	sgg.add<&isResearchedScript>("isResearched");
 
 	sgg.addScriptValue<&SavedGame::_scriptValues>();

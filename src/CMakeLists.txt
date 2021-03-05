@@ -9,7 +9,6 @@ set ( basescape_src
   Basescape/BasescapeState.cpp
   Basescape/BaseView.cpp
   Basescape/BuildFacilitiesState.cpp
-  Basescape/ChangeHeadquartersState.cpp
   Basescape/CraftArmorState.cpp
   Basescape/CraftEquipmentLoadState.cpp
   Basescape/CraftEquipmentSaveState.cpp
@@ -85,6 +84,8 @@ set ( battlescape_src
   Battlescape/DebriefingState.cpp
   Battlescape/Explosion.cpp
   Battlescape/ExplosionBState.cpp
+  Battlescape/ExtendedBattlescapeLinksState.cpp
+  Battlescape/ExtendedInventoryLinksState.cpp
   Battlescape/InfoboxOKState.cpp
   Battlescape/InfoboxState.cpp
   Battlescape/Inventory.cpp
@@ -186,6 +187,7 @@ set ( geoscape_src
   Geoscape/DogfightErrorState.cpp
   Geoscape/DogfightExperienceState.cpp
   Geoscape/DogfightState.cpp
+  Geoscape/ExtendedGeoscapeLinksState.cpp
   Geoscape/FundingState.cpp
   Geoscape/GeoscapeCraftState.cpp
   Geoscape/GeoscapeEventState.cpp
@@ -568,9 +570,6 @@ if ( WIN32 )
     set ( basic_windows_libs ${basic_windows_libs} mingw32 -mwindows )
     set ( static_flags  -static )
     set ( SDLMIXER_LIBRARY "${SDLMIXER_LIBRARY} -lwinmm" )
-  endif ()
-  if ( MSVC )
-    set_target_properties ( openxcom PROPERTIES PREFIX ../ )
   endif ()
   set ( system_libs ${basic_windows_libs} SDLmain ${static_flags} )
 endif ()

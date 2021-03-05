@@ -11,8 +11,6 @@ en-US:
   STR_FACILITY_FORBIDDEN_BY_OTHER: "CANNOT BUILD HERE!{SMALLLINE}Some existing facility forbids building this facility."
   STR_FACILITY_OTHER_FORBIDDEN_BY_THIS: "CANNOT BUILD HERE!{SMALLLINE}Some existing facility would be forbidden by this facility."
   STR_NOT_ENOUGH_ITEMS: "NOT ENOUGH MATERIALS!{SMALLLINE}We need more resources to build this facility.{NEWLINE}Missing> {0}: {1}"
-#ChangeHeadquartersState.cpp
-  STR_MOVE_HQ_TO: "Move HQ to"
 #CraftArmorState.cpp
   STR_ID: "ID"
   STR_FIRST_LETTER: "FIRST LETTER"
@@ -31,6 +29,7 @@ en-US:
 #CraftEquipmentState.cpp
   STR_ALL: "Everything"
   STR_EQUIPPED: "Equipped"
+  STR_NOT_EQUIPPED: "Not equipped"
   STR_UNASSIGNED: "Other"
   STR_NO_MORE_EQUIPMENT_ALLOWED_BY_SIZE: "NO MORE EQUIPMENT ALLOWED ON BOARD!{SMALLLINE}Maximum storage space: {0}"
 #CraftInfoState.cpp
@@ -156,6 +155,7 @@ en-US:
   STR_DEPENDS_ON: "Depends on:"
   STR_UNLOCKED_BY: "Unlocked by:"
   STR_DISABLED_BY: "Disabled by:"
+  STR_REENABLED_BY: "Re-enabled by:"
   STR_GET_FOR_FREE_FROM: "Get for free from:"
   STR_IS_LOOKUP_OF: "Is lookup of:"
   STR_LOOKUP: "Lookup:"
@@ -165,6 +165,7 @@ en-US:
   STR_LEADS_TO: "Leads to:"
   STR_UNLOCKS: "Unlocks:"
   STR_DISABLES: "Disables:"
+  STR_REENABLES: "Re-enables:"
   STR_GIVES_ONE_FOR_FREE_SEQ: "Gives one for free (sequential):"
   STR_GIVES_ONE_FOR_FREE: "Gives one for free:"
   STR_RESEARCH_REQUIRED: "Research required:"
@@ -265,11 +266,16 @@ en-US:
 #Options.cpp
   STR_UPDATE_CHECK: "Automatic update check"
   STR_UPDATE_CHECK_DESC: "If enabled, OpenXcom will automatically check for updates and give you an option to update itself by a single button click."
+  STR_AUTOSAVE_SLOTS: "Autosave slots"
+  STR_AUTOSAVE_SLOTS_DESC: "Number of slots for Battlescape autosaves."
+  STR_AUTO_SAVE_BATTLESCAPE_SLOT_WITH_NUMBER: "<AUTO BATTLESCAPE> {0}"
   STR_LAZY_LOADING: "Lazy loading"
   STR_LAZY_LOADING_DESC: "If enabled, graphic resources are loaded on-demand. Otherwise everything is loaded at start-up."
   STR_VSYNC_FOR_OPENGL: "VSync for OpenGL"
   STR_VSYNC_FOR_OPENGL_DESC: "Turn off for maximum enemy hidden movement speed and (optionally) soldier movement speed. DO NOT set FPS limit to 0. Only applies to OpenGL rendering."
 #===================
+  STR_OXCE_LINKS: "Extended links"
+  STR_OXCE_LINKS_DESC: "Enables additional menus/buttons/links for OXCE features."
   STR_UFO_LANDING_ALERT: "UFO landing alert"
   STR_UFO_LANDING_ALERT_DESC: "If enabled, a message will pop up each time a detected UFO lands."
   STR_WOUNDED_DEFEND_BASE_IF: "Wounded defend (if HP above x%)"
@@ -298,8 +304,8 @@ en-US:
   STR_REMOVE_ARMOR_FROM_ALL_CRAFTS: "Remove Armor From All Crafts"
   STR_REMOVE_ARMOR_FROM_CRAFT: "Remove Armor From Craft"
   STR_REMOVE_SOLDIERS_FROM_TRAINING: "Remove Soldiers From Training"
-  STR_INVENTORY_ARMOR: "Change Armor (via Inventory)"
-  STR_INVENTORY_AVATAR: "Change Avatar (via Inventory)"
+  STR_INVENTORY_ARMOR: "Change Armor"
+  STR_INVENTORY_AVATAR: "Change Avatar"
   STR_ACTION_ITEM_1: "Item Action 1 (Aim/Use)"
   STR_ACTION_ITEM_2: "Item Action 2 (Snap)"
   STR_ACTION_ITEM_3: "Item Action 3 (Auto)"
@@ -309,6 +315,12 @@ en-US:
   STR_TOGGLE_NIGHT_VISION: "Toggle Night Vision"
   STR_HOLD_NIGHT_VISION: "Short Night Vision"
   STR_SELECT_MUSIC_TRACK: "Select Music Track"
+#===================
+  STR_TOGGLE_TOUCH_BUTTONS: "Toggle Touch Buttons"
+  STR_TOGGLE_BRIGHTNESS: "Toggle Brightness (visual only)"
+  STR_BRIEFING: "Briefing"
+  STR_TOGGLE_DEBUG_MODE: "Toggle Debug Mode"
+  STR_DEBUG_KILL_ALL_ALIENS: "DEBUG: Kill All Aliens"
 #=================== Geoscape ===================
 #AllocateTrainingState.cpp
   STR_PHYSICAL_TRAINING: "Martial Training"
@@ -347,6 +359,8 @@ en-US:
   STR_TRACTOR_BEAM_DISENGAGED: "DISENGAGING TRACTOR BEAM"
   STR_SELF_DESTRUCT_ACTIVATED: "SELF-DESTRUCT ACTIVATED!"
   STR_SELF_DESTRUCT_CANCELLED: "SELF-DESTRUCT CANCELLED"
+#ExtendedGeoscapeLinksState.cpp
+  STR_EXTENDED_LINKS: "Links"
 #GeoscapeCraftState.cpp
   STR_AUTO_PATROL: "AUTO-PATROL"
 #GeoscapeState.cpp
@@ -354,6 +368,7 @@ en-US:
   STR_CRAFT_IS_READY: "{0} at {1} is ready."
   STR_ECONOMY_WARNING: "The funds {0} and income {1} are low and the maintenance {2} too high! Sell something to avoid taking a credit... funds missing: {3}"
   STR_SLACKING_INDICATOR: "{0}:{1}"
+  STR_EXTENDED_UC: "EXTENDED"
 #InterceptState.cpp
   STR_RETURNING: "RETURNING"
   STR_INTERCEPTING: "INTERCEPTING"

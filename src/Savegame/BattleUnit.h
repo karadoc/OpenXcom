@@ -212,6 +212,10 @@ public:
 	YAML::Node save(const ScriptGlobal *shared) const;
 	/// Gets the BattleUnit's ID.
 	int getId() const;
+	/// Calculates the distance squared between the unit and a given position.
+	int distance3dToPositionSq(const Position& pos) const;
+	/// Calculates the distance squared between the unit and a given other unit.
+	int distance3dToUnitSq(BattleUnit* otherUnit) const;
 	/// Sets the unit's position
 	void setPosition(Position pos, bool updateLastPos = true);
 	/// Gets the unit's position.
@@ -315,6 +319,9 @@ public:
 	bool isOut() const;
 	/// Check if unit stats will cause knock out.
 	bool isOutThresholdExceed() const;
+	/// Unit is removed from game.
+	bool isIgnored() const;
+
 	/// Get the number of time units a certain action takes.
 	RuleItemUseCost getActionTUs(BattleActionType actionType, const BattleItem *item) const;
 	/// Get the number of time units a certain action takes.
@@ -647,14 +654,20 @@ public:
 	MovementType getMovementType() const;
 	/// Gets the turn cost.
 	int getTurnCost() const;
+
 	/// Create special weapon for unit.
-	void setSpecialWeapon(SavedBattleGame *save);
+	void setSpecialWeapon(SavedBattleGame *save, bool updateFromSave);
+	/// Add/assign a special weapon loaded from a save.
+	void addLoadedSpecialWeapon(BattleItem* item);
+	/// Remove all special weapons.
+	void removeSpecialWeapons(SavedBattleGame *save);
 	/// Get special weapon by battle type.
 	BattleItem *getSpecialWeapon(BattleType type) const;
 	/// Get special weapon by name.
 	BattleItem *getSpecialWeapon(const RuleItem *weaponRule) const;
 	/// Gets special weapon that uses an icon, if any.
 	BattleItem *getSpecialIconWeapon(BattleType &type) const;
+
 	/// Checks if this unit is in hiding for a turn.
 	bool isHiding() const {return _hidingForTurn; };
 	/// Sets this unit is in hiding for a turn (or not).

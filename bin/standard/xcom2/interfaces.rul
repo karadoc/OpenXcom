@@ -49,6 +49,10 @@ interfaces: #done
         color: 1
       - id: button2
         color: 1
+      - id: list
+        color: 1
+        color2: 239
+        border: 1
   - type: newGameMenu
     backgroundImage: BACK01.SCR
     elements:
@@ -829,6 +833,17 @@ interfaces: #done
         color2: 244
       - id: button
         color: 1
+  - type: oxceLinks
+    backgroundImage: BACK01.SCR
+    elements:
+      - id: palette
+        color: 4
+      - id: window
+        color: 1
+      - id: text
+        color: 1
+      - id: button
+        color: 1
   - type: geoscapeEvent
     elements:
       - id: palette
@@ -1181,18 +1196,6 @@ interfaces: #done
       - id: text
         color: 1
         color2: 81
-  - type: changeHeadquarters
-    backgroundImage: BACK13.SCR
-    palette: PAL_BASESCAPE
-    elements:
-      - id: palette
-        color: 6     # oxide
-      - id: window
-        color: 1
-      - id: button
-        color: 1
-      - id: text
-        color: 1
   - type: manufactureMenu
     backgroundImage: BACK17.SCR
     elements:
@@ -2076,6 +2079,8 @@ interfaces: #done
       - id: buttonCreate
         TFTDMode: true
       - id: buttonApply
+        TFTDMode: true
+      - id: buttonLinks
         TFTDMode: true
       # required
       - id: textSlots

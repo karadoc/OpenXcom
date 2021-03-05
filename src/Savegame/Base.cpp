@@ -127,7 +127,7 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 		if (_mod->getCraft(type))
 		{
 			Craft *c = new Craft(_mod->getCraft(type), this);
-			c->load(*i, _mod, save);
+			c->load(*i, _mod->getScriptGlobal(), _mod, save);
 			_crafts.push_back(c);
 		}
 		else
@@ -332,7 +332,7 @@ YAML::Node Base::save() const
 	}
 	for (std::vector<Craft*>::const_iterator i = _crafts.begin(); i != _crafts.end(); ++i)
 	{
-		node["crafts"].push_back((*i)->save());
+		node["crafts"].push_back((*i)->save(_mod->getScriptGlobal()));
 	}
 	node["items"] = _items->save();
 	node["scientists"] = _scientists;
@@ -783,9 +783,9 @@ int Base::getAvailableQuarters() const
  * and equipment about to arrive.
  * @return Storage space.
  */
-double Base::getUsedStores() const
+double Base::getUsedStores(bool excludeNormalItems) const
 {
-	double total = _items->getTotalSize(_mod);
+	double total = excludeNormalItems ? 0.0 : _items->getTotalSize(_mod);
 	for (std::vector<Craft*>::const_iterator i = _crafts.begin(); i != _crafts.end(); ++i)
 	{
 		total += (*i)->getTotalItemStorageSize(_mod);
@@ -822,24 +822,12 @@ bool Base::storesOverfull(double offset) const
 }
 
 /**
- * Checks if the base's stores are so full that even crafts cargo can't fit.
+ * Checks if the base's stores are so full that even craft equipment and incoming transfers can't fit.
  */
 bool Base::storesOverfullCritical() const
 {
 	int capacity = getAvailableStores() * 100;
-	double total = 0;
-	for (std::vector<Craft*>::const_iterator i = _crafts.begin(); i != _crafts.end(); ++i)
-	{
-		total += (*i)->getTotalItemStorageSize(_mod);
-	}
-	for (std::vector<Transfer*>::const_iterator i = _transfers.begin(); i != _transfers.end(); ++i)
-	{
-		if ((*i)->getType() == TRANSFER_CRAFT)
-		{
-			Craft *craft = (*i)->getCraft();
-			total += craft->getTotalItemStorageSize(_mod);
-		}
-	}
+	double total = getUsedStores(true);
 	int used = total * 100;
 	return used > capacity;
 }

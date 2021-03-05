@@ -23,6 +23,7 @@
 #include "../Engine/Language.h"
 #include "../Engine/LocalizedText.h"
 #include "../Engine/Options.h"
+#include "../Engine/ScriptBind.h"
 #include "../Interface/ComboBox.h"
 #include "../Interface/Text.h"
 #include "../Interface/TextButton.h"
@@ -295,9 +296,7 @@ void StatsForNerdsState::btnRefreshClick(Action *)
  */
 void StatsForNerdsState::btnOkClick(Action *)
 {
-	bool ctrlPressed = SDL_GetModState() & KMOD_CTRL;
-
-	if (ctrlPressed)
+	if (_game->isCtrlPressed())
 	{
 		Log(LOG_INFO) << _txtArticle->getText();
 		for (size_t row = 0; row < _lstRawData->getTexts(); ++row)
@@ -651,6 +650,37 @@ void StatsForNerdsState::addScriptTags(std::ostringstream &ss, const ScriptValue
 		auto nameAsString = tagNames.values[i].name.toString().substr(4);
 		addIntegerScriptTag(ss, tagValues.at(i), nameAsString);
 	}
+}
+
+void StatsForNerdsState::addIntegerScript(const std::string &propertyName, const int &value)
+{
+	_lstRawData->addRow(2, trp(propertyName).c_str(), std::to_string(value).c_str());
+	_lstRawData->setCellColor(_lstRawData->getLastRowIndex(), 1, _pink);
+	++_counter;
+}
+
+void StatsForNerdsState::addTextScript(const std::string &propertyName, const std::string &value)
+{
+	auto text = _showDebug ? value : std::string(tr(value));
+	_lstRawData->addRow(2, trp(propertyName).c_str(), text.c_str());
+	_lstRawData->setCellColor(_lstRawData->getLastRowIndex(), 1, _pink);
+	++_counter;
+}
+
+void StatsForNerdsState::addTextFormat1Script(const std::string &propertyName, const std::string &format, const int &value1)
+{
+	auto text = tr(format).arg(value1);
+	_lstRawData->addRow(2, trp(propertyName).c_str(), text.c_str());
+	_lstRawData->setCellColor(_lstRawData->getLastRowIndex(), 1, _pink);
+	++_counter;
+}
+
+void StatsForNerdsState::addTextFormat2Script(const std::string &propertyName, const std::string &format, const int &value1, const int &value2)
+{
+	auto text = tr(format).arg(value1).arg(value2);
+	_lstRawData->addRow(2, trp(propertyName).c_str(), text.c_str());
+	_lstRawData->setCellColor(_lstRawData->getLastRowIndex(), 1, _pink);
+	++_counter;
 }
 
 /**
@@ -1780,6 +1810,7 @@ void StatsForNerdsState::initItemList()
 	addHeading("confAimed");
 	{
 		addInteger(ss, itemRule->getConfigAimed()->shots, "shots", 1);
+		addInteger(ss, itemRule->getConfigAimed()->spendPerShot, "spendPerShot", 1);
 		addBoolean(ss, itemRule->getConfigAimed()->followProjectiles, "followProjectiles", true);
 		addSingleString(ss, itemRule->getConfigAimed()->name, "name", "STR_AIMED_SHOT");
 		addInteger(ss, itemRule->getConfigAimed()->ammoSlot, "ammoSlot");
@@ -1790,6 +1821,7 @@ void StatsForNerdsState::initItemList()
 	addHeading("confAuto");
 	{
 		addInteger(ss, itemRule->getConfigAuto()->shots, "shots", 3);
+		addInteger(ss, itemRule->getConfigAuto()->spendPerShot, "spendPerShot", 1);
 		addBoolean(ss, itemRule->getConfigAuto()->followProjectiles, "followProjectiles", true);
 		addSingleString(ss, itemRule->getConfigAuto()->name, "name", "STR_AUTO_SHOT");
 		addInteger(ss, itemRule->getConfigAuto()->ammoSlot, "ammoSlot");
@@ -1800,6 +1832,7 @@ void StatsForNerdsState::initItemList()
 	addHeading("confSnap");
 	{
 		addInteger(ss, itemRule->getConfigSnap()->shots, "shots", 1);
+		addInteger(ss, itemRule->getConfigSnap()->spendPerShot, "spendPerShot", 1);
 		addBoolean(ss, itemRule->getConfigSnap()->followProjectiles, "followProjectiles", true);
 		addSingleString(ss, itemRule->getConfigSnap()->name, "name", "STR_SNAP_SHOT");
 		addInteger(ss, itemRule->getConfigSnap()->ammoSlot, "ammoSlot");
@@ -1810,6 +1843,7 @@ void StatsForNerdsState::initItemList()
 	addHeading("confMelee");
 	{
 		addInteger(ss, itemRule->getConfigMelee()->shots, "shots", 1);
+		addInteger(ss, itemRule->getConfigMelee()->spendPerShot, "spendPerShot", 1);
 		addBoolean(ss, itemRule->getConfigMelee()->followProjectiles, "followProjectiles", true);
 		addSingleString(ss, itemRule->getConfigMelee()->name, "name");
 		int ammoSlotCurrent = itemRule->getConfigMelee()->ammoSlot;
@@ -1892,10 +1926,25 @@ void StatsForNerdsState::initItemList()
 
 	addDouble(ss, itemRule->getSize(), "size");
 	addInteger(ss, itemRule->getBuyCost(), "costBuy", 0, true);
-	addInteger(ss, itemRule->getSellCost(), "costSell", 0, true);
 	addInteger(ss, itemRule->getTransferTime(), "transferTime", 24);
 	addInteger(ss, itemRule->getMonthlySalary(), "monthlySalary", 0, true);
 	addInteger(ss, itemRule->getMonthlyMaintenance(), "monthlyMaintenance", 0, true);
+	if (_game->getSavedGame()->getSellPriceCoefficient() == 100)
+	{
+		addInteger(ss, itemRule->getSellCost(), "costSell", 0, true);
+	}
+	else
+	{
+		addHeading("_calculatedValues", "STR_FOR_DIFFICULTY", true);
+		{
+			int adjustedCost = itemRule->getSellCost() * _game->getSavedGame()->getSellPriceCoefficient() / 100;
+			addInteger(ss, adjustedCost, "costSell", 0, true);
+
+			endHeading();
+		}
+	}
+
+	ModScript::scriptCallback<ModScript::StatsForNerdsItem>(itemRule, itemRule, this, _game->getSavedGame());
 
 	if (_showDebug)
 	{
@@ -2002,11 +2051,17 @@ void StatsForNerdsState::initItemList()
 
 		addSection("{Animations}", "", _white);
 		addInteger(ss, itemRule->getHitAnimation(), "hitAnimation");
+		addInteger(ss, itemRule->getHitAnimationFrames(), "hitAnimFrames", -1);
 		addInteger(ss, itemRule->getHitMissAnimation(), "hitMissAnimation", -1);
+		addInteger(ss, itemRule->getHitMissAnimationFrames(), "hitMissAnimFrames", -1);
 		addInteger(ss, itemRule->getMeleeAnimation(), "meleeAnimation");
+		addInteger(ss, itemRule->getMeleeAnimationFrames(), "meleeAnimFrames", -1);
 		addInteger(ss, itemRule->getMeleeMissAnimation(), "meleeMissAnimation", -1);
+		addInteger(ss, itemRule->getMeleeMissAnimationFrames(), "meleeMissAnimFrames", -1);
 		addInteger(ss, itemRule->getPsiAnimation(), "psiAnimation", -1);
+		addInteger(ss, itemRule->getPsiAnimationFrames(), "psiAnimFrames", -1);
 		addInteger(ss, itemRule->getPsiMissAnimation(), "psiMissAnimation", -1);
+		addInteger(ss, itemRule->getPsiMissAnimationFrames(), "psiMissAnimFrames", -1);
 
 		addInteger(ss, itemRule->getBulletSpeed(), "bulletSpeed");
 		addInteger(ss, itemRule->getExplosionSpeed(), "explosionSpeed");
@@ -2405,6 +2460,8 @@ void StatsForNerdsState::initArmorList()
 
 	addVectorOfRules(ss, armorRule->getUnits(), "units");
 
+	ModScript::scriptCallback<ModScript::StatsForNerdsArmor>(armorRule, armorRule, this, _game->getSavedGame());
+
 	if (_showDebug)
 	{
 		addSection("{Modding section}", "You don't need this info as a player", _white, true);
@@ -2478,6 +2535,7 @@ void StatsForNerdsState::initArmorList()
 		addInteger(ss, armorRule->getKneelHeight(), "kneelHeight", -1);
 		addInteger(ss, armorRule->getFloatHeight(), "floatHeight", -1);
 		addFloat(ss, armorRule->getOverKill(), "overKill", 0.5f);
+		addBoolean(ss, armorRule->isPilotArmor(), "isPilotArmor");
 		addBoolean(ss, armorRule->getAllowTwoMainWeapons(), "allowTwoMainWeapons");
 		addBoolean(ss, armorRule->getInstantWoundRecovery(), "instantWoundRecovery");
 
@@ -2540,10 +2598,13 @@ void StatsForNerdsState::initSoldierBonusList()
 		endHeading();
 	}
 
-	addSection("{Script tags}", "", _white, true);
+	if (_showDebug)
 	{
-		addScriptTags(ss, bonusRule->getScriptValuesRaw());
-		endHeading();
+		addSection("{Script tags}", "", _white, true);
+		{
+			addScriptTags(ss, bonusRule->getScriptValuesRaw());
+			endHeading();
+		}
 	}
 }
 
@@ -2820,6 +2881,26 @@ void StatsForNerdsState::initCraftList()
 	}
 	addVectorOfStrings(ss, tmp, "weaponStrings");
 
+	// fixedWeapons
+	modded = false;
+	for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+	{
+		if (!craftRule->getFixedWeaponInSlot(i).empty())
+		{
+			modded = true;
+			break;
+		}
+	}
+	tmp.clear();
+	if (modded)
+	{
+		for (int i = 0; i < RuleCraft::WeaponMax; ++i)
+		{
+			tmp.push_back(craftRule->getFixedWeaponInSlot(i));
+		}
+	}
+	addVectorOfStrings(ss, tmp, "fixedWeapons");
+
 	// weaponTypes
 	modded = false;
 	for (int i = 0; i < RuleCraft::WeaponMax; ++i)
@@ -2906,6 +2987,8 @@ void StatsForNerdsState::initCraftList()
 		endHeading();
 	}
 
+	ModScript::scriptCallback<ModScript::StatsForNerdsCraft>(craftRule, craftRule, this, _game->getSavedGame());
+
 	if (_showDebug)
 	{
 		addSection("{Modding section}", "You don't need this info as a player", _white, true);
@@ -2945,6 +3028,12 @@ void StatsForNerdsState::initCraftList()
 				}
 				endHeading();
 			}
+		}
+
+		addSection("{Script tags}", "", _white, true);
+		{
+			addScriptTags(ss, craftRule->getScriptValuesRaw());
+			endHeading();
 		}
 	}
 }
@@ -3122,6 +3211,8 @@ void StatsForNerdsState::initUfoList()
 		}
 	}
 
+	ModScript::scriptCallback<ModScript::StatsForNerdsUfo>(ufoRule, ufoRule, this, _game->getSavedGame());
+
 	if (_showDebug)
 	{
 		addSection("{Modding section}", "You don't need this info as a player", _white, true);
@@ -3158,12 +3249,12 @@ void StatsForNerdsState::initUfoList()
 		tmpSoundVector.clear();
 		tmpSoundVector.push_back(ufoRule->getHuntAlertSound());
 		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
-	}
 
-	addSection("{Script tags}", "", _white, true);
-	{
-		addScriptTags(ss, ufoRule->getScriptValuesRaw());
-		endHeading();
+		addSection("{Script tags}", "", _white, true);
+		{
+			addScriptTags(ss, ufoRule->getScriptValuesRaw());
+			endHeading();
+		}
 	}
 }
 
@@ -3272,5 +3363,87 @@ void StatsForNerdsState::initCraftWeaponList()
 		addSoundVectorResourcePaths(ss, mod, "GEO.CAT", tmpSoundVector);
 	}
 }
+
+
+////////////////////////////////////////////////////////////
+//					Script binding
+////////////////////////////////////////////////////////////
+
+namespace
+{
+
+std::string debugDisplayScript(const StatsForNerdsState* sfn)
+{
+	if (sfn)
+	{
+		std::string s;
+		s += StatsForNerdsState::ScriptName;
+		s += "(typeId: ";
+		s += std::to_string((int)sfn->getTypeId());
+		s += " topicId: \"";
+		s += sfn->getTopicId();
+		s += "\")";
+		return s;
+	}
+	else
+	{
+		return "null";
+	}
+}
+
+} // namespace
+
+
+/**
+ * Register object in script parser.
+ * @param parser Script parser.
+ */
+void StatsForNerdsState::ScriptRegister(ScriptParserBase* parser)
+{
+	parser->registerPointerType<Mod>();
+	parser->registerPointerType<SavedGame>();
+
+	Bind<StatsForNerdsState> b = { parser };
+
+	b.add<&StatsForNerdsState::addIntegerScript>("addIntRow", "add new row with first argunemt as name and second argumet as value");
+	b.add<&StatsForNerdsState::addTextScript>("addTextRow", "add new row with first argunemt as name and second argumet as text value to translate");
+	b.add<&StatsForNerdsState::addTextFormat1Script>("addTextFormatRow", "add new row with first argunemt as name and second argumet as text format with one argument");
+	b.add<&StatsForNerdsState::addTextFormat2Script>("addTextFormatRow", "add new row with first argunemt as name and second argumet as text format with two arguments");
+
+	b.addDebugDisplay<&debugDisplayScript>();
+}
+
+ModScript::StatsForNerdsItemParser::StatsForNerdsItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"rule", "stats_state", "geoscape_game" }
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+}
+
+ModScript::StatsForNerdsArmorParser::StatsForNerdsArmorParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"rule", "stats_state", "geoscape_game" }
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+}
+
+ModScript::StatsForNerdsCraftParser::StatsForNerdsCraftParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"rule", "stats_state", "geoscape_game" }
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+}
+
+ModScript::StatsForNerdsUfoParser::StatsForNerdsUfoParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"rule", "stats_state", "geoscape_game" }
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+}
+
 
 }

@@ -54,7 +54,8 @@ const double Game::VOLUME_GRADIENT = 10.0;
  * creates the display screen and sets up the cursor.
  * @param title Title of the game window.
  */
-Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0), _mod(0), _quit(false), _init(false), _update(false),  _mouseActive(true), _timeUntilNextFrame(0)
+Game::Game(const std::string &title) : _screen(0), _cursor(0), _lang(0), _save(0), _mod(0), _quit(false), _init(false), _update(false),  _mouseActive(true), _timeUntilNextFrame(0),
+	_ctrl(false), _alt(false), _shift(false), _rmb(false), _mmb(false)
 {
 	Options::reload = false;
 	Options::mute = false;
@@ -255,13 +256,13 @@ void Game::run()
 					if (action.getDetails()->type == SDL_KEYDOWN)
 					{
 						// "ctrl-g" grab input
-						if (action.getDetails()->key.keysym.sym == SDLK_g && (SDL_GetModState() & KMOD_CTRL) != 0)
+						if (action.getDetails()->key.keysym.sym == SDLK_g && isCtrlPressed())
 						{
 							Options::captureMouse = (SDL_GrabMode)(!Options::captureMouse);
 							SDL_WM_GrabInput(Options::captureMouse);
 						}
 						// "ctrl-n" notes UI
-						else if (action.getDetails()->key.keysym.sym == SDLK_n && (SDL_GetModState() & KMOD_CTRL) != 0)
+						else if (action.getDetails()->key.keysym.sym == SDLK_n && isCtrlPressed())
 						{
 							if (_save)
 							{
@@ -280,12 +281,12 @@ void Game::run()
 						}
 						else if (Options::debug)
 						{
-							if (action.getDetails()->key.keysym.sym == SDLK_t && (SDL_GetModState() & KMOD_CTRL) != 0)
+							if (action.getDetails()->key.keysym.sym == SDLK_t && isCtrlPressed())
 							{
 								pushState(new TestState);
 							}
 							// "ctrl-u" debug UI
-							else if (action.getDetails()->key.keysym.sym == SDLK_u && (SDL_GetModState() & KMOD_CTRL) != 0)
+							else if (action.getDetails()->key.keysym.sym == SDLK_u && isCtrlPressed())
 							{
 								Options::debugUi = !Options::debugUi;
 								_states.back()->redrawText();
@@ -528,14 +529,14 @@ void Game::loadLanguages()
 		std::string locale = CrossPlatform::getLocale();
 		std::string lang = locale.substr(0, locale.find_first_of('-'));
 		// Try to load full locale
-		if (FileMap::fileExists("Language/" + locale + ".yml"))
+		if (Language::isSupported(locale) && FileMap::fileExists("Language/" + locale + ".yml"))
 		{
 			currentLang = locale;
 		}
 		else
 		{
 			// Try to load language locale
-			if (FileMap::fileExists("Language/" + lang + ".yml"))
+			if (Language::isSupported(lang) && FileMap::fileExists("Language/" + lang + ".yml"))
 			{
 				currentLang = lang;
 			}
@@ -643,6 +644,90 @@ void Game::initAudio()
 		Log(LOG_INFO) << "SDL_mixer initialized successfully.";
 		setVolume(Options::soundVolume, Options::musicVolume, Options::uiVolume);
 	}
+}
+
+/**
+ * Is CTRL pressed?
+ */
+bool Game::isCtrlPressed(bool considerTouchButtons) const
+{
+	if (considerTouchButtons && _ctrl)
+	{
+		return true;
+	}
+	return (SDL_GetModState() & KMOD_CTRL) != 0;
+}
+
+/**
+ * Is ALT pressed?
+ */
+bool Game::isAltPressed(bool considerTouchButtons) const
+{
+	if (considerTouchButtons && _alt)
+	{
+		return true;
+	}
+	return (SDL_GetModState() & KMOD_ALT) != 0;
+}
+
+/**
+ * Is SHIFT pressed?
+ */
+bool Game::isShiftPressed(bool considerTouchButtons) const
+{
+	if (considerTouchButtons && _shift)
+	{
+		return true;
+	}
+	return (SDL_GetModState() & KMOD_SHIFT) != 0;
+}
+
+/**
+ * Is LMB pressed?
+ */
+bool Game::isLeftClick(Action* action, bool considerTouchButtons) const
+{
+	if (considerTouchButtons)
+	{
+		return (action->getDetails()->button.button == SDL_BUTTON_LEFT) && !_rmb && !_mmb;
+	}
+	return (action->getDetails()->button.button == SDL_BUTTON_LEFT);
+}
+
+/**
+ * Is RMB pressed?
+ */
+bool Game::isRightClick(Action* action, bool considerTouchButtons) const
+{
+	if (considerTouchButtons)
+	{
+		return (action->getDetails()->button.button == SDL_BUTTON_RIGHT) || ((action->getDetails()->button.button == SDL_BUTTON_LEFT) && _rmb);
+	}
+	return (action->getDetails()->button.button == SDL_BUTTON_RIGHT);
+}
+
+/**
+ * Is MMB pressed?
+ */
+bool Game::isMiddleClick(Action* action, bool considerTouchButtons) const
+{
+	if (considerTouchButtons)
+	{
+		return (action->getDetails()->button.button == SDL_BUTTON_MIDDLE) || ((action->getDetails()->button.button == SDL_BUTTON_LEFT) && _mmb);
+	}
+	return (action->getDetails()->button.button == SDL_BUTTON_MIDDLE);
+}
+
+/**
+ * Resets the touch button flags.
+ */
+void Game::resetTouchButtonFlags()
+{
+	_ctrl = false;
+	_alt = false;
+	_shift = false;
+	_rmb = false;
+	_mmb = false;
 }
 
 }

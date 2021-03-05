@@ -236,6 +236,18 @@ void BattlescapeGenerator::setMissionSite(MissionSite *mission)
  */
 void BattlescapeGenerator::nextStage()
 {
+	// check if the unit is available in the next stage
+	auto isUnitStillActive = [](const BattleUnit* u)
+	{
+		return !u->isOut() || u->getStatus() == STATUS_UNCONSCIOUS;
+	};
+	// check if the unit is on the exit tile
+	auto isInExit = [s = _save](const BattleUnit* u)
+	{
+		Tile *tmpTile = s->getTile(u->getPosition());
+		return u->isInExitArea(END_POINT) || u->liesInExitArea(tmpTile, END_POINT);
+	};
+
 	// preventively drop all units from soldier's inventory (makes handling easier)
 	// 1. no alien/civilian living, dead or unconscious is allowed to transition
 	// 2. no dead xcom unit is allowed to transition
@@ -284,13 +296,10 @@ void BattlescapeGenerator::nextStage()
 		(*i)->clearVisibleUnits();
 		(*i)->clearVisibleTiles();
 
-		Tile *tmpTile = _save->getTile((*i)->getPosition());
-		bool isInExit = (*i)->isInExitArea(END_POINT) || (*i)->liesInExitArea(tmpTile, END_POINT);
-
 		if ((*i)->getStatus() != STATUS_DEAD                              // if they're not dead
 			&& (((*i)->getOriginalFaction() == FACTION_PLAYER               // and they're a soldier
 			&& _save->isAborted()											  // and you aborted
-			&& !isInExit)                                                     // and they're not on the exit
+			&& !isInExit((*i)))                                                     // and they're not on the exit
 			|| (*i)->getOriginalFaction() != FACTION_PLAYER))               // or they're not a soldier
 		{
 			if ((*i)->getOriginalFaction() == FACTION_HOSTILE && !(*i)->isOut())
@@ -322,7 +331,17 @@ void BattlescapeGenerator::nextStage()
 	// this does not include items in your soldier's hands.
 	std::vector<BattleItem*> *takeHomeGuaranteed = _save->getGuaranteedRecoveredItems();
 	std::vector<BattleItem*> *takeHomeConditional = _save->getConditionalRecoveredItems();
-	std::vector<BattleItem*> takeToNextStage, carryToNextStage, removeFromGame;
+	std::vector<BattleItem*> takeToNextStage, carryToNextStage, removeFromGame, dummyForSpecialWeaponsRemovedElsewhere;
+
+	bool autowin = false;
+	if (_save->getChronoTrigger() >= FORCE_WIN && _save->getTurn() > _save->getTurnLimit())
+	{
+		autowin = true;
+	}
+
+
+	// this will be `getItems` for next stage, allocate same size plus small buffer for new items
+	carryToNextStage.reserve(_save->getItems()->size() + 16);
 
 	_save->resetTurnCounter();
 
@@ -339,7 +358,7 @@ void BattlescapeGenerator::nextStage()
 				if ((*i)->getFuseTimer() == -1)
 				{
 					// protocol 1: all defenders dead, recover all items.
-					if (aliensAlive == 0)
+					if (aliensAlive == 0 || autowin)
 					{
 						// any corpses or unconscious units get put in the skyranger, as well as any unresearched items
 						if (((*i)->getUnit() &&
@@ -391,10 +410,35 @@ void BattlescapeGenerator::nextStage()
 					}
 				}
 			}
-			// if a soldier is already holding it, let's let him keep it
-			if ((*i)->getOwner() && (*i)->getOwner()->getFaction() == FACTION_PLAYER)
+
+			if ((*i)->isSpecialWeapon())
 			{
-				toContainer = &carryToNextStage;
+				if (isUnitStillActive((*i)->getOwner()))
+				{
+					// the owner of the weapon is still in the game
+					toContainer = &carryToNextStage;
+				}
+				else
+				{
+					// the item will be deleted (moved to the delete list) by the `removeSpecialWeapons` function, skip all operations in this function
+					toContainer = &dummyForSpecialWeaponsRemovedElsewhere;
+				}
+			}
+			else
+			{
+				if ((*i)->isOwnerIgnored())
+				{
+					// the unit was set to "timeout" in a previous stage or in this stage
+					// in both cases we propagate this item to the next stage even if it will not be accessible
+					// "timeout" aliens should have their inventory purged already
+					toContainer = &carryToNextStage;
+				}
+				else if ((*i)->getOwner() && (*i)->getOwner()->getFaction() == FACTION_PLAYER)
+				{
+					// if a soldier is already holding it, let's let him keep it
+					toContainer = &carryToNextStage;
+					// Note: if a soldier is recovered at the end, his items will be recovered with him (regardless of whether that soldier was in timeout at the end or not)
+				}
 			}
 
 			// at this point, we know what happens with the item, so let's apply it to any ammo as well.
@@ -414,6 +458,15 @@ void BattlescapeGenerator::nextStage()
 		}
 	}
 
+	// remove special weapons
+	for (auto* unit : *_save->getUnits())
+	{
+		if (!isUnitStillActive(unit))
+		{
+			unit->removeSpecialWeapons(_save);
+		}
+	}
+
 	// anything in the "removeFromGame" vector will now be discarded - they're all dead to us now.
 	for (std::vector<BattleItem*>::iterator i = removeFromGame.begin(); i != removeFromGame.end();++i)
 	{
@@ -423,17 +476,11 @@ void BattlescapeGenerator::nextStage()
 		delete *i;
 	}
 
-	// empty the items vector
-	_save->getItems()->clear();
-
 	// rebuild it with only the items we want to keep active in battle for the next stage
 	// here we add all the items that our soldiers are carrying, and we'll add the items on the
 	// inventory tile after we've generated our map. everything else will either be in one of the
 	// recovery arrays, or deleted from existence at this point.
-	for (std::vector<BattleItem*>::iterator i = carryToNextStage.begin(); i != carryToNextStage.end();++i)
-	{
-		_save->getItems()->push_back(*i);
-	}
+	std::swap(*_save->getItems(), carryToNextStage);
 
 	_alienCustomDeploy = _game->getMod()->getDeployment(_save->getAlienCustomDeploy());
 	_alienCustomMission = _game->getMod()->getDeployment(_save->getAlienCustomMission());
@@ -480,6 +527,10 @@ void BattlescapeGenerator::nextStage()
 					(*j)->getGeoscapeSoldier()->setArmor(transformedArmor);
 					// change battleunit's armor
 					(*j)->updateArmorFromSoldier(_game->getMod(), (*j)->getGeoscapeSoldier(), transformedArmor, _save->getDepth());
+					// remove old special built-in weapons and replace them with new fresh special built-in weapons
+					// TODO? if this was a limited-use weapon, it will have full ammo again!
+					(*j)->removeSpecialWeapons(_save);
+					(*j)->setSpecialWeapon(_save, false);
 				}
 			}
 		}
@@ -1067,6 +1118,9 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 		placeItemByLayout(i, tempItemList);
 	}
 
+	// load fixed weapons based on equipment layout
+	reloadFixedWeaponsByLayout();
+
 	// refresh list
 	tempItemList = *_craftInventoryTile->getInventory();
 
@@ -1098,6 +1152,12 @@ void BattlescapeGenerator::autoEquip(std::vector<BattleUnit*> units, Mod *mod, s
 	{
 		for (std::vector<BattleItem*>::iterator j = craftInv->begin(); j != craftInv->end();)
 		{
+			if ((*j)->getRules()->getInventoryHeight() == 0 || (*j)->getRules()->getInventoryWidth() == 0)
+			{
+				// don't autoequip hidden items, whatever they are
+				++j;
+				continue;
+			}
 			if ((*j)->getSlot() == groundRuleInv)
 			{
 				bool add = false;
@@ -1551,6 +1611,9 @@ bool BattlescapeGenerator::placeItemByLayout(BattleItem *item, const std::vector
 			// find the first matching layout-slot which is not already occupied
 			for (auto layoutItem : *unit->getGeoscapeSoldier()->getEquipmentLayout())
 			{
+				// fixed items will be handled elsewhere
+				if (layoutItem->isFixed()) continue;
+
 				if (itemType != layoutItem->getItemType()) continue;
 
 				auto inventorySlot = _game->getMod()->getInventory(layoutItem->getSlot(), true);
@@ -1623,6 +1686,80 @@ bool BattlescapeGenerator::placeItemByLayout(BattleItem *item, const std::vector
 		}
 	}
 	return false;
+}
+
+/**
+ * Reloads fixed weapons on XCom soldiers based on equipment layout.
+ */
+void BattlescapeGenerator::reloadFixedWeaponsByLayout()
+{
+	// go through all soldiers
+	for (auto unit : *_save->getUnits())
+	{
+		// skip the vehicles, we need only X-Com soldiers WITH equipment-layout
+		if (!unit->getGeoscapeSoldier() || unit->getGeoscapeSoldier()->getEquipmentLayout()->empty())
+		{
+			continue;
+		}
+
+		// find fixed weapons in the layout
+		for (auto layoutItem : *unit->getGeoscapeSoldier()->getEquipmentLayout())
+		{
+			if (layoutItem->isFixed() == false) continue;
+
+			// find matching fixed weapon in the inventory
+			BattleItem* fixedItem = nullptr;
+			for (auto item : *unit->getInventory())
+			{
+				if (item->getSlot()->getId() == layoutItem->getSlot() &&
+					item->getSlotX() == layoutItem->getSlotX() &&
+					item->getSlotY() == layoutItem->getSlotY() &&
+					item->getRules()->getType() == layoutItem->getItemType())
+				{
+					fixedItem = item;
+					break;
+				}
+			}
+			if (!fixedItem) continue;
+
+			auto toLoad = 0;
+			for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
+			{
+				if (layoutItem->getAmmoItemForSlot(slot) != "NONE")
+				{
+					++toLoad;
+				}
+			}
+
+			if (toLoad)
+			{
+				// maybe we find the layout-ammo on the ground to load it with
+				for (auto ammo : *_craftInventoryTile->getInventory())
+				{
+					if (ammo->getSlot() == _inventorySlotGround)
+					{
+						auto& ammoType = ammo->getRules()->getType();
+						for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
+						{
+							if (ammoType == layoutItem->getAmmoItemForSlot(slot))
+							{
+								if (fixedItem->setAmmoPreMission(ammo))
+								{
+									--toLoad;
+								}
+								// even if item was not loaded other slots can't use it either
+								break;
+							}
+						}
+						if (!toLoad)
+						{
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 /**
@@ -2143,6 +2280,10 @@ void BattlescapeGenerator::loadWeapons(const std::vector<BattleItem*> &itemList)
  */
 void BattlescapeGenerator::generateMap(const std::vector<MapScript*> *script, const std::string &customUfoName)
 {
+	// reset ambient sound
+	_save->setAmbientSound(-1);
+	_save->setAmbienceRandom({});
+
 	// set our ambient sound
 	if (_terrain->getAmbience() != -1)
 	{

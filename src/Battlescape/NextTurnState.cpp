@@ -381,7 +381,7 @@ bool NextTurnState::applyEnvironmentalConditionToFaction(UnitFaction faction, En
 
 		for (std::vector<BattleUnit*>::iterator j = _battleGame->getUnits()->begin(); j != _battleGame->getUnits()->end(); ++j)
 		{
-			if ((*j)->getOriginalFaction() == faction && (*j)->getStatus() != STATUS_DEAD && (*j)->getStatus() != STATUS_IGNORE_ME)
+			if ((*j)->getOriginalFaction() == faction && (*j)->getStatus() != STATUS_DEAD && !(*j)->isIgnored())
 			{
 				if (RNG::percent(condition.chancePerTurn))
 				{
@@ -483,10 +483,16 @@ void NextTurnState::close()
 	{
 		_state->btnCenterClick(0);
 
+		// Try to reactivate the touch buttons at the start of the player's turn
+		if (_battleGame->getSide() == FACTION_PLAYER)
+		{
+			_state->toggleTouchButtons(false, true);
+		}
+
 		// Autosave every set amount of turns
 		if ((_currentTurn == 1 || _currentTurn % Options::autosaveFrequency == 0) && _battleGame->getSide() == FACTION_PLAYER)
 		{
-			_state->autosave();
+			_state->autosave(_currentTurn);
 		}
 	}
 }
@@ -577,7 +583,10 @@ bool NextTurnState::determineReinforcements()
 			}
 			else if (wave.mapBlockFilterType == MFT_BY_REINFORCEMENTS || wave.mapBlockFilterType == MFT_BY_BOTH_UNION || wave.mapBlockFilterType == MFT_BY_BOTH_INTERSECTION)
 			{
-				_compliantBlocksMap.resize((sizeX), std::vector<int>((sizeY), 0)); // start with all false
+				if (wave.spawnBlocks.empty())
+					_compliantBlocksMap.resize((sizeX), std::vector<int>((sizeY), 1)); // start with all true
+				else
+					_compliantBlocksMap.resize((sizeX), std::vector<int>((sizeY), 0)); // start with all false
 			}
 			else //if (wave.mapBlockFilterType == MFT_NONE)
 			{
@@ -687,6 +696,16 @@ bool NextTurnState::determineReinforcements()
 					}
 				}
 			}
+		}
+
+		// synchronize _compliantBlocksList and _compliantBlocksMap
+		{
+			for (int x = 0; x < _battleGame->getMapSizeX() / 10; ++x)
+				for (int y = 0; y < _battleGame->getMapSizeY() / 10; ++y)
+					_compliantBlocksMap[x][y] = 0;
+
+			for (auto& pos : _compliantBlocksList)
+				_compliantBlocksMap[pos.x][pos.y] = 1;
 		}
 
 		// 2b. calculate compliant nodes

@@ -816,6 +816,12 @@ void Tile::addItem(BattleItem *item, RuleInventory *ground)
 	item->setSlot(ground);
 	_inventory.push_back(item);
 	item->setTile(this);
+
+	// Note: floorOb drawing optimisation
+	if (item->getUnit() && _inventory.size() > 1)
+	{
+		std::swap(_inventory.front(), _inventory.back());
+	}
 }
 
 /**
@@ -841,10 +847,23 @@ void Tile::removeItem(BattleItem *item)
  */
 BattleItem* Tile::getTopItem()
 {
+	// Note: floorOb drawing optimisation
+	if (_inventory.size() > 100)
+	{
+		// this tile has a metric ton of junk, it doesn't matter what gets drawn, let's draw it quickly
+		return _inventory.front();
+	}
+
 	int biggestWeight = -1;
 	BattleItem* biggestItem = 0;
 	for (std::vector<BattleItem*>::iterator i = _inventory.begin(); i != _inventory.end(); ++i)
 	{
+		// Note: floorOb drawing optimisation
+		if ((*i)->getUnit())
+		{
+			// any unit has the highest priority (btw. this is still backwards-compatible with both xcom1/xcom2, where corpses are the heaviest items)
+			return *i;
+		}
 		int temp = (*i)->getTotalWeight();
 		if (temp > biggestWeight)
 		{
@@ -1089,6 +1108,16 @@ void getPositionZScript(const Tile *t, int &ret)
 	ret = 0;
 }
 
+void getDistanceTileScript(const Tile *t, int &ret, const Tile *other)
+{
+	ret = t && other ? Position::distance(t->getPosition(), other->getPosition()) : -1;
+}
+
+void getDistanceVoxelScript(const Tile *t, int &ret, const Tile *other)
+{
+	ret = t && other ? Position::distance(t->getPosition().toVoxel(), other->getPosition().toVoxel()) : -1;
+}
+
 void getFloorSpecialTileTypeScript(const Tile *t, int &ret)
 {
 	ret = t ? t->getFloorSpecialTileType() : TILE;
@@ -1111,11 +1140,11 @@ std::string debugDisplayScript(const Tile* t)
 		std::string s;
 		s += Tile::ScriptName;
 		s += "(x: ";
-		s += t->getPosition().x;
+		s += std::to_string(t->getPosition().x);
 		s += " y: ";
-		s += t->getPosition().y;
+		s += std::to_string(t->getPosition().y);
 		s += " z: ";
-		s += t->getPosition().z;
+		s += std::to_string(t->getPosition().z);
 		s += " isVoid: ";
 		s += t->isVoid() ? "true" : "false";
 		if (t->getUnit())
@@ -1149,6 +1178,9 @@ void Tile::ScriptRegister(ScriptParserBase* parser)
 	t.add<&Tile::getShade>("getShade");
 
 	t.add<&getUnitScript>("getUnit");
+
+	t.add<&getDistanceTileScript>("getDistanceTile");
+	t.add<&getDistanceVoxelScript>("getDistanceVoxel");
 
 	t.add<&getFloorSpecialTileTypeScript>("getFloorSpecialTileType");
 	t.add<&getObjectSpecialTileTypeScript>("getObjectSpecialTileType");
