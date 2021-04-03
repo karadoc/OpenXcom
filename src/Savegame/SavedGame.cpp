@@ -65,6 +65,7 @@
 #include "MissionStatistics.h"
 #include "SoldierDeath.h"
 #include "SoldierDiary.h"
+#include "../Mod/AlienRace.h"
 
 namespace OpenXcom
 {
@@ -2476,40 +2477,47 @@ bool SavedGame::getDebugMode() const
 	return _debug;
 }
 
-/** @brief Match a mission based on region and type.
- * This function object will match alien missions based on region and type.
- */
-class matchRegionAndType
-{
-	typedef AlienMission* argument_type;
-	typedef bool result_type;
-
-public:
-	/// Store the region and type.
-	matchRegionAndType(const std::string &region, MissionObjective objective) : _region(region), _objective(objective) { }
-	/// Match against stored values.
-	bool operator()(const AlienMission *mis) const
-	{
-		return mis->getRegion() == _region && mis->getRules().getObjective() == _objective;
-	}
-private:
-
-	const std::string &_region;
-	MissionObjective _objective;
-};
-
 /**
  * Find a mission type in the active alien missions.
  * @param region The region string ID.
  * @param objective The active mission objective.
+ * @param race The alien race used for more specific search (by type instead of objective). Optional.
  * @return A pointer to the mission, or 0 if no mission matched.
  */
-AlienMission *SavedGame::findAlienMission(const std::string &region, MissionObjective objective) const
+AlienMission *SavedGame::findAlienMission(const std::string &region, MissionObjective objective, AlienRace* race) const
 {
-	std::vector<AlienMission*>::const_iterator ii = std::find_if(_activeMissions.begin(), _activeMissions.end(), matchRegionAndType(region, objective));
-	if (ii == _activeMissions.end())
-		return 0;
-	return *ii;
+	if (race)
+	{
+		auto* retalWeights = race->retaliationMissionWeights(_monthsPassed);
+		if (retalWeights)
+		{
+			auto retalNames = retalWeights->getNames();
+			if (!retalNames.empty())
+			{
+				// if we made it this far, search by type and region
+				for (auto& missionType : retalNames)
+				{
+					for (auto* mission : _activeMissions)
+					{
+						if (mission->getRules().getType() == missionType && mission->getRegion() == region)
+						{
+							return mission;
+						}
+					}
+				}
+				return 0;
+			}
+		}
+	}
+
+	for (auto* mission : _activeMissions)
+	{
+		if (mission->getRules().getObjective() == objective && mission->getRegion() == region)
+		{
+			return mission;
+		}
+	}
+	return 0;
 }
 
 /**
@@ -3189,9 +3197,10 @@ void isResearchedScript(const SavedGame* sg, int& val, const RuleResearch* name)
 {
 	if (sg)
 	{
-		if (sg->isResearched(name))
+		if (sg->isResearched(name, false))
 		{
 			val = 1;
+			return;
 		}
 	}
 	val = 0;

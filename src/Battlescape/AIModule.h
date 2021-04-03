@@ -46,7 +46,6 @@ private:
 	int _knownEnemies, _visibleEnemies, _spottingEnemies;
 	int _escapeTUs, _ambushTUs;
 	bool _weaponPickedUp;
-	BattleAction *_escapeAction, *_ambushAction, *_attackAction, *_patrolAction, *_psiAction;
 	bool _rifle, _melee, _blaster, _grenade;
 	bool _traceAI, _didPsi;
 	int _AIMode, _intelligence, _closestDist;
@@ -56,7 +55,9 @@ private:
 	BattleActionType _reserve;
 	UnitFaction _targetFaction;
 
-	bool selectPointNearTargetLeeroy(BattleUnit *target) const;
+	BattleAction _escapeAction, _ambushAction, _attackAction, _patrolAction, _psiAction;
+
+	bool selectPointNearTargetLeeroy(BattleUnit *target);
 	int selectNearestTargetLeeroy();
 	void meleeActionLeeroy();
 	void dont_think(BattleAction *action);
@@ -79,6 +80,8 @@ public:
 	void setWeaponPickedUp();
 	/// Gets whether the unit was hit.
 	bool getWasHitBy(int attacker) const;
+	/// Set start node.
+	void setStartNode(Node *node) { _fromNode = node; }
 	/// setup a patrol objective.
 	void setupPatrol();
 	/// setup an ambush objective.
@@ -98,7 +101,7 @@ public:
 	/// Selects a random known target.
 	bool selectRandomTarget();
 	/// Selects the nearest reachable point relative to a target.
-	bool selectPointNearTarget(BattleUnit *target, int maxTUs) const;
+	bool selectPointNearTarget(BattleUnit *target, int maxTUs);
 	/// Selects a target from a list of units seen by spotter units for out-of-LOS actions
 	bool selectSpottedUnitForSniper();
 	/// Scores a firing mode action based on distance to target and accuracy.

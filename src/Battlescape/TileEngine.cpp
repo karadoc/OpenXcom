@@ -62,7 +62,7 @@ namespace
  * @param driftFunc Function call for each side step of line.
  */
 template<typename FuncNewPosition, typename FuncDrift>
-bool calculateLineHitHelper(const Position& origin, const Position& target, FuncNewPosition posFunc, FuncDrift driftFunc)
+bool calculateLineHelper(const Position& origin, const Position& target, FuncNewPosition posFunc, FuncDrift driftFunc)
 {
 	int x, x0, x1, delta_x, step_x;
 	int y, y0, y1, delta_y, step_y;
@@ -163,6 +163,44 @@ bool calculateLineHitHelper(const Position& origin, const Position& target, Func
 			}
 		}
 	}
+	return false;
+}
+
+template<typename FuncNewPosition>
+bool calculateParabolaHelper(const Position& origin, const Position& target, double curvature, const Position& delta, FuncNewPosition posFunc)
+{
+	double ro = Position::distance(target, origin);
+
+	if (AreSame(ro, 0.0)) return false;
+
+	double fi = acos((double)(target.z - origin.z) / ro);
+	double te = atan2((double)(target.y - origin.y), (double)(target.x - origin.x));
+
+	te += (delta.x / ro) / 2 * M_PI; //horizontal magic value
+	fi += ((delta.z + delta.y) / ro) / 14 * M_PI * curvature; //another magic value (vertical), to make it in line with fire spread
+
+	double zA = sqrt(ro)*curvature;
+	double zK = 4.0 * zA / ro / ro;
+
+	int x = origin.x;
+	int y = origin.y;
+	int z = origin.z;
+	int i = 8;
+
+	while (z > 0)
+	{
+		x = (int)((double)origin.x + (double)i * cos(te) * sin(fi));
+		y = (int)((double)origin.y + (double)i * sin(te) * sin(fi));
+		z = (int)((double)origin.z + (double)i * cos(fi) - zK * ((double)i - ro / 2.0) * ((double)i - ro / 2.0) + zA);
+
+		if (posFunc(Position(x,y,z)))
+		{
+			return true;
+		}
+
+		++i;
+	}
+
 	return false;
 }
 
@@ -655,7 +693,7 @@ void TileEngine::addLight(MapSubset gs, Position center, int power, LightLayers 
 				return false;
 			};
 
-			calculateLineHitHelper(startVoxel, endVoxel,
+			calculateLineHelper(startVoxel, endVoxel,
 				[&](Position voxel)
 				{
 					auto resultA = calculateBlock(voxel, lastTileA, lightA, stepsA);
@@ -3503,7 +3541,7 @@ int TileEngine::calculateLineTile(Position origin, Position target, std::vector<
 	bool bigWall = false;
 	int steps = 0;
 
-	bool hit = calculateLineHitHelper(origin, target,
+	bool hit = calculateLineHelper(origin, target,
 		[&](Position point)
 		{
 			trajectory.push_back(point);
@@ -3587,7 +3625,7 @@ VoxelType TileEngine::calculateLineVoxel(Position origin, Position target, bool 
 		excludeAllUnits = true; // don't start unit spotting before pre-game inventory stuff (large units on the craftInventory tile will cause a crash if they're "spotted")
 	}
 
-	bool hit = calculateLineHitHelper(origin, target,
+	bool hit = calculateLineHelper(origin, target,
 		[&](Position point)
 		{
 			if (storeTrajectory && trajectory)
@@ -3641,25 +3679,10 @@ VoxelType TileEngine::calculateLineVoxel(Position origin, Position target, bool 
  */
 int TileEngine::calculateParabolaVoxel(Position origin, Position target, bool storeTrajectory, std::vector<Position> *trajectory, BattleUnit *excludeUnit, double curvature, const Position delta)
 {
-	double ro = Position::distance(target, origin);
+	if (target == origin) return V_EMPTY;//just in case
 
-	if (AreSame(ro, 0.0)) return V_EMPTY;//just in case
-
-	double fi = acos((double)(target.z - origin.z) / ro);
-	double te = atan2((double)(target.y - origin.y), (double)(target.x - origin.x));
-
-	te += (delta.x / ro) / 2 * M_PI; //horizontal magic value
-	fi += ((delta.z + delta.y) / ro) / 14 * M_PI * curvature; //another magic value (vertical), to make it in line with fire spread
-
-	double zA = sqrt(ro)*curvature;
-	double zK = 4.0 * zA / ro / ro;
-
-	int x = origin.x;
-	int y = origin.y;
-	int z = origin.z;
-	int i = 8;
 	int result = V_EMPTY;
-	Position lastPosition = Position(x,y,z);
+	Position lastPosition = origin;
 	Position nextPosition = lastPosition;
 
 	if (storeTrajectory && trajectory)
@@ -3667,31 +3690,32 @@ int TileEngine::calculateParabolaVoxel(Position origin, Position target, bool st
 		//initla value for small hack to glue `calculateLineVoxel` into one continuous arc
 		trajectory->push_back(lastPosition);
 	}
-	while (z > 0)
-	{
-		x = (int)((double)origin.x + (double)i * cos(te) * sin(fi));
-		y = (int)((double)origin.y + (double)i * sin(te) * sin(fi));
-		z = (int)((double)origin.z + (double)i * cos(fi) - zK * ((double)i - ro / 2.0) * ((double)i - ro / 2.0) + zA);
-		//passes through this point?
-		nextPosition = Position(x,y,z);
 
-		if (storeTrajectory && trajectory)
+	calculateParabolaHelper(origin, target, curvature, delta,
+		[&](Position p)
 		{
-			//remove end point of previus trajectory part, becasue next one will add this point again
-			trajectory->pop_back();
-		}
-		result = calculateLineVoxel(lastPosition, nextPosition, storeTrajectory, storeTrajectory ? trajectory : nullptr, excludeUnit);
-		if (result != V_EMPTY)
-		{
-			if (!storeTrajectory && trajectory)
+			//passes through this point?
+			nextPosition = p;
+
+			if (storeTrajectory && trajectory)
 			{
-				result = calculateLineVoxel(lastPosition, nextPosition, false, trajectory, excludeUnit); //pick the INSIDE position of impact
+				//remove end point of previus trajectory part, becasue next one will add this point again
+				trajectory->pop_back();
 			}
-			break;
+			result = calculateLineVoxel(lastPosition, nextPosition, storeTrajectory, storeTrajectory ? trajectory : nullptr, excludeUnit);
+			if (result != V_EMPTY)
+			{
+				if (!storeTrajectory && trajectory)
+				{
+					result = calculateLineVoxel(lastPosition, nextPosition, false, trajectory, excludeUnit); //pick the INSIDE position of impact
+				}
+				return true;
+			}
+			lastPosition = nextPosition;
+			return false;
 		}
-		lastPosition = nextPosition;
-		++i;
-	}
+	);
+
 	return result;
 }
 
@@ -5185,15 +5209,28 @@ bool TileEngine::isPositionValidForUnit(Position &position, BattleUnit *unit, bo
 	return false;
 }
 
+/**
+ * Update game state after script hook execution. We need check state of units
+ * and handle special cases like deaths or unit tranformation.
+ * For now we assume that Light and FOV is affected only in small area,
+ * this mean we could glitch if multiple units are affected by script logic.
+ * @param battleActionAttack Data of action that triggeted script hook.
+ * @param pos Postion to update light and Fov, can be invaild if we do not update light
+ */
 void TileEngine::updateGameStateAfterScript(BattleActionAttack battleActionAttack, Position pos)
 {
 	_save->getBattleGame()->checkForCasualties(nullptr, battleActionAttack, false, false);
 
 	_save->reviveUnconsciousUnits(true);
 
-	// limit area of the following calls to the Position pos
-	calculateFOV(pos, 1, false);
-	calculateLighting(LL_ITEMS, pos, 2, true);
+	_save->getBattleGame()->convertInfected();
+
+	if (pos != TileEngine::invalid)
+	{
+		// limit area of the following calls to the Position pos
+		calculateLighting(LL_ITEMS, pos, 2, true);
+		calculateFOV(pos, 1, false);
+	}
 }
 
 }

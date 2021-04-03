@@ -86,6 +86,7 @@ private:
 
 	UnitFaction _faction, _originalFaction;
 	UnitFaction _killedBy;
+	UnitFaction _spawnUnitFaction = FACTION_HOSTILE;
 	int _id;
 	Position _pos;
 	Tile *_tile;
@@ -553,6 +554,15 @@ public:
 	int getMaxViewDistanceAtDay(const Armor *otherUnitArmor) const;
 	/// Get the units's special ability.
 	int getSpecialAbility() const;
+
+	/// Gets the unit's spawn unit.
+	const Unit *getSpawnUnit() const;
+	/// Sets the unit's spawn unit.
+	void setSpawnUnit(const Unit *spawnUnit);
+	/// Gets the faction of spawned unit.
+	UnitFaction getSpawnUnitFaction() const { return _spawnUnitFaction; }
+	/// Set the faction of spawned unit.
+	void setSpawnUnitFaction(UnitFaction f) { _spawnUnitFaction = f; }
 	/// Set the units's respawn flag.
 	void setRespawn(bool respawn);
 	/// Get the units's respawn flag.
@@ -561,6 +571,9 @@ public:
 	void setAlreadyRespawned(bool alreadyRespawned);
 	/// Get the units's alreadyRespawned flag.
 	bool getAlreadyRespawned() const;
+	/// Remove all spawn unit info.
+	void clearSpawnUnit();
+
 	/// Get the units's rank string.
 	const std::string& getRankString() const;
 	/// Get the geoscape-soldier object.
@@ -575,10 +588,7 @@ public:
 	void kill();
 	/// Set health to 0 and set status dead
 	void instaKill();
-	/// Gets the unit's spawn unit.
-	const Unit *getSpawnUnit() const;
-	/// Sets the unit's spawn unit.
-	void setSpawnUnit(const Unit *spawnUnit);
+
 	/// Gets the unit's aggro sound.
 	int getAggroSound() const;
 	/// Sets the unit's time units.
@@ -729,7 +739,7 @@ public:
 	/// Was this unit summoned by an item?
 	bool isSummonedPlayerUnit() const;
 	/// Marks this unit as resummoned fake civilian and therefore won't count for civilian scoring in the Debriefing.
-	void markAsResummonedFakeCivilian() { _resummonedFakeCivilian = true; }
+	void markAsResummonedFakeCivilian() { _resummonedFakeCivilian = true; _status = STATUS_IGNORE_ME; }
 	/// Is this unit a resummoned fake civilian?
 	bool isResummonedFakeCivilian() const { return _resummonedFakeCivilian; }
 	/// Marks this unit as VIP.

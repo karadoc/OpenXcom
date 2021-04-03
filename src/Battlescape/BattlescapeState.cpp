@@ -2503,7 +2503,7 @@ inline void BattlescapeState::handle(Action *action)
 				_map->setSelectorPosition((_cursorPosition.x - _game->getScreen()->getCursorLeftBlackBand()) / action->getXScale(), (_cursorPosition.y - _game->getScreen()->getCursorTopBlackBand()) / action->getYScale());
 			}
 
-			if (Options::thumbButtons && action->getDetails()->type == SDL_MOUSEBUTTONDOWN)
+			if (Options::oxceThumbButtons && action->getDetails()->type == SDL_MOUSEBUTTONDOWN)
 			{
 				if (action->getDetails()->button.button == SDL_BUTTON_X1)
 				{
@@ -3126,15 +3126,16 @@ void BattlescapeState::finishBattle(bool abort, int inExitArea)
 	// dear civilians and summoned player units,
 	// please drop all borrowed xcom equipment now, so that we can recover it
 	// thank you!
+	std::vector<BattleItem*> itemsToDrop;
 	for (auto* unit : *_save->getUnits())
 	{
 		bool relevantUnitType = unit->getOriginalFaction() == FACTION_NEUTRAL || unit->isSummonedPlayerUnit();
 		if (relevantUnitType && !unit->isOut())
 		{
-			std::vector<BattleItem*> itemsToDrop;
+			itemsToDrop.clear();
 			for (auto* item : *unit->getInventory())
 			{
-				if (item->getXCOMProperty())
+				if (item->getXCOMProperty() || item->getUnit())
 				{
 					itemsToDrop.push_back(item);
 				}

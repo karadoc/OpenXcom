@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <yaml-cpp/yaml.h>
+#include "../Savegame/WeightedOptions.h"
 
 enum AlienRank{AR_HUMAN = -1, AR_COMMANDER, AR_LEADER, AR_ENGINEER, AR_MEDIC, AR_NAVIGATOR, AR_SOLDIER, AR_TERRORIST, AR_TERRORIST2};
 
@@ -36,7 +37,7 @@ private:
 	std::string _id;
 	std::string _baseCustomDeploy;
 	std::string _baseCustomMission;
-	std::string _retaliationMission;
+	std::vector<std::pair<size_t, WeightedOptions*> > _retaliationMissionDistribution;
 	std::vector<std::string> _members;
 	std::vector< std::vector<std::string> > _membersRandom;
 	int _retaliationAggression;
@@ -57,10 +58,10 @@ public:
 	const std::string &getMember(int id) const;
 	/// Gets the total number of members of this alien race family.
 	int getMembers() const;
-	/// Gets what mission is created after destroying ufo.
-	const std::string &getRetaliationMission() const;
 	/// Gets how aggressive alien are to spawn retaliation mission after destroying ufo.
 	int getRetaliationAggression() const;
+	/// Returns a list of retaliation missions based on the given month.
+	WeightedOptions* retaliationMissionWeights(const size_t monthsPassed) const;
 };
 
 }

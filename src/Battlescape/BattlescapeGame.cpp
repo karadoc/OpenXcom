@@ -1004,7 +1004,7 @@ void BattlescapeGame::handleNonTargetAction()
 		}
 		else if (_currentAction.type == BA_USE)
 		{
-			_save->reviveUnconsciousUnits(true);
+			getTileEngine()->updateGameStateAfterScript(BattleActionAttack::GetBeforeShoot(_currentAction), TileEngine::invalid);
 		}
 		else if (_currentAction.type == BA_HIT)
 		{
@@ -2082,6 +2082,10 @@ BattleUnit *BattlescapeGame::convertUnit(BattleUnit *unit)
 
 	bool visible = unit->getVisible();
 
+	if (getSave()->getSelectedUnit() == unit)
+	{
+		getSave()->setSelectedUnit(nullptr);
+	}
 	getSave()->getBattleState()->resetUiButton();
 	// in case the unit was unconscious
 	getSave()->removeUnconsciousBodyItem(unit);
@@ -2089,22 +2093,29 @@ BattleUnit *BattlescapeGame::convertUnit(BattleUnit *unit)
 	unit->instaKill();
 
 	auto tile = unit->getTile();
+	if (tile == nullptr)
+	{
+		auto pos = unit->getPosition();
+		if (pos != TileEngine::invalid)
+		{
+			tile = _save->getTile(pos);
+		}
+	}
 
-	getSave()->getTileEngine()->itemDropInventory(tile, unit);
+	// in case of unconscious unit someone could stand on top of it, or take curret unit to invenotry, then we skip spawning any thing
+	if (!tile || (tile->getUnit() != nullptr && tile->getUnit() != unit))
+	{
+		return nullptr;
+	}
+
+	getSave()->getTileEngine()->itemDropInventory(tile, unit, false, true);
 
 	// remove unit-tile link
 	unit->setTile(nullptr, _save);
 
 	const Unit* type = unit->getSpawnUnit();
 
-	BattleUnit *newUnit = new BattleUnit(getMod(),
-		const_cast<Unit*>(type),
-		FACTION_HOSTILE,
-		_save->getUnits()->back()->getId() + 1,
-		_save->getEnviroEffects(),
-		type->getArmor(),
-		getMod()->getStatAdjustment(_parentState->getGame()->getSavedGame()->getDifficulty()),
-		getDepth());
+	BattleUnit *newUnit = _save->createTempUnit(type, unit->getSpawnUnitFaction());
 
 	getSave()->initUnit(newUnit);
 	newUnit->setTile(tile, _save);
@@ -2112,7 +2123,6 @@ BattleUnit *BattlescapeGame::convertUnit(BattleUnit *unit)
 	newUnit->setDirection(unit->getDirection());
 	newUnit->clearTimeUnits();
 	getSave()->getUnits()->push_back(newUnit);
-	newUnit->setAIModule(new AIModule(getSave(), newUnit, 0));
 	newUnit->setVisible(visible);
 
 	getTileEngine()->calculateFOV(newUnit->getPosition());  //happens fairly rarely, so do a full recalc for units in range to handle the potential unit visible cache issues.
@@ -2166,19 +2176,7 @@ void BattlescapeGame::spawnNewUnit(BattleActionAttack attack, Position position)
 	}
 
 	// Create the unit
-	BattleUnit *newUnit = new BattleUnit(getMod(),
-		type,
-		faction,
-		_save->getUnits()->back()->getId() + 1,
-		faction != FACTION_PLAYER ? _save->getEnviroEffects() : nullptr,
-		type->getArmor(),
-		faction == FACTION_HOSTILE ? getMod()->getStatAdjustment(_parentState->getGame()->getSavedGame()->getDifficulty()) : nullptr,
-		getDepth());
-
-	if (faction == FACTION_PLAYER)
-	{
-		newUnit->setSummonedPlayerUnit(true);
-	}
+	BattleUnit *newUnit = _save->createTempUnit(type, faction);
 
 	// Validate the position for the unit, checking if there's a surrounding tile if necessary
 	int checkDirection = attack.attacker ? (attack.attacker->getDirection() + 4) % 8 : 0;
@@ -2232,10 +2230,6 @@ void BattlescapeGame::spawnNewUnit(BattleActionAttack attack, Position position)
 		newUnit->setDirection(unitDirection);
 		newUnit->clearTimeUnits();
 		getSave()->getUnits()->push_back(newUnit);
-		if (faction != FACTION_PLAYER)
-		{
-			newUnit->setAIModule(new AIModule(getSave(), newUnit, 0));
-		}
 		bool visible = faction == FACTION_PLAYER;
 		newUnit->setVisible(visible);
 
@@ -2304,6 +2298,14 @@ void BattlescapeGame::removeSummonedPlayerUnits()
 			if ((*unit)->getStatus() == STATUS_UNCONSCIOUS || (*unit)->getStatus() == STATUS_DEAD)
 				_save->removeUnconsciousBodyItem((*unit));
 
+			//remove all items form unit
+			(*unit)->removeSpecialWeapons(_save);
+			auto inv = *(*unit)->getInventory();
+			for (auto* bi : inv)
+			{
+				_save->removeItem(bi);
+			}
+
 			(*unit)->setTile(nullptr, _save);
 			delete (*unit);
 			unit = _save->getUnits()->erase(unit);
@@ -2324,7 +2326,6 @@ void BattlescapeGame::removeSummonedPlayerUnits()
 		// just bare minimum, this unit will never be used for anything except recovery (not even for scoring)
 		newUnit->setTile(nullptr, _save);
 		newUnit->setPosition(TileEngine::invalid);
-		newUnit->setAIModule(new AIModule(_save, newUnit, 0));
 		newUnit->markAsResummonedFakeCivilian();
 		_save->getUnits()->push_back(newUnit);
 	}
@@ -2899,21 +2900,26 @@ BattlescapeTally BattlescapeGame::tallyUnits()
 bool BattlescapeGame::convertInfected()
 {
 	bool retVal = false;
-	for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+	std::vector<BattleUnit*> forTransform;
+	for (BattleUnit* i : *_save->getUnits())
 	{
-		if (!(*i)->isOutThresholdExceed() && (*i)->getRespawn())
+		if (!i->isOutThresholdExceed() && i->getRespawn())
 		{
 			retVal = true;
-			(*i)->setRespawn(false);
-			if (Options::battleNotifyDeath && (*i)->getFaction() == FACTION_PLAYER)
+			i->setRespawn(false);
+			if (Options::battleNotifyDeath && i->getFaction() == FACTION_PLAYER)
 			{
 				Game *game = _parentState->getGame();
-				game->pushState(new InfoboxState(game->getLanguage()->getString("STR_HAS_BEEN_KILLED", (*i)->getGender()).arg((*i)->getName(game->getLanguage()))));
+				game->pushState(new InfoboxState(game->getLanguage()->getString("STR_HAS_BEEN_KILLED", i->getGender()).arg(i->getName(game->getLanguage()))));
 			}
 
-			convertUnit((*i));
-			i = _save->getUnits()->begin();
+			forTransform.push_back(i);
 		}
+	}
+
+	for (BattleUnit* i : forTransform)
+	{
+		convertUnit(i);
 	}
 	return retVal;
 }

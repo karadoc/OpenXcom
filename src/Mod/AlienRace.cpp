@@ -33,6 +33,10 @@ AlienRace::AlienRace(const std::string &id) : _id(id), _retaliationAggression(0)
 
 AlienRace::~AlienRace()
 {
+	for (std::vector<std::pair<size_t, WeightedOptions*> >::iterator i = _retaliationMissionDistribution.begin(); i != _retaliationMissionDistribution.end(); ++i)
+	{
+		delete i->second;
+	}
 }
 
 /**
@@ -48,10 +52,28 @@ void AlienRace::load(const YAML::Node &node)
 	_id = node["id"].as<std::string>(_id);
 	_baseCustomDeploy = node["baseCustomDeploy"].as<std::string>(_baseCustomDeploy);
 	_baseCustomMission = node["baseCustomMission"].as<std::string>(_baseCustomMission);
-	_retaliationMission = node["retaliationMission"].as<std::string>(_retaliationMission);
 	_members = node["members"].as< std::vector<std::string> >(_members);
 	_membersRandom = node["membersRandom"].as< std::vector <std::vector<std::string> > >(_membersRandom);
 	_retaliationAggression = node["retaliationAggression"].as<int>(_retaliationAggression);
+
+	if (const YAML::Node& weights = node["retaliationMissionWeights"])
+	{
+		for (YAML::const_iterator nn = weights.begin(); nn != weights.end(); ++nn)
+		{
+			WeightedOptions* nw = new WeightedOptions();
+			nw->load(nn->second);
+			_retaliationMissionDistribution.push_back(std::make_pair(nn->first.as<size_t>(0), nw));
+		}
+	}
+	else if (node["retaliationMission"])
+	{
+		// FIXME: backwards-compatibility, remove after mid 2022
+		std::string retaliationMission = node["retaliationMission"].as<std::string>("");
+
+		WeightedOptions* nw = new WeightedOptions();
+		nw->set(retaliationMission, 100); // weight 100
+		_retaliationMissionDistribution.push_back(std::make_pair(0, nw)); // month 0
+	}
 }
 
 /**
@@ -120,21 +142,29 @@ int AlienRace::getMembers() const
 }
 
 /**
- * Gets mission used for retaliation, can be empty. This is different than canRetaliate.
- * @return Mission ID or empty string.
- */
-const std::string &AlienRace::getRetaliationMission() const
-{
-	return _retaliationMission;
-}
-
-/**
  * Gets how aggressive alien are
  * @return Mission ID or empty string.
  */
 int AlienRace::getRetaliationAggression() const
 {
 	return _retaliationAggression;
+}
+
+/**
+ * Returns a list of retaliation missions based on the given month.
+ * @param monthsPassed The number of months that have passed in the game world.
+ * @return The list of missions. Can be NULL.
+ */
+WeightedOptions* AlienRace::retaliationMissionWeights(const size_t monthsPassed) const
+{
+	if (_retaliationMissionDistribution.empty())
+		return nullptr;
+
+	std::vector<std::pair<size_t, WeightedOptions*> >::const_reverse_iterator rw;
+	rw = _retaliationMissionDistribution.rbegin();
+	while (monthsPassed < rw->first)
+		++rw;
+	return rw->second;
 }
 
 }
