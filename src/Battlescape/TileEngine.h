@@ -89,10 +89,11 @@ private:
 		BattleActionType attackType;
 		double reactionScore;
 		double reactionReduction;
+		int count;
 	};
 
 	SavedBattleGame *_save;
-	std::vector<Uint16> *_voxelData;
+	const std::vector<Uint16> *_voxelData;
 	std::vector<VisibilityBlockCache> _blockVisibility;
 	RuleInventory *_inventorySlotGround;
 	constexpr static int heightFromCenter[11] = {0,-2,+2,-4,+4,-6,+6,-8,+8,-12,+12};
@@ -228,6 +229,9 @@ public:
 	void itemDropInventory(Tile *t, BattleUnit *unit, bool unprimeItems = false, bool deleteFixedItems = false);
 	/// Move item to other place in inventory or ground.
 	void itemMoveInventory(Tile *t, BattleUnit *unit, BattleItem *item, RuleInventory *slot, int x, int y);
+
+	/// Get inventory slot for ground.
+	RuleInventory *getInvenotrySlotGround() const { return _inventorySlotGround; }
 
 	/// Add moving unit.
 	void addMovingUnit(BattleUnit* unit);

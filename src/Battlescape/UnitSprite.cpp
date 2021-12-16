@@ -23,6 +23,7 @@
 #include "../Savegame/BattleUnit.h"
 #include "../Savegame/BattleItem.h"
 #include "../Savegame/Soldier.h"
+#include "../Savegame/SavedBattleGame.h"
 #include "../Mod/RuleInventory.h"
 #include "../Mod/Mod.h"
 #include "../Engine/ShaderDraw.h"
@@ -40,14 +41,14 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-UnitSprite::UnitSprite(Surface* dest, Mod* mod, int frame, bool helmet) :
+UnitSprite::UnitSprite(Surface* dest, const Mod* mod, const SavedBattleGame* save, int frame, bool helmet) :
 	_unit(0), _itemR(0), _itemL(0),
 	_unitSurface(0),
-	_itemSurface(mod->getSurfaceSet("HANDOB.PCK")),
-	_fireSurface(mod->getSurfaceSet("SMOKE.PCK")),
-	_breathSurface(mod->getSurfaceSet("BREATH-1.PCK", false)),
-	_facingArrowSurface(mod->getSurfaceSet("DETBLOB.DAT")),
-	_dest(dest), _mod(mod),
+	_itemSurface(const_cast<Mod*>(mod)->getSurfaceSet("HANDOB.PCK")),
+	_fireSurface(const_cast<Mod*>(mod)->getSurfaceSet("SMOKE.PCK")),
+	_breathSurface(const_cast<Mod*>(mod)->getSurfaceSet("BREATH-1.PCK", false)),
+	_facingArrowSurface(const_cast<Mod*>(mod)->getSurfaceSet("DETBLOB.DAT")),
+	_dest(dest), _save(save), _mod(mod),
 	_part(0), _animationFrame(frame), _drawingRoutine(0),
 	_helmet(helmet),
 	_x(0), _y(0), _shade(0), _burn(0),
@@ -75,7 +76,7 @@ const int InvalidSpriteIndex = -256;
 /**
  * Get item if can be visible on sprite.
  */
-BattleItem *getIfVisible(BattleItem *item)
+const BattleItem *getIfVisible(const BattleItem *item)
 {
 	if (item && (!item->getRules()->isFixed() || item->getRules()->getFixedShow()))
 	{
@@ -91,7 +92,7 @@ BattleItem *getIfVisible(BattleItem *item)
  * @param item item what we want draw.
  * @return Graphic part.
  */
-void UnitSprite::selectItem(Part& p, BattleItem *item, int dir)
+void UnitSprite::selectItem(Part& p, const BattleItem *item, int dir)
 {
 	const auto* rule = item->getRules();
 	auto index = item->getRules()->getHandSprite();
@@ -105,7 +106,7 @@ void UnitSprite::selectItem(Part& p, BattleItem *item, int dir)
 	auto result = ModScript::scriptFunc2<ModScript::SelectItemSprite>(
 		rule,
 		index, dir,
-		item, p.bodyPart, _animationFrame, _shade
+		item, _save, p.bodyPart, _animationFrame, _shade
 	);
 
 	p.src = _itemSurface->getFrame(result);
@@ -129,7 +130,7 @@ void UnitSprite::selectUnit(Part& p, int index, int dir)
 	auto result = ModScript::scriptFunc2<ModScript::SelectUnitSprite>(
 		armor,
 		index, dir,
-		_unit, p.bodyPart, _animationFrame, _shade
+		_unit, _save, p.bodyPart, _animationFrame, _shade
 	);
 
 	p.src = _unitSurface->getFrame(result);
@@ -146,7 +147,7 @@ void UnitSprite::blitItem(Part& item)
 		return;
 	}
 	ScriptWorkerBlit work;
-	BattleItem::ScriptFill(&work, (item.bodyPart == BODYPART_ITEM_RIGHTHAND ? _itemR : _itemL), item.bodyPart, _animationFrame, _shade);
+	BattleItem::ScriptFill(&work, (item.bodyPart == BODYPART_ITEM_RIGHTHAND ? _itemR : _itemL), _save, item.bodyPart, _animationFrame, _shade);
 
 	_dest->lock();
 
@@ -166,7 +167,7 @@ void UnitSprite::blitBody(Part& body)
 		return;
 	}
 	ScriptWorkerBlit work;
-	BattleUnit::ScriptFill(&work, _unit, body.bodyPart, _animationFrame, _shade, _burn);
+	BattleUnit::ScriptFill(&work, _unit, _save, body.bodyPart, _animationFrame, _shade, _burn);
 
 	_dest->lock();
 
@@ -179,7 +180,7 @@ void UnitSprite::blitBody(Part& body)
  * Draws a unit, using the drawing rules of the unit.
  * This function is called by Map, for each unit on the screen.
  */
-void UnitSprite::draw(BattleUnit* unit, int part, int x, int y, int shade, GraphSubset mask, bool isAltPressed)
+void UnitSprite::draw(const BattleUnit* unit, int part, int x, int y, int shade, GraphSubset mask, bool isAltPressed)
 {
 	_x = x;
 	_y = y;
@@ -195,12 +196,14 @@ void UnitSprite::draw(BattleUnit* unit, int part, int x, int y, int shade, Graph
 		return;
 	}
 
+	auto* armor = _unit->getArmor();
+
 	_itemR = getIfVisible(_unit->getRightHandWeapon());
 	_itemL = getIfVisible(_unit->getLeftHandWeapon());
 
-	_unitSurface = _mod->getSurfaceSet(_unit->getArmor()->getSpriteSheet());
+	_unitSurface = const_cast<Mod*>(_mod)->getSurfaceSet(armor->getSpriteSheet());
 
-	_drawingRoutine = _unit->getArmor()->getDrawingRoutine();
+	_drawingRoutine = armor->getDrawingRoutine();
 
 	_burn = 0;
 	int overkill = _unit->getOverKillDamage();
@@ -209,11 +212,11 @@ void UnitSprite::draw(BattleUnit* unit, int part, int x, int y, int shade, Graph
 	{
 		if (overkill > maxHp)
 		{
-			_burn = 16 * (_unit->getFallingPhase() + 1) / _unit->getArmor()->getDeathFrames();
+			_burn = 16 * (_unit->getFallingPhase() + 1) / armor->getDeathFrames();
 		}
 		else
 		{
-			_burn = 16 * overkill * (_unit->getFallingPhase() + 1) / _unit->getArmor()->getDeathFrames() / maxHp;
+			_burn = 16 * overkill * (_unit->getFallingPhase() + 1) / armor->getDeathFrames() / maxHp;
 		}
 	}
 
@@ -251,9 +254,9 @@ void UnitSprite::draw(BattleUnit* unit, int part, int x, int y, int shade, Graph
 	{
 		_fireSurface->getFrame(4 + (_animationFrame / 2) % 4)->blitNShade(_dest, _x, _y, 0, _mask);
 	}
-	if (_breathSurface && unit->getBreathFrame() > 0)
+	if (_breathSurface && _helmet && unit->getBreathExhaleFrame() >= 0 && armor->drawBubbles() && !unit->getFloorAbove())
 	{
-		auto tmpSurface = _breathSurface->getFrame(unit->getBreathFrame() - 1);
+		auto tmpSurface = _breathSurface->getFrame(unit->getBreathExhaleFrame());
 		if (tmpSurface)
 		{
 			// lower the bubbles for shorter or kneeling units.

@@ -20,6 +20,7 @@
 #include "BattleItem.h"
 #include <sstream>
 #include <algorithm>
+#include "../Engine/Collections.h"
 #include "../Engine/Surface.h"
 #include "../Engine/Script.h"
 #include "../Engine/ScriptBind.h"
@@ -163,6 +164,21 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
 	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
+	{
+		for (auto bonusRule : *soldier->getBonuses(nullptr))
+		{
+			_maxArmor[SIDE_FRONT] += bonusRule->getFrontArmor();
+			_maxArmor[SIDE_LEFT]  += bonusRule->getLeftSideArmor();
+			_maxArmor[SIDE_RIGHT] += bonusRule->getRightSideArmor();
+			_maxArmor[SIDE_REAR]  += bonusRule->getRearArmor();
+			_maxArmor[SIDE_UNDER] += bonusRule->getUnderArmor();
+		}
+		_maxArmor[SIDE_FRONT] = std::max(0, _maxArmor[SIDE_FRONT]);
+		_maxArmor[SIDE_LEFT]  = std::max(0, _maxArmor[SIDE_LEFT]);
+		_maxArmor[SIDE_RIGHT] = std::max(0, _maxArmor[SIDE_RIGHT]);
+		_maxArmor[SIDE_REAR]  = std::max(0, _maxArmor[SIDE_REAR]);
+		_maxArmor[SIDE_UNDER] = std::max(0, _maxArmor[SIDE_UNDER]);
+	}
 	_currentArmor[SIDE_FRONT] = _maxArmor[SIDE_FRONT];
 	_currentArmor[SIDE_LEFT] = _maxArmor[SIDE_LEFT];
 	_currentArmor[SIDE_RIGHT] = _maxArmor[SIDE_RIGHT];
@@ -237,6 +253,21 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
+	{
+		for (auto bonusRule : *soldier->getBonuses(nullptr))
+		{
+			_maxArmor[SIDE_FRONT] += bonusRule->getFrontArmor();
+			_maxArmor[SIDE_LEFT]  += bonusRule->getLeftSideArmor();
+			_maxArmor[SIDE_RIGHT] += bonusRule->getRightSideArmor();
+			_maxArmor[SIDE_REAR]  += bonusRule->getRearArmor();
+			_maxArmor[SIDE_UNDER] += bonusRule->getUnderArmor();
+		}
+		_maxArmor[SIDE_FRONT] = std::max(0, _maxArmor[SIDE_FRONT]);
+		_maxArmor[SIDE_LEFT]  = std::max(0, _maxArmor[SIDE_LEFT]);
+		_maxArmor[SIDE_RIGHT] = std::max(0, _maxArmor[SIDE_RIGHT]);
+		_maxArmor[SIDE_REAR]  = std::max(0, _maxArmor[SIDE_REAR]);
+		_maxArmor[SIDE_UNDER] = std::max(0, _maxArmor[SIDE_UNDER]);
+	}
 	_currentArmor[SIDE_FRONT] = _maxArmor[SIDE_FRONT];
 	_currentArmor[SIDE_LEFT] = _maxArmor[SIDE_LEFT];
 	_currentArmor[SIDE_RIGHT] = _maxArmor[SIDE_RIGHT];
@@ -259,13 +290,13 @@ void BattleUnit::prepareUnitSounds()
 
 	if (_geoscapeSoldier)
 	{
-		_aggroSound = -1;
-		_moveSound = _armor->getMoveSound() != -1 ? _armor->getMoveSound() : -1; // there's no soldier move sound, thus hardcoded -1
+		Collections::removeAll(_aggroSound);
+		_moveSound = _armor->getMoveSound() != Mod::NO_SOUND ? _armor->getMoveSound() : Mod::NO_SOUND; // there's no soldier move sound, thus hardcoded -1
 	}
 	else if (_unitRules)
 	{
-		_aggroSound = _unitRules->getAggroSound();
-		_moveSound = _armor->getMoveSound() != -1 ? _armor->getMoveSound() : _unitRules->getMoveSound();
+		_aggroSound = _unitRules->getAggroSounds();
+		_moveSound = _armor->getMoveSound() != Mod::NO_SOUND ? _armor->getMoveSound() : _unitRules->getMoveSound();
 	}
 
 	// lower priority: soldier type / unit type
@@ -1542,7 +1573,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 	}
 
 	const int orgDamage = damage;
-	const int overKillMinimum = type->IgnoreOverKill ? 0 : -4 * _stats.health;
+	const int overKillMinimum = type->IgnoreOverKill ? 0 : -UnitStats::OverkillMultipler * _stats.health;
 
 	{
 		ModScript::HitUnit::Output args { damage, bodypart, side, };
@@ -1636,7 +1667,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 		if (!_armor->getPainImmune() || type->IgnorePainImmunity)
 		{
-			setValueMax(_stunlevel, std::get<toStun>(args.data), 0, 4 * _stats.health);
+			setValueMax(_stunlevel, std::get<toStun>(args.data), 0, UnitStats::StunMultipler * _stats.health);
 		}
 
 		moraleChange(- reduceByBravery(std::get<toMorale>(args.data)));
@@ -2340,6 +2371,8 @@ void BattleUnit::prepareTimeUnits(int tu)
 		}
 		// Each fatal wound to the left or right leg reduces the soldier's TUs by 10%.
 		_tu -= (_tu * ((_fatalWounds[BODYPART_LEFTLEG]+_fatalWounds[BODYPART_RIGHTLEG]) * 10))/100;
+
+		setValueMax(_tu, 0, 0, getBaseStats()->tu);
 	}
 }
 
@@ -2374,7 +2407,7 @@ void BattleUnit::prepareHealth(int health)
 		_fire--;
 	}
 
-	setValueMax(_health, health, -4 * _stats.health, _stats.health);
+	setValueMax(_health, health, -UnitStats::OverkillMultipler * _stats.health, _stats.health);
 
 	// if unit is dead, AI state should be gone
 	if (_health <= 0 && _currentAIState)
@@ -2926,7 +2959,7 @@ void BattleUnit::setVisible(bool flag)
  */
 bool BattleUnit::getVisible() const
 {
-	if (getFaction() == FACTION_PLAYER)
+	if (getFaction() == FACTION_PLAYER || _armor->isAlwaysVisible())
 	{
 		return true;
 	}
@@ -3131,7 +3164,7 @@ BattleItem *BattleUnit::getMainHandWeapon(bool quickest) const
 	// otherwise pick the one with the least snapshot TUs
 	int tuRightHand = getActionTUs(BA_SNAPSHOT, weaponRightHand).Time;
 	int tuLeftHand = getActionTUs(BA_SNAPSHOT, weaponLeftHand).Time;
-	BattleItem *weaponCurrentHand = getActiveHand(weaponLeftHand, weaponRightHand);
+	BattleItem *weaponCurrentHand = const_cast<BattleItem*>(getActiveHand(weaponLeftHand, weaponRightHand));
 	//prioritize blaster
 	if (!quickest && _faction != FACTION_PLAYER)
 	{
@@ -3254,7 +3287,7 @@ void BattleUnit::setActiveLeftHand()
 /**
  * Choose what weapon was last use by unit.
  */
-BattleItem *BattleUnit::getActiveHand(BattleItem *left, BattleItem *right) const
+const BattleItem *BattleUnit::getActiveHand(const BattleItem *left, const BattleItem *right) const
 {
 	if (_activeHand == "STR_RIGHT_HAND" && right) return right;
 	if (_activeHand == "STR_LEFT_HAND" && left) return left;
@@ -3307,7 +3340,17 @@ bool BattleUnit::reloadAmmo()
 		{
 			weapon->setAmmoForSlot(slotAmmo, ammo);
 
-			_lastReloadSound = ruleWeapon->getReloadSound();
+			auto sound = ammo->getRules()->getReloadSound();
+			if (sound == Mod::NO_SOUND)
+			{
+				sound = ruleWeapon->getReloadSound();
+			}
+			if (sound == Mod::NO_SOUND)
+			{
+				sound = Mod::ITEM_RELOAD;
+			}
+
+			_lastReloadSound = sound;
 			return true;
 		}
 	}
@@ -4157,12 +4200,25 @@ void BattleUnit::instaKill()
 }
 
 /**
- * Get sound to play when unit aggros.
- * @return sound
+ * Gets whether the unit has any aggro sounds.
+ * @return True, if the unit has any aggro sounds.
  */
-int BattleUnit::getAggroSound() const
+bool BattleUnit::hasAggroSound() const
 {
-	return _aggroSound;
+	return !_aggroSound.empty();
+}
+
+/**
+ * Gets a unit's random aggro sound.
+ * @return The sound id.
+ */
+int BattleUnit::getRandomAggroSound() const
+{
+	if (hasAggroSound())
+	{
+		return _aggroSound[RNG::generate(0, _aggroSound.size() - 1)];
+	}
+	return -1;
 }
 
 /**
@@ -4438,11 +4494,35 @@ bool BattleUnit::hasInventory() const
  * If this unit is breathing, what frame should be displayed?
  * @return frame number.
  */
-int BattleUnit::getBreathFrame() const
+int BattleUnit::getBreathExhaleFrame() const
 {
-	if (_floorAbove)
-		return 0;
-	return _breathFrame;
+	if (_breathing)
+	{
+		auto frame = _breathFrame - BUBBLES_FIRST_FRAME;
+		if (frame >= 0)
+		{
+			return frame;
+		}
+	}
+
+	return -1;
+}
+
+/**
+ * Count frames to next start of breath animation.
+ */
+int BattleUnit::getBreathInhaleFrame() const
+{
+	if (_breathing)
+	{
+		auto frame = BUBBLES_FIRST_FRAME - _breathFrame;
+		if (frame >= 0)
+		{
+			return frame;
+		}
+	}
+
+	return -1;
 }
 
 /**
@@ -4451,17 +4531,25 @@ int BattleUnit::getBreathFrame() const
 void BattleUnit::breathe()
 {
 	// _breathFrame of -1 means this unit doesn't produce bubbles
-	if (_breathFrame < 0 || isOut())
+	if (_breathFrame < 0)
 	{
 		_breathing = false;
 		return;
 	}
 
-	if (!_breathing || _status == STATUS_WALKING)
+	// moving or knock out do not breathe, even when still alive :)
+	if (isOut() || _status == STATUS_WALKING)
+	{
+		_breathing = false;
+		_breathFrame = 0;
+		return;
+	}
+
+	if (!_breathing)
 	{
 		// deviation from original: TFTD used a static 10% chance for every animation frame,
 		// instead let's use 5%, but allow morale to affect it.
-		_breathing = (_status != STATUS_WALKING && RNG::seedless(0, 99) < (105 - _morale));
+		_breathing = RNG::seedless(0, 99) < (105 - _morale);
 		_breathFrame = 0;
 	}
 
@@ -4471,7 +4559,7 @@ void BattleUnit::breathe()
 		_breathFrame++;
 
 		// we've reached the end of the cycle, get rid of the bubbles
-		if (_breathFrame >= 17)
+		if (_breathFrame > BUBBLES_LAST_FRAME)
 		{
 			_breathFrame = 0;
 			_breathing = false;
@@ -4963,6 +5051,14 @@ bool BattleUnit::getCapturable() const
 	return _capturable;
 }
 
+void BattleUnit::freePatrolTarget()
+{
+	if (_currentAIState)
+	{
+		_currentAIState->freePatrolTarget();
+	}
+}
+
 /**
  * Marks this unit as summoned by an item or not.
  * @param summonedPlayerUnit summoned?
@@ -5009,7 +5105,7 @@ void addArmorValueScript(BattleUnit *bu, int side, int value)
 	if (bu && 0 <= side && side < SIDE_MAX)
 	{
 		//limit range to prevent overflow
-		value = Clamp(value, -1000, 1000);
+		value = Clamp(value, -UnitStats::BaseStatLimit, UnitStats::BaseStatLimit);
 		bu->setArmor(value + bu->getArmor((UnitSide)side), (UnitSide)side);
 	}
 }
@@ -5044,7 +5140,7 @@ void addFatalWoundScript(BattleUnit *bu, int part, int val)
 	if (bu && 0 <= part && part < BODYPART_MAX)
 	{
 		//limit range to prevent overflow
-		val = Clamp(val, -1000, 1000);
+		val = Clamp(val, -UnitStats::BaseStatLimit, UnitStats::BaseStatLimit);
 		bu->setFatalWound(val + bu->getFatalWound((UnitBodyPart)part), (UnitBodyPart)part);
 	}
 }
@@ -5163,6 +5259,7 @@ void getReactionScoreScript(const BattleUnit *bu, int &ret)
 	if (bu)
 	{
 		ret = (int)bu->getReactionScore();
+		return;
 	}
 	ret = 0;
 }
@@ -5201,7 +5298,7 @@ void getStunMaxScript(const BattleUnit *bu, int &maxStun)
 {
 	if (bu)
 	{
-		maxStun = bu->getBaseStats()->health * 4;
+		maxStun = bu->getBaseStats()->health * UnitStats::StunMultipler;
 		return;
 	}
 	maxStun = 0;
@@ -5341,6 +5438,15 @@ void isAimingScript(const BattleUnit *bu, int &ret)
 	ret = 0;
 }
 
+void makeVisibleScript(BattleUnit *bu)
+{
+	if (bu)
+	{
+		bu->setVisible(true);
+		return;
+	}
+}
+
 struct burnShadeScript
 {
 	static RetEnum func(int &curr, int burn, int shade)
@@ -5367,7 +5473,7 @@ void addBaseStatScript(BattleUnit *bu, int val)
 	if (bu)
 	{
 		//limit range to prevent overflow
-		val = Clamp(val, -1000, 1000);
+		val = Clamp(val, -UnitStats::BaseStatLimit, UnitStats::BaseStatLimit);
 		setBaseStatScript<StatCurr, StatMax>(bu, val + (bu->*StatCurr));
 	}
 }
@@ -5377,7 +5483,7 @@ void setStunScript(BattleUnit *bu, int val)
 {
 	if (bu)
 	{
-		(bu->*StatCurr) = Clamp(val, 0, (bu->getBaseStats()->health) * 4);
+		(bu->*StatCurr) = Clamp(val, 0, (bu->getBaseStats()->health) * UnitStats::StunMultipler);
 	}
 }
 
@@ -5387,7 +5493,7 @@ void addStunScript(BattleUnit *bu, int val)
 	if (bu)
 	{
 		//limit range to prevent overflow, 4 time bigger than normal as stun can be 4 time bigger than health
-		val = Clamp(val, -4000, 4000);
+		val = Clamp(val, -UnitStats::StunStatLimit, UnitStats::StunStatLimit);
 		setStunScript<StatCurr>(bu, val + (bu->*StatCurr));
 	}
 }
@@ -5407,10 +5513,20 @@ void addBaseStatRangeScript(BattleUnit *bu, int val)
 	if (bu)
 	{
 		//limit range to prevent overflow
-		val = Clamp(val, -1000, 1000);
+		val = Clamp(val, -UnitStats::BaseStatLimit, UnitStats::BaseStatLimit);
 		setBaseStatRangeScript<StatCurr, Min, Max>(bu, val + (bu->*StatCurr));
 	}
 }
+
+void setFireScript(BattleUnit *bu, int val)
+{
+	if (bu)
+	{
+		val = Clamp(val, 0, UnitStats::BaseStatLimit);
+		bu->setFire(val);
+	}
+}
+
 
 void getVisibleUnitsCountScript(BattleUnit *bu, int &ret)
 {
@@ -5468,6 +5584,16 @@ void getFactionScript(const BattleUnit *bu, int &faction)
 	if (bu)
 	{
 		faction = (int)bu->getFaction();
+		return;
+	}
+	faction = 0;
+}
+
+void getOriginalFactionScript(const BattleUnit *bu, int &faction)
+{
+	if (bu)
+	{
+		faction = (int)bu->getOriginalFaction();
 		return;
 	}
 	faction = 0;
@@ -5688,19 +5814,26 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.add<&isFlyingScript>("isFlying");
 	bu.add<&isCollapsingScript>("isCollapsing");
 	bu.add<&isAimingScript>("isAiming");
+	bu.add<&BattleUnit::isFearable>("isFearable");
+	bu.add<&BattleUnit::isWoundable>("isWoundable");
 	bu.add<&getReactionScoreScript>("getReactionScore");
 	bu.add<&BattleUnit::getDirection>("getDirection");
+	bu.add<&BattleUnit::getIntelligence>("getIntelligence");
+	bu.add<&BattleUnit::getAggression>("getAggression");
 	bu.add<&BattleUnit::getTurretDirection>("getTurretDirection");
 	bu.add<&BattleUnit::getWalkingPhase>("getWalkingPhase");
 	bu.add<&BattleUnit::disableIndicators>("disableIndicators");
+
+	bu.add<&BattleUnit::getVisible>("isVisible");
+	bu.add<&makeVisibleScript>("makeVisible");
 
 
 	bu.add<&setSpawnUnitScript>("setSpawnUnit", "set type of zombie will be spawn from curret unit, it will reset every thing to default (hostile & instant)");
 	bu.add<&getSpawnUnitScript>("getSpawnUnit", "get type of zombie will be spawn from curret unit");
 	bu.add<&setSpawnUnitInstantRespawnScript>("setSpawnUnitInstantRespawn", "set 1 to make unit instalty change to spawn zombie unit, other wise it will transform on death");
 	bu.add<&getSpawnUnitInstantRespawnScript>("getSpawnUnitInstantRespawn", "get state of instant respawn");
-	bu.add<&setSpawnUnitFactionScript>("setSpawnUnitFaction", "set faction of unit that will span");
-	bu.add<&getSpawnUnitFactionScript>("getSpawnUnitFaction", "get faction of unit that will span");
+	bu.add<&setSpawnUnitFactionScript>("setSpawnUnitFaction", "set faction of unit that will spawn");
+	bu.add<&getSpawnUnitFactionScript>("getSpawnUnitFaction", "get faction of unit that will spawn");
 
 
 	bu.addField<&BattleUnit::_tu>("getTimeUnits");
@@ -5710,7 +5843,7 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 
 	bu.addField<&BattleUnit::_health>("getHealth");
 	bu.add<UnitStats::getMaxStatScript<BattleUnit, &BattleUnit::_stats, &UnitStats::health>>("getHealthMax");
-	bu.add<&setBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("setHealth");
+	bu.add<&setBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("setHealth"); //TODO: allow overkill? now minim is 0.
 	bu.add<&addBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("addHealth");
 
 	bu.addField<&BattleUnit::_mana>("getMana");
@@ -5734,6 +5867,10 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.add<&addBaseStatRangeScript<&BattleUnit::_morale, 0, 100>>("addMorale");
 
 
+	bu.add<&BattleUnit::getFire>("getFire");
+	bu.add<&setFireScript>("setFire");
+
+
 	bu.add<&setArmorValueScript>("setArmor", "first arg is side, second one is new value of armor");
 	bu.add<&addArmorValueScript>("addArmor", "first arg is side, second one is value to add to armor");
 	bu.add<&getArmorValueScript>("getArmor", "first arg return armor value, second arg is side");
@@ -5751,7 +5888,8 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	UnitStats::addGetStatsScript<&BattleUnit::_exp>(bu, "Exp.", true);
 
 	bu.add<&getVisibleUnitsCountScript>("getVisibleUnitsCount");
-	bu.add<&getFactionScript>("getFaction");
+	bu.add<&getFactionScript>("getFaction", "get current faction of unit");
+	bu.add<&getOriginalFactionScript>("getOriginalFaction", "get original faction of unit");
 
 	bu.add<&BattleUnit::getOverKillDamage>("getOverKillDamage");
 	bu.addRules<Armor, &BattleUnit::getArmor>("getRuleArmor");
@@ -5897,18 +6035,33 @@ void medikitBattleActionImpl(BindBase& b)
 	b.addCustomConst("medikit_action_painkiller", BMA_PAINKILLER);
 }
 
+void commonBattleUnitAnimations(ScriptParserBase* parser)
+{
+	Bind<BattleUnit> bu = { parser, BindBase::ExtensionBinding{} };
+
+	bu.add<&BattleUnit::getFloorAbove>("isFloorAbove", "check if floor is show above unit");
+	bu.add<&BattleUnit::getBreathExhaleFrame>("getBreathExhaleFrame", "return aninmation frame of breath bubbles, -1 mean no animation");
+	bu.add<&BattleUnit::getBreathInhaleFrame>("getBreathInhaleFrame", "return number of frames to next breath animation start, 0 mean animation started, -1 no animation");
+}
+
+
 }
 
 /**
  * Constructor of recolor script parser.
  */
-ModScript::RecolorUnitParser::RecolorUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name, "new_pixel", "old_pixel", "unit", "blit_part", "anim_frame", "shade", "burn" }
+ModScript::RecolorUnitParser::RecolorUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"new_pixel",
+	"old_pixel",
+
+	"unit", "battle_game", "blit_part", "anim_frame", "shade", "burn" }
 {
 	BindBase b { this };
 
 	b.addCustomFunc<burnShadeScript>("add_burn_shade");
 
 	commonImpl(b, mod);
+	commonBattleUnitAnimations(this);
 
 	b.addCustomConst("blit_item_righthand", BODYPART_ITEM_RIGHTHAND);
 	b.addCustomConst("blit_item_lefthand", BODYPART_ITEM_LEFTHAND);
@@ -5921,11 +6074,16 @@ ModScript::RecolorUnitParser::RecolorUnitParser(ScriptGlobal* shared, const std:
 /**
  * Constructor of select sprite script parser.
  */
-ModScript::SelectUnitParser::SelectUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name, "sprite_index", "sprite_offset", "unit", "blit_part", "anim_frame", "shade" }
+ModScript::SelectUnitParser::SelectUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"sprite_index",
+	"sprite_offset",
+
+	"unit", "battle_game", "blit_part", "anim_frame", "shade" }
 {
 	BindBase b { this };
 
 	commonImpl(b, mod);
+	commonBattleUnitAnimations(this);
 
 	setDefault("add sprite_index sprite_offset; return sprite_index;");
 }
@@ -5942,6 +6100,7 @@ ModScript::SelectMoveSoundUnitParser::SelectMoveSoundUnitParser(ScriptGlobal* sh
 	BindBase b { this };
 
 	commonImpl(b, mod);
+	commonBattleUnitAnimations(this);
 
 	moveTypesImpl(b);
 }
@@ -5954,7 +6113,7 @@ ModScript::ReactionUnitParser::ReactionUnitParser(ScriptGlobal* shared, const st
 	"distance",
 
 	"action_unit",
-	"reaction_unit", "reaction_weapon", "reaction_battle_action",
+	"reaction_unit", "reaction_weapon", "reaction_battle_action", "reaction_count",
 	"weapon", "skill", "battle_action", "action_target",
 	"move", "arc_to_action_unit", "battle_game" }
 {
@@ -5980,12 +6139,12 @@ ModScript::VisibilityUnitParser::VisibilityUnitParser(ScriptGlobal* shared, cons
 /**
  * Init all required data in script using object data.
  */
-void BattleUnit::ScriptFill(ScriptWorkerBlit* w, BattleUnit* unit, int body_part, int anim_frame, int shade, int burn)
+void BattleUnit::ScriptFill(ScriptWorkerBlit* w, const BattleUnit* unit, const SavedBattleGame* save, int body_part, int anim_frame, int shade, int burn)
 {
 	w->clear();
 	if(unit)
 	{
-		w->update(unit->getArmor()->getScript<ModScript::RecolorUnitSprite>(), unit, body_part, anim_frame, shade, burn);
+		w->update(unit->getArmor()->getScript<ModScript::RecolorUnitSprite>(), unit, save, body_part, anim_frame, shade, burn);
 	}
 }
 

@@ -189,13 +189,13 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 		size_t totalTiles = node["totalTiles"].as<size_t>();
 
 		memset(&serKey, 0, sizeof(Tile::SerializationKey));
-		serKey.index = node["tileIndexSize"].as<Uint8>(serKey.index);
+		serKey.index = node["tileIndexSize"].as<char>(serKey.index);
 		serKey.totalBytes = node["tileTotalBytesPer"].as<Uint32>(serKey.totalBytes);
-		serKey._fire = node["tileFireSize"].as<Uint8>(serKey._fire);
-		serKey._smoke = node["tileSmokeSize"].as<Uint8>(serKey._smoke);
-		serKey._mapDataID = node["tileIDSize"].as<Uint8>(serKey._mapDataID);
-		serKey._mapDataSetID = node["tileSetIDSize"].as<Uint8>(serKey._mapDataSetID);
-		serKey.boolFields = node["tileBoolFieldsSize"].as<Uint8>(1); // boolean flags used to be stored in an unmentioned byte (Uint8) :|
+		serKey._fire = node["tileFireSize"].as<char>(serKey._fire);
+		serKey._smoke = node["tileSmokeSize"].as<char>(serKey._smoke);
+		serKey._mapDataID = node["tileIDSize"].as<char>(serKey._mapDataID);
+		serKey._mapDataSetID = node["tileSetIDSize"].as<char>(serKey._mapDataSetID);
+		serKey.boolFields = node["tileBoolFieldsSize"].as<char>(1); // boolean flags used to be stored in an unmentioned byte (Uint8) :|
 
 		// load binary tile data!
 		YAML::Binary binTiles = node["binTiles"].as<YAML::Binary>();
@@ -564,13 +564,13 @@ YAML::Node SavedBattleGame::save() const
 	}
 #else
 	// first, write out the field sizes we're going to use to write the tile data
-	node["tileIndexSize"] = Tile::serializationKey.index;
+	node["tileIndexSize"] = static_cast<char>(Tile::serializationKey.index);
 	node["tileTotalBytesPer"] = Tile::serializationKey.totalBytes;
-	node["tileFireSize"] = Tile::serializationKey._fire;
-	node["tileSmokeSize"] = Tile::serializationKey._smoke;
-	node["tileIDSize"] = Tile::serializationKey._mapDataID;
-	node["tileSetIDSize"] = Tile::serializationKey._mapDataSetID;
-	node["tileBoolFieldsSize"] = Tile::serializationKey.boolFields;
+	node["tileFireSize"] = static_cast<char>(Tile::serializationKey._fire);
+	node["tileSmokeSize"] = static_cast<char>(Tile::serializationKey._smoke);
+	node["tileIDSize"] = static_cast<char>(Tile::serializationKey._mapDataID);
+	node["tileSetIDSize"] = static_cast<char>(Tile::serializationKey._mapDataSetID);
+	node["tileBoolFieldsSize"] = static_cast<char>(Tile::serializationKey.boolFields);
 
 	size_t tileDataSize = Tile::serializationKey.totalBytes * _mapsize_z * _mapsize_y * _mapsize_x;
 	Uint8* tileData = (Uint8*) calloc(tileDataSize, 1);
@@ -672,7 +672,7 @@ void SavedBattleGame::initMap(int mapsize_x, int mapsize_y, int mapsize_z, bool 
 	_tiles.reserve(_mapsize_z * _mapsize_y * _mapsize_x);
 	for (int i = 0; i < _mapsize_z * _mapsize_y * _mapsize_x; ++i)
 	{
-		_tiles.push_back(Tile(getTileCoords(i)));
+		_tiles.push_back(Tile(getTileCoords(i), this));
 	}
 
 }
@@ -1769,6 +1769,67 @@ BattleUnit *SavedBattleGame::createTempUnit(const Unit *rules, UnitFaction facti
 		newUnit->setAIModule(new AIModule(this, newUnit, 0));
 	}
 
+	return newUnit;
+}
+
+/**
+ * Converts a unit into a unit of another type.
+ * @param unit The unit to convert.
+ * @return Pointer to the new unit.
+ */
+BattleUnit *SavedBattleGame::convertUnit(BattleUnit *unit)
+{
+	// only ever respawn once
+	unit->setAlreadyRespawned(true);
+
+	bool visible = unit->getVisible();
+
+	if (getSelectedUnit() == unit)
+	{
+		setSelectedUnit(nullptr);
+	}
+
+	// in case the unit was unconscious
+	removeUnconsciousBodyItem(unit);
+
+	unit->instaKill();
+
+	auto tile = unit->getTile();
+	if (tile == nullptr)
+	{
+		auto pos = unit->getPosition();
+		if (pos != TileEngine::invalid)
+		{
+			tile = getTile(pos);
+		}
+	}
+
+	// in case of unconscious unit someone could stand on top of it, or take curret unit to invenotry, then we skip spawning any thing
+	if (!tile || (tile->getUnit() != nullptr && tile->getUnit() != unit))
+	{
+		return nullptr;
+	}
+
+	getTileEngine()->itemDropInventory(tile, unit, false, true);
+
+	// remove unit-tile link
+	unit->setTile(nullptr, this);
+
+	const Unit* type = unit->getSpawnUnit();
+
+	BattleUnit *newUnit = createTempUnit(type, unit->getSpawnUnitFaction());
+
+	newUnit->clearTimeUnits();
+	newUnit->setVisible(visible);
+	newUnit->setTile(tile, this);
+	newUnit->setPosition(unit->getPosition());
+	newUnit->setDirection(unit->getDirection());
+	getUnits()->push_back(newUnit);
+	initUnit(newUnit);
+
+	getTileEngine()->calculateFOV(newUnit->getPosition());  //happens fairly rarely, so do a full recalc for units in range to handle the potential unit visible cache issues.
+	getTileEngine()->applyGravity(newUnit->getTile());
+	newUnit->dontReselect();
 	return newUnit;
 }
 
@@ -3043,6 +3104,7 @@ void SavedBattleGame::resetUnitHitStates()
 
 namespace
 {
+
 template<typename... Args>
 void flashMessageVariadicScriptImpl(SavedBattleGame* sbg, ScriptText message, Args... args)
 {
@@ -3055,6 +3117,21 @@ void flashMessageVariadicScriptImpl(SavedBattleGame* sbg, ScriptText message, Ar
 	(translated.arg(args), ...);
 	sbg->getBattleState()->warningRaw(translated);
 }
+
+template<typename... Args>
+void flashLongMessageVariadicScriptImpl(SavedBattleGame* sbg, ScriptText message, Args... args)
+{
+	if (!sbg || !sbg->getBattleState())
+	{
+		return;
+	}
+	const Language *lang = sbg->getBattleState()->getGame()->getLanguage();
+	LocalizedText translated = lang->getString(message);
+	(translated.arg(args), ...);
+	sbg->getBattleState()->warningLongRaw(translated);
+}
+
+
 
 void randomChanceScript(SavedBattleGame* sbg, int& val)
 {
@@ -3182,7 +3259,7 @@ void SavedBattleGame::ScriptRegister(ScriptParserBase* parser)
 
 	Bind<SavedBattleGame> sbg = { parser };
 
-	sbg.add<&SavedBattleGame::getTurn>("getTurn");
+	sbg.add<&SavedBattleGame::getTurn>("getTurn", "Current turn, 0 - before battle, 1 - fisrt turn, each stage reset this value.");
 	sbg.add<&SavedBattleGame::getAnimFrame>("getAnimFrame");
 	sbg.add<&getTileScript>("getTile", "Get tile on position x, y, z");
 
@@ -3194,8 +3271,14 @@ void SavedBattleGame::ScriptRegister(ScriptParserBase* parser)
 	sbg.add<void(*)(SavedBattleGame*, ScriptText, int, int, int), &flashMessageVariadicScriptImpl>("flashMessage");
 	sbg.add<void(*)(SavedBattleGame*, ScriptText, int, int, int, int), &flashMessageVariadicScriptImpl>("flashMessage");
 
-	sbg.add<&randomChanceScript>("randomChance");
-	sbg.add<&randomRangeScript>("randomRange");
+	sbg.add<void(*)(SavedBattleGame*, ScriptText), &flashLongMessageVariadicScriptImpl>("flashLongMessage");
+	sbg.add<void(*)(SavedBattleGame*, ScriptText, int), &flashLongMessageVariadicScriptImpl>("flashLongMessage");
+	sbg.add<void(*)(SavedBattleGame*, ScriptText, int, int), &flashLongMessageVariadicScriptImpl>("flashLongMessage");
+	sbg.add<void(*)(SavedBattleGame*, ScriptText, int, int, int), &flashLongMessageVariadicScriptImpl>("flashLongMessage");
+	sbg.add<void(*)(SavedBattleGame*, ScriptText, int, int, int, int), &flashLongMessageVariadicScriptImpl>("flashLongMessage");
+
+	sbg.add<&randomChanceScript>("randomChance", "first argument is percent in range 0 - 100, then return in that argument random 1 or 0 based on percent");
+	sbg.add<&randomRangeScript>("randomRange", "set in first argument random value from range given in two last arguments");
 	sbg.add<&turnSideScript>("getTurnSide", "Return the faction whose turn it is.");
 	sbg.addCustomConst("FACTION_PLAYER", FACTION_PLAYER);
 	sbg.addCustomConst("FACTION_HOSTILE", FACTION_HOSTILE);

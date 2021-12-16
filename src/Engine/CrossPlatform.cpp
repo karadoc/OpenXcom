@@ -33,6 +33,7 @@
 #include "Logger.h"
 #include "Exception.h"
 #include "Options.h"
+#include "Unicode.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -1449,6 +1450,26 @@ void crashDump(void *ex, const std::string &err)
 	msg << "3. a log file (helps 10%)" << std::endl;
 	msg << "4. a screenshot of this error message (helps 5%)";
 	showError(msg.str());
+}
+
+/**
+ * Opens a file or web path in the system default browser.
+ */
+bool openExplorer(const std::string &url)
+{
+#ifdef _WIN32
+	HINSTANCE ret = ShellExecuteW(NULL, L"open", Unicode::convMbToWc(url, CP_UTF8).c_str(), NULL, NULL, SW_SHOWNORMAL);
+	// The return value is not a true HINSTANCE. If the function succeeds, it returns a value greater than 32.
+	return (static_cast<int>(reinterpret_cast<uintptr_t>(ret)) > 32);
+#elif __MOBILE__
+	return false;
+#elif __APPLE__
+	std::string cmd = "open \"" + url + "\"";
+	return (system(cmd.c_str()) == 0);
+#else
+	std::string cmd = "xdg-open \"" + url + "\"";
+	return (system(cmd.c_str()) == 0);
+#endif
 }
 
 

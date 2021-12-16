@@ -369,9 +369,9 @@ void BattlescapeGame::handleAI(BattleUnit *unit)
 
 	if (unit->getCharging() != 0)
 	{
-		if (unit->getAggroSound() != -1 && !_playedAggroSound)
+		if (unit->hasAggroSound() && !_playedAggroSound)
 		{
-			getMod()->getSoundByDepth(_save->getDepth(), unit->getAggroSound())->play(-1, getMap()->getSoundAngle(unit->getPosition()));
+			getMod()->getSoundByDepth(_save->getDepth(), unit->getRandomAggroSound())->play(-1, getMap()->getSoundAngle(unit->getPosition()));
 			_playedAggroSound = true;
 		}
 	}
@@ -450,7 +450,7 @@ void BattlescapeGame::handleAI(BattleUnit *unit)
  */
 bool BattlescapeGame::kneel(BattleUnit *bu)
 {
-	int tu = bu->isKneeled() ? 8 : 4;
+	int tu = bu->getKneelChangeCost();
 	if (bu->getArmor()->allowsKneeling(bu->getType() == "SOLDIER") && !bu->isFloating() && ((!bu->isKneeled() && _save->getKneelReserved()) || checkReservedTU(bu, tu, 0)))
 	{
 		BattleAction kneel;
@@ -518,12 +518,12 @@ void BattlescapeGame::endTurn()
 				}
 				if (tile)
 				{
-					if (item->fuseEndTurnEffect())
+					if (item->fuseTimeEvent())
 					{
 						if (rule->getBattleType() == BT_GRENADE) // it's a grenade to explode now
 						{
 							Position p = tile->getPosition().toVoxel() + Position(8, 8, -tile->getTerrainLevel() + (unit ? unit->getHeight() / 2 : 0));
-							forRemoval.push_back(std::tuple(nullptr, new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_NONE, unit, item))));
+							forRemoval.push_back(std::tuple(nullptr, new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_TRIGGER_TIMED_GRENADE, unit, item))));
 							exploded = true;
 						}
 						else
@@ -579,7 +579,7 @@ void BattlescapeGame::endTurn()
 				{
 					continue;
 				}
-				item->fuseTimerEvent();
+				item->fuseEndTurnUpdate();
 			}
 		}
 
@@ -1067,7 +1067,7 @@ void BattlescapeGame::setupCursor()
 
 /**
  * Determines whether a playable unit is selected. Normally only player side units can be selected, but in debug mode one can play with aliens too :)
- * Is used to see if stats can be displayed and action buttons will work.
+ * Is used to see if stats can be displayed.
  * @return Whether a playable unit is selected.
  */
 bool BattlescapeGame::playableUnitSelected() const
@@ -1360,7 +1360,7 @@ bool BattlescapeGame::checkReservedTU(BattleUnit *bu, int tu, int energy, bool j
 		cost.type = BA_AIMEDSHOT;
 		cost.updateTU();
 	}
-	const int tuKneel = (_save->getKneelReserved() && !bu->isKneeled()  && bu->getArmor()->allowsKneeling(bu->getType() == "SOLDIER")) ? 4 : 0;
+	const int tuKneel = (_save->getKneelReserved() && !bu->isKneeled()  && bu->getArmor()->allowsKneeling(bu->getType() == "SOLDIER")) ? bu->getKneelDownCost() : 0;
 	// no aimed shot available? revert to none.
 	if (cost.Time == 0 && cost.type == BA_AIMEDSHOT)
 	{
@@ -2077,59 +2077,9 @@ void BattlescapeGame::dropItem(Position position, BattleItem *item, bool removeI
  */
 BattleUnit *BattlescapeGame::convertUnit(BattleUnit *unit)
 {
-	// only ever respawn once
-	unit->setAlreadyRespawned(true);
+	_parentState->resetUiButton();
 
-	bool visible = unit->getVisible();
-
-	if (getSave()->getSelectedUnit() == unit)
-	{
-		getSave()->setSelectedUnit(nullptr);
-	}
-	getSave()->getBattleState()->resetUiButton();
-	// in case the unit was unconscious
-	getSave()->removeUnconsciousBodyItem(unit);
-
-	unit->instaKill();
-
-	auto tile = unit->getTile();
-	if (tile == nullptr)
-	{
-		auto pos = unit->getPosition();
-		if (pos != TileEngine::invalid)
-		{
-			tile = _save->getTile(pos);
-		}
-	}
-
-	// in case of unconscious unit someone could stand on top of it, or take curret unit to invenotry, then we skip spawning any thing
-	if (!tile || (tile->getUnit() != nullptr && tile->getUnit() != unit))
-	{
-		return nullptr;
-	}
-
-	getSave()->getTileEngine()->itemDropInventory(tile, unit, false, true);
-
-	// remove unit-tile link
-	unit->setTile(nullptr, _save);
-
-	const Unit* type = unit->getSpawnUnit();
-
-	BattleUnit *newUnit = _save->createTempUnit(type, unit->getSpawnUnitFaction());
-
-	getSave()->initUnit(newUnit);
-	newUnit->setTile(tile, _save);
-	newUnit->setPosition(unit->getPosition());
-	newUnit->setDirection(unit->getDirection());
-	newUnit->clearTimeUnits();
-	getSave()->getUnits()->push_back(newUnit);
-	newUnit->setVisible(visible);
-
-	getTileEngine()->calculateFOV(newUnit->getPosition());  //happens fairly rarely, so do a full recalc for units in range to handle the potential unit visible cache issues.
-	getTileEngine()->applyGravity(newUnit->getTile());
-	newUnit->dontReselect();
-	return newUnit;
-
+	return getSave()->convertUnit(unit);
 }
 
 /**
@@ -2224,7 +2174,6 @@ void BattlescapeGame::spawnNewUnit(BattleActionAttack attack, Position position)
 		size_t itemLevel = (size_t)(getMod()->getAlienItemLevels().at(month).at(RNG::generate(0,9)));
 
 		// Initialize the unit and its position
-		getSave()->initUnit(newUnit, itemLevel);
 		newUnit->setTile(_save->getTile(position), _save);
 		newUnit->setPosition(position);
 		newUnit->setDirection(unitDirection);
@@ -2232,6 +2181,7 @@ void BattlescapeGame::spawnNewUnit(BattleActionAttack attack, Position position)
 		getSave()->getUnits()->push_back(newUnit);
 		bool visible = faction == FACTION_PLAYER;
 		newUnit->setVisible(visible);
+		getSave()->initUnit(newUnit, itemLevel);
 
 		getTileEngine()->calculateFOV(newUnit->getPosition());  //happens fairly rarely, so do a full recalc for units in range to handle the potential unit visible cache issues.
 		getTileEngine()->applyGravity(newUnit->getTile());
@@ -2251,7 +2201,7 @@ void BattlescapeGame::spawnFromPrimedItems()
 
 	for (std::vector<BattleItem*>::iterator i = _save->getItems()->begin(); i != _save->getItems()->end(); ++i)
 	{
-		if ((*i)->isOwnerIgnored())
+		if ((*i)->isOwnerIgnored() || !(*i)->getTile())
 		{
 			continue;
 		}
@@ -2990,7 +2940,7 @@ int BattlescapeGame::checkForProximityGrenades(BattleUnit *unit)
 			{
 				deathTrapItem->setFuseTimer(0);
 				Position p = deathTrapTile->getPosition().toVoxel() + Position(8, 8, deathTrapTile->getTerrainLevel());
-				statePushNext(new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_NONE, nullptr, deathTrapItem)));
+				statePushNext(new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_TRIGGER_PROXY_GRENADE, nullptr, deathTrapItem)));
 				return 2;
 			}
 			else if (deathTrapRule->getBattleType() == BT_MELEE)
@@ -3023,7 +2973,7 @@ int BattlescapeGame::checkForProximityGrenades(BattleUnit *unit)
 						if (ruleItem->getBattleType() == BT_GRENADE || ruleItem->getBattleType() == BT_PROXIMITYGRENADE)
 						{
 							Position p = t->getPosition().toVoxel() + Position(8, 8, t->getTerrainLevel());
-							statePushNext(new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_NONE, nullptr, item)));
+							statePushNext(new ExplosionBState(this, p, BattleActionAttack::GetBeforeShoot(BA_TRIGGER_PROXY_GRENADE, nullptr, item)));
 							exploded = true;
 						}
 						else
@@ -3079,7 +3029,7 @@ int BattlescapeGame::getDepth() const
  */
 void BattlescapeGame::playSound(int sound, const Position &pos)
 {
-	if (sound != -1)
+	if (sound != Mod::NO_SOUND)
 	{
 		_parentState->getGame()->getMod()->getSoundByDepth(_save->getDepth(), sound)->play(-1, _parentState->getMap()->getSoundAngle(pos));
 	}
@@ -3090,7 +3040,7 @@ void BattlescapeGame::playSound(int sound, const Position &pos)
  */
 void BattlescapeGame::playSound(int sound)
 {
-	if (sound != -1)
+	if (sound != Mod::NO_SOUND)
 	{
 		_parentState->getGame()->getMod()->getSoundByDepth(_save->getDepth(), sound)->play();
 	}
@@ -3135,7 +3085,7 @@ void BattlescapeGame::playUnitResponseSound(BattleUnit *unit, int type)
 			sound = sounds.front();
 	}
 
-	if (sound != -1)
+	if (sound != Mod::NO_SOUND)
 	{
 		if (!Mix_Playing(4))
 		{

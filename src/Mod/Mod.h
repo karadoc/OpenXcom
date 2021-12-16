@@ -129,6 +129,11 @@ struct LoadRuleException : Exception
 	{
 
 	}
+
+	LoadRuleException(const std::string& parent, const std::string& message) : Exception{ "Error for '" + parent + "': " + message}
+	{
+
+	}
 };
 
 /**
@@ -342,6 +347,12 @@ public:
 	static int EXPLOSION_OFFSET;
 	static int SMOKE_OFFSET;
 	static int UNDERWATER_SMOKE_OFFSET;
+
+	/// Empty sound.
+	constexpr static int NO_SOUND = -1;
+	/// Special value for defualt string diffrent to empty one.
+	static const std::string STR_NULL;
+
 	static int ITEM_DROP;
 	static int ITEM_THROW;
 	static int ITEM_RELOAD;
@@ -355,6 +366,7 @@ public:
 	static int UFO_EXPLODE;
 	static int INTERCEPTOR_HIT;
 	static int INTERCEPTOR_EXPLODE;
+
 	static int GEOSCAPE_CURSOR;
 	static int BASESCAPE_CURSOR;
 	static int BATTLESCAPE_CURSOR;
@@ -376,6 +388,12 @@ public:
 	static int EXTENDED_TERRAIN_MELEE;
 	static int EXTENDED_UNDERWATER_THROW_FACTOR;
 
+
+	/// Return `true` when given string is empty or pseudo null value.
+	static bool isEmptyRuleName(const std::string& s)
+	{
+		return s.empty() || s == Mod::STR_NULL;
+	}
 	// reset all the statics in all classes to default values
 	static void resetGlobalStatics();
 
@@ -411,16 +429,54 @@ public:
 	/// Gets a particular palette.
 	Palette *getPalette(const std::string &name, bool error = true) const;
 	/// Gets list of voxel data.
-	std::vector<Uint16> *getVoxelData();
+	const std::vector<Uint16> *getVoxelData() const;
 	/// Returns a specific sound from either the land or underwater sound set.
 	Sound *getSoundByDepth(unsigned int depth, unsigned int sound, bool error = true) const;
 	/// Gets list of LUT data.
 	const std::vector<std::vector<Uint8> > *getLUTs() const;
 
+	/// Check for error that we can ignore by user request.
+	bool checkForSoftError(bool check, const std::string &parent, const YAML::Node &node, const std::string &error, SeverityLevel level = LOG_WARNING) const
+	{
+		if (check)
+		{
+			auto ex = LoadRuleException(parent, node, error);
+			if (Options::oxceModValidationLevel < level)
+			{
+				Log(level) << "Supressed " << ex.what();
+				return true;
+			}
+			else
+			{
+				throw ex;
+			}
+		}
+		return false;
+	}
+
+	/// Check for error that we can ignore by user request.
+	bool checkForSoftError(bool check, const std::string &parent, const std::string &error, SeverityLevel level = LOG_WARNING) const
+	{
+		if (check)
+		{
+			auto ex = LoadRuleException(parent, error);
+			if (Options::oxceModValidationLevel < level)
+			{
+				Log(level) << "Supressed " << ex.what();
+				return true;
+			}
+			else
+			{
+				throw ex;
+			}
+		}
+		return false;
+	}
+
 	/// Gets the mod offset.
 	int getModOffset() const;
 	/// Get offset and index for sound set or sprite set.
-	void loadOffsetNode(const std::string &parent, int& offset, const YAML::Node &node, int shared, const std::string &set, size_t multiplier) const;
+	void loadOffsetNode(const std::string &parent, int& offset, const YAML::Node &node, int shared, const std::string &set, size_t multiplier, size_t sizeScale = 1) const;
 	/// Gets the mod offset for a certain sprite.
 	void loadSpriteOffset(const std::string &parent, int& sprite, const YAML::Node &node, const std::string &set, size_t multiplier = 1) const;
 	/// Gets the mod offset array for a certain sprite.
@@ -429,6 +485,8 @@ public:
 	void loadSoundOffset(const std::string &parent, int& sound, const YAML::Node &node, const std::string &set) const;
 	/// Gets the mod offset array for a certain sound.
 	void loadSoundOffset(const std::string &parent, std::vector<int>& sounds, const YAML::Node &node, const std::string &set) const;
+	/// Gets the mod offset array for a certain transparency index.
+	void loadTransparencyOffset(const std::string &parent, int& index, const YAML::Node &node) const;
 	/// Gets the mod offset for a generic value.
 	int getOffset(int id, int max) const;
 
@@ -442,17 +500,28 @@ public:
 	/// Loads a list of ints where order of items does not matter.
 	void loadUnorderedInts(const std::string &parent, std::vector<int>& ints, const YAML::Node &node) const;
 
+	/// Loads a name.
+	void loadName(const std::string &parent, std::string& names, const YAML::Node &node) const;
+	/// Loads a name.
+	void loadNameNull(const std::string &parent, std::string& names, const YAML::Node &node) const;
 	/// Loads a list of names.
 	void loadNames(const std::string &parent, std::vector<std::string>& names, const YAML::Node &node) const;
 	/// Loads a list of names where order of items does not matter.
 	void loadUnorderedNames(const std::string &parent, std::vector<std::string>& names, const YAML::Node &node) const;
 
 	/// Loads a map from names to names.
+	void loadNamesToNames(const std::string &parent, std::vector<std::pair<std::string, std::vector<std::string>>>& names, const YAML::Node &node) const;
+	/// Loads a map from names to names.
 	void loadUnorderedNamesToNames(const std::string &parent, std::map<std::string, std::string>& names, const YAML::Node &node) const;
 	/// Loads a map from names to ints.
 	void loadUnorderedNamesToInt(const std::string &parent, std::map<std::string, int>& names, const YAML::Node &node) const;
+	/// Loads a map from names to vector of ints.
+	void loadUnorderedNamesToInts(const std::string &parent, std::map<std::string, std::vector<int>>& names, const YAML::Node &node) const;
 	/// Loads a map from names to names to int.
 	void loadUnorderedNamesToNamesToInt(const std::string &parent, std::map<std::string, std::map<std::string, int>>& names, const YAML::Node &node) const;
+
+	/// Loads data for kill criteria from Commendations.
+	void loadKillCriteria(const std::string &parent, std::vector<std::vector<std::pair<int, std::vector<std::string> > > >& names, const YAML::Node &node) const;
 
 
 	/// Convert names to correct rule objects

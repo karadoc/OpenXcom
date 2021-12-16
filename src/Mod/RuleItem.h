@@ -53,7 +53,34 @@ enum ExperienceTrainingMode {
 	ETM_PSI_STRENGTH_OR_SKILL, ETM_PSI_STRENGTH_OR_SKILL_2X,
 	ETM_NOTHING
 };
-enum BattleActionType : Uint8 { BA_NONE, BA_TURN, BA_WALK, BA_KNEEL, BA_PRIME, BA_UNPRIME, BA_THROW, BA_AUTOSHOT, BA_SNAPSHOT, BA_AIMEDSHOT, BA_HIT, BA_USE, BA_LAUNCH, BA_MINDCONTROL, BA_PANIC, BA_RETHINK, BA_CQB };
+enum BattleActionType : Uint8
+{
+	BA_NONE = 0,
+
+	BA_TURN = 1,
+	BA_WALK = 2,
+	BA_KNEEL = 3,
+
+	BA_PRIME = 4,
+	BA_UNPRIME = 5,
+	BA_THROW = 6,
+	BA_AUTOSHOT = 7,
+	BA_SNAPSHOT = 8,
+	BA_AIMEDSHOT = 9,
+	BA_HIT = 10,
+
+	BA_USE = 11,
+	BA_LAUNCH = 12,
+	BA_MINDCONTROL = 13,
+	BA_PANIC = 14,
+
+	BA_RETHINK = 15,
+
+	BA_CQB = 16,
+
+	BA_TRIGGER_TIMED_GRENADE = 17,
+	BA_TRIGGER_PROXY_GRENADE = 18,
+};
 
 enum class BattleActionOrigin { CENTRE = 0, LEFT, RIGHT }; // Used for off-centre shooting.
 
@@ -326,6 +353,7 @@ private:
 	std::vector<const RuleItem*> _compatibleAmmo[AmmoSlotMax];
 	std::unordered_map<const RuleItem*, int> _compatibleAmmoSlots;
 	RuleDamageType _damageType, _meleeType;
+	bool _damageTypeSet, _meleeTypeSet;
 	RuleItemAction _confAimed, _confAuto, _confSnap, _confMelee;
 	int _accuracyUse, _accuracyMind, _accuracyPanic, _accuracyThrow, _accuracyCloseQuarters;
 	int _noLOSAccuracyPenalty;
@@ -669,8 +697,10 @@ public:
 
 	/// Gets the item's damage type.
 	const RuleDamageType *getDamageType() const;
+	bool isDamageTypeSet() const { return _damageTypeSet; }
 	/// Gets the item's melee damage type for range weapons.
 	const RuleDamageType *getMeleeType() const;
+	bool isMeleeTypeSet() const { return _meleeTypeSet; }
 	/// Gets the item's type.
 	BattleType getBattleType() const;
 	/// Gets the item's fuse type.
@@ -691,7 +721,7 @@ public:
 	/// Gets the chance of special effect like zombify or corpse explosion or mine triggering.
 	int getSpecialChance() const;
 	/// Draws the item's hand sprite onto a surface.
-	void drawHandSprite(SurfaceSet *texture, Surface *surface, BattleItem *item = 0, int animFrame = 0) const;
+	void drawHandSprite(const SurfaceSet *texture, Surface *surface, const BattleItem *item = 0, const SavedBattleGame* save = 0, int animFrame = 0) const;
 	/// item's hand spite x offset
 	int getHandSpriteOffX() const;
 	/// item's hand spite y offset

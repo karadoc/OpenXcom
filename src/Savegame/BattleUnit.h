@@ -141,9 +141,9 @@ private:
 	UnitStats _stats;
 	int _standHeight, _kneelHeight, _floatHeight;
 	int _lastReloadSound;
-	std::vector<int> _deathSound;
+	std::vector<int> _deathSound, _aggroSound;
 	std::vector<int> _selectUnitSound, _startMovingSound, _selectWeaponSound, _annoyedSound;
-	int _value, _aggroSound, _moveSound;
+	int _value, _moveSound;
 	int _intelligence, _aggression;
 	int _maxViewDistanceAtDark, _maxViewDistanceAtDay;
 	int _maxViewDistanceAtDarkSquared;
@@ -192,12 +192,15 @@ private:
 	void applyPercentages(RuleItemUseCost &cost, const RuleItemUseCost &flat) const;
 public:
 	static const int MAX_SOLDIER_ID = 1000000;
+	static const int BUBBLES_FIRST_FRAME = 3;
+	static const int BUBBLES_LAST_FRAME = BUBBLES_FIRST_FRAME + 15;
+
 	/// Name of class used in script.
 	static constexpr const char *ScriptName = "BattleUnit";
 	/// Register all useful function used by script.
 	static void ScriptRegister(ScriptParserBase* parser);
 	/// Init all required data in script using object data.
-	static void ScriptFill(ScriptWorkerBlit* w, BattleUnit* unit, int body_part, int anim_frame, int shade, int burn);
+	static void ScriptFill(ScriptWorkerBlit* w, const BattleUnit* item, const SavedBattleGame* save, int body_part, int anim_frame, int shade, int burn);
 
 	/// Creates a BattleUnit from solder.
 	BattleUnit(const Mod *mod, Soldier *soldier, int depth);
@@ -429,7 +432,7 @@ public:
 	/// Set the left hand as main active hand.
 	void setActiveLeftHand();
 	/// Choose what weapon was last use by unit.
-	BattleItem *getActiveHand(BattleItem *left, BattleItem *right) const;
+	const BattleItem *getActiveHand(const BattleItem *left, const BattleItem *right) const;
 	/// Reloads a weapon if needed.
 	bool reloadAmmo();
 
@@ -589,8 +592,10 @@ public:
 	/// Set health to 0 and set status dead
 	void instaKill();
 
-	/// Gets the unit's aggro sound.
-	int getAggroSound() const;
+	/// Gets whether the unit has any aggro sounds.
+	bool hasAggroSound() const;
+	/// Gets a unit's random aggro sound.
+	int getRandomAggroSound() const;
 	/// Sets the unit's time units.
 	void setTimeUnits(int tu);
 	/// Get the faction that killed this unit.
@@ -644,10 +649,14 @@ public:
 	bool isSelectable(UnitFaction faction, bool checkReselect, bool checkInventory) const;
 	/// Does this unit have an inventory?
 	bool hasInventory() const;
+
 	/// Is this unit breathing and if so what frame?
-	int getBreathFrame() const;
+	int getBreathExhaleFrame() const;
+	/// Count frames to next start of breath animation.
+	int getBreathInhaleFrame() const;
 	/// Start breathing and/or update the breathing frame.
 	void breathe();
+
 	/// Set the flag for "floor above me" meaning stop rendering bubbles.
 	void setFloorAbove(bool floor);
 	/// Get the flag for "floor above me".
@@ -664,6 +673,12 @@ public:
 	MovementType getMovementType() const;
 	/// Gets the turn cost.
 	int getTurnCost() const;
+	/// Gets cost of standing up from kneeling.
+	int getKneelUpCost() const { return 8; }
+	/// Gets cost of kneel down.
+	int getKneelDownCost() const { return 4; }
+	/// Gets cost of curret transiton form kneeling to standing or reverse.
+	int getKneelChangeCost() const { return isKneeled() ? getKneelUpCost() : getKneelDownCost(); }
 
 	/// Create special weapon for unit.
 	void setSpecialWeapon(SavedBattleGame *save, bool updateFromSave);
@@ -734,6 +749,8 @@ public:
 	void setAlreadyExploded(bool alreadyExploded) { _alreadyExploded = alreadyExploded; }
 	/// Gets whether this unit can be captured alive (applies to aliens).
 	bool getCapturable() const;
+	/// free up the patrol node target, to allow others to use it.
+	void freePatrolTarget();
 	/// Marks this unit as summoned by an item and therefore won't count for recovery or total player units left.
 	void setSummonedPlayerUnit(bool summonedPlayerUnit);
 	/// Was this unit summoned by an item?

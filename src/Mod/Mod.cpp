@@ -156,10 +156,16 @@ int Mod::EXTENDED_UNDERWATER_THROW_FACTOR;
 
 constexpr size_t MaxDifficultyLevels = 5;
 
+
+/// Special value for defualt string diffrent to empty one.
+const std::string Mod::STR_NULL = { '\0' };
 /// Predefined name for first loaded mod that have all original data
 const std::string ModNameMaster = "master";
 /// Predefined name for current mod that is loading rulesets.
 const std::string ModNameCurrent = "current";
+
+/// Reduction of size allocated for transparcey LUTs.
+const size_t ModTransparceySizeReduction = 100;
 
 void Mod::resetGlobalStatics()
 {
@@ -384,6 +390,7 @@ Mod::Mod() :
 
 	dmg = new RuleDamageType();
 	dmg->ResistType = DT_NONE;
+	dmg->RandomType = DRT_NONE;
 	_damageTypes[dmg->ResistType] = dmg;
 
 	dmg = new RuleDamageType();
@@ -431,6 +438,7 @@ Mod::Mod() :
 
 	dmg = new RuleDamageType();
 	dmg->ResistType = DT_HE;
+	dmg->RandomType = DRT_EXPLOSION;
 	dmg->FixRadius = -1;
 	dmg->IgnoreOverKill = true;
 	dmg->IgnoreSelfDestruct = true;
@@ -441,6 +449,7 @@ Mod::Mod() :
 
 	dmg = new RuleDamageType();
 	dmg->ResistType = DT_SMOKE;
+	dmg->RandomType = DRT_NONE;
 	dmg->FixRadius = -1;
 	dmg->IgnoreOverKill = true;
 	dmg->IgnoreDirection = true;
@@ -458,6 +467,7 @@ Mod::Mod() :
 
 	dmg = new RuleDamageType();
 	dmg->ResistType = DT_IN;
+	dmg->RandomType = DRT_FIRE;
 	dmg->FixRadius = -1;
 	dmg->FireBlastCalc = true;
 	dmg->IgnoreOverKill = true;
@@ -738,7 +748,7 @@ Mod::~Mod()
 template <typename T>
 T *Mod::getRule(const std::string &id, const std::string &name, const std::map<std::string, T*> &map, bool error) const
 {
-	if (id.empty())
+	if (isEmptyRuleName(id))
 	{
 		return 0;
 	}
@@ -961,7 +971,7 @@ Palette *Mod::getPalette(const std::string &name, bool error) const
  * Returns the list of voxeldata in the mod.
  * @return Pointer to the list of voxeldata.
  */
-std::vector<Uint16> *Mod::getVoxelData()
+const std::vector<Uint16> *Mod::getVoxelData() const
 {
 	return &_voxelData;
 }
@@ -988,6 +998,8 @@ const std::vector<std::vector<Uint8> > *Mod::getLUTs() const
 {
 	return &_transparencyLUTs;
 }
+
+
 
 /**
  * Returns the current mod-based offset for resources.
@@ -1079,6 +1091,8 @@ void showInfo(const std::string &parent, const YAML::Node &node, T... names)
 	}
 }
 
+
+
 /**
  * Tag dispatch struct representing normal load logic.
  */
@@ -1096,18 +1110,70 @@ struct LoadFuncEditable
 };
 
 /**
- * Terminal function loading integer
+ * Tag dispatch struct representing can have null value.
+ */
+struct LoadFuncNullable
+{
+	auto funcTagForNew() -> LoadFuncNullable { return { }; }
+};
+
+
+
+/**
+ * Terminal function loading integer.
  */
 void loadHelper(const std::string &parent, int& v, const YAML::Node &node)
 {
 	v = node.as<int>();
 }
+
 /**
- * Terminal function loading string
+ * Terminal function loading string.
+ * Function can't load empty string.
  */
 void loadHelper(const std::string &parent, std::string& v, const YAML::Node &node)
 {
 	v = node.as<std::string>();
+	if (Mod::isEmptyRuleName(v))
+	{
+		throw LoadRuleException(parent, node, "Invalid value for name");
+	}
+}
+
+/**
+ * Function loading string.
+ * If node do not exists then it do not change value.
+ * Function can't load empty string.
+ */
+void loadHelper(const std::string &parent, std::string& v, const YAML::Node &node, LoadFuncStandard)
+{
+	if (node)
+	{
+		loadHelper(parent, v, node);
+	}
+}
+
+/**
+ * Function loading string with option for pseudo null value.
+ * If node do not exists then it do not change value.
+ */
+void loadHelper(const std::string &parent, std::string& v, const YAML::Node &node, LoadFuncNullable)
+{
+	if (node)
+	{
+		if (node.IsNull())
+		{
+			v = Mod::STR_NULL;
+		}
+		else
+		{
+			v = node.as<std::string>();
+			if (v == Mod::STR_NULL)
+			{
+				throw LoadRuleException(parent, node, "Invalid value for name ");
+			}
+		}
+	}
 }
 
 template<typename T, typename... LoadFuncTag>
@@ -1238,6 +1304,67 @@ void loadHelper(const std::string &parent, std::map<K, V>& v, const YAML::Node &
 	}
 }
 
+/**
+ * Fixed order map, rely on fact that yaml-cpp try preserve map order from loaded file
+ */
+template<typename K, typename V, typename... LoadFuncTag>
+void loadHelper(const std::string &parent, std::vector<std::pair<K, V>>& v, const YAML::Node &node, LoadFuncEditable, LoadFuncTag... rest)
+{
+	if (node)
+	{
+		showInfo(parent, node, YamlTagMapShort, AddTag, RemoveTag);
+
+		auto pushBack = [&](const K& k) -> V&
+		{
+			return v.emplace_back(std::pair<K, V>{ k, V{} }).second;
+		};
+
+		auto findOrPushBack = [&](const K& k) -> V&
+		{
+			for (auto& p : v)
+			{
+				if (p.first == k)
+				{
+					return p.second;
+				}
+			}
+			return pushBack(k);
+		};
+
+		if (isMapHelper(node))
+		{
+			v.clear();
+			for (const std::pair<YAML::Node, YAML::Node>& n : node)
+			{
+				auto key = n.first.as<K>();
+
+				loadHelper(parent, pushBack(key), n.second, rest.funcTagForNew()...);
+			}
+		}
+		else if (isMapAddTagHelper(node))
+		{
+			for (const std::pair<YAML::Node, YAML::Node>& n : node)
+			{
+				auto key = n.first.as<K>();
+
+				loadHelper(parent, findOrPushBack(key), n.second, rest...);
+			}
+		}
+		else if (isListRemoveTagHelper(node)) // we use a list here as we only need the keys
+		{
+			for (const YAML::Node& n : node)
+			{
+				auto key = n.as<K>();
+				Collections::removeIf(v, [&](auto& p){ return p.first == key; });
+			}
+		}
+		else
+		{
+			throwOnBadMapHelper(parent, node);
+		}
+	}
+}
+
 } // namespace
 
 /**
@@ -1247,8 +1374,9 @@ void loadHelper(const std::string &parent, std::map<K, V>& v, const YAML::Node &
  * @param node Node with data
  * @param shared Max offset limit that is shared for every mod
  * @param multiplier Value used by `projectile` surface set to convert projectile offset to index offset in surface.
+ * @param sizeScale Value used by transparency colors, reduce total number of avaialbe space for offset.
  */
-void Mod::loadOffsetNode(const std::string &parent, int& offset, const YAML::Node &node, int shared, const std::string &set, size_t multiplier) const
+void Mod::loadOffsetNode(const std::string &parent, int& offset, const YAML::Node &node, int shared, const std::string &set, size_t multiplier, size_t sizeScale) const
 {
 	assert(_modCurrent);
 	const ModData* curr = _modCurrent;
@@ -1312,14 +1440,14 @@ void Mod::loadOffsetNode(const std::string &parent, int& offset, const YAML::Nod
 	{
 		int f = offset;
 		f *= multiplier;
-		if ((size_t)f > curr->size)
+		if ((size_t)f > curr->size / sizeScale)
 		{
 			std::ostringstream err;
-			err << "offset '" << offset << "' exceeds mod size limit " << (curr->size / multiplier) << " in set '" << set << "'";
+			err << "offset '" << offset << "' exceeds mod size limit " << (curr->size / multiplier / sizeScale) << " in set '" << set << "'";
 			throw LoadRuleException(parent, node, err.str());
 		}
 		if (f >= shared)
-			f += curr->offset;
+			f += curr->offset / sizeScale;
 		offset = f;
 	}
 }
@@ -1360,6 +1488,10 @@ void Mod::loadSpriteOffset(const std::string &parent, std::vector<int>& sprites,
 			{
 				sprites.push_back(-1);
 				loadOffsetNode(parent, sprites.back(), *i, maxShared, set, 1);
+				if (checkForSoftError(sprites.back() == -1, parent, *i, "incorrect value in sprite list"))
+				{
+					sprites.pop_back();
+				}
 			}
 		}
 		else
@@ -1403,15 +1535,33 @@ void Mod::loadSoundOffset(const std::string &parent, std::vector<int>& sounds, c
 		{
 			for (YAML::const_iterator i = node.begin(); i != node.end(); ++i)
 			{
-				sounds.push_back(-1);
+				sounds.push_back(Mod::NO_SOUND);
 				loadOffsetNode(parent, sounds.back(), *i, maxShared, set, 1);
+				if (checkForSoftError(sounds.back() == Mod::NO_SOUND, parent, *i, "incorrect value in sound list"))
+				{
+					sounds.pop_back();
+				}
 			}
 		}
 		else
 		{
-			sounds.push_back(-1);
+			sounds.push_back(Mod::NO_SOUND);
 			loadOffsetNode(parent, sounds.back(), node, maxShared, set, 1);
 		}
+	}
+}
+
+/**
+ * Gets the mod offset array for a certain transparency index.
+ * @param parent Name of parent node, used for better error message.
+ * @param index Member to load new transparency index.
+ * @param node Node with data.
+ */
+void Mod::loadTransparencyOffset(const std::string &parent, int& index, const YAML::Node &node) const
+{
+	if (node)
+	{
+		loadOffsetNode(parent, index, node, 0, "TransparencyLUTs", 1, ModTransparceySizeReduction);
 	}
 }
 
@@ -1513,6 +1663,23 @@ void Mod::loadUnorderedInts(const std::string &parent, std::vector<int>& ints, c
 	loadHelper(parent, ints, node, LoadFuncEditable{});
 }
 
+
+/**
+ * Loads a name.
+ */
+void Mod::loadName(const std::string &parent, std::string& name, const YAML::Node &node) const
+{
+	loadHelper(parent, name, node, LoadFuncStandard{});
+}
+
+/**
+ * Loads a name. Have option of loading null `~` as special string value.
+ */
+void Mod::loadNameNull(const std::string &parent, std::string& name, const YAML::Node &node) const
+{
+	loadHelper(parent, name, node, LoadFuncNullable{});
+}
+
 /**
  * Loads a list of names.
  * Another mod can only override the whole list, no partial edits allowed.
@@ -1532,6 +1699,15 @@ void Mod::loadUnorderedNames(const std::string &parent, std::vector<std::string>
 }
 
 
+
+/**
+ * Loads a map from names to names.
+ */
+void Mod::loadNamesToNames(const std::string &parent, std::vector<std::pair<std::string, std::vector<std::string>>>& names, const YAML::Node &node) const
+{
+	loadHelper(parent, names, node, LoadFuncEditable{}, LoadFuncEditable{});
+}
+
 /**
  * Loads a map from names to names.
  */
@@ -1549,12 +1725,69 @@ void Mod::loadUnorderedNamesToInt(const std::string &parent, std::map<std::strin
 }
 
 /**
+ * Loads a map from names to vector of ints.
+ */
+void Mod::loadUnorderedNamesToInts(const std::string &parent, std::map<std::string, std::vector<int>>& names, const YAML::Node &node) const
+{
+	loadHelper(parent, names, node, LoadFuncEditable{}, LoadFuncStandard{});
+}
+
+/**
  * Loads a map from names to names to int.
  */
 void Mod::loadUnorderedNamesToNamesToInt(const std::string &parent, std::map<std::string, std::map<std::string, int>>& names, const YAML::Node &node) const
 {
 	loadHelper(parent, names, node, LoadFuncEditable{}, LoadFuncEditable{});
 }
+
+/**
+ * Loads data for kill criteria from Commendations.
+ */
+void Mod::loadKillCriteria(const std::string &parent, std::vector<std::vector<std::pair<int, std::vector<std::string> > > >& v, const YAML::Node &node) const
+{
+	//TODO: very specific use case, not all levels fully supported
+	if (node)
+	{
+		auto loadInner = [&](std::vector<std::pair<int, std::vector<std::string>>>& vv, const YAML::Node &n)
+		{
+			showInfo(parent, n, YamlTagSeqShort);
+
+			if (isListHelper(n))
+			{
+				vv = n.as<std::vector<std::pair<int, std::vector<std::string>>>>();
+			}
+			else
+			{
+				throwOnBadListHelper(parent, n);
+			}
+		};
+
+		showInfo(parent, node, YamlTagSeqShort, AddTag);
+
+		if (isListHelper(node))
+		{
+			v.clear();
+			v.reserve(node.size());
+			for (const YAML::Node& n : node)
+			{
+				loadInner(v.emplace_back(), n);
+			}
+		}
+		else if (isListAddTagHelper(node))
+		{
+			v.reserve(v.size() + node.size());
+			for (const YAML::Node& n : node)
+			{
+				loadInner(v.emplace_back(), n);
+			}
+		}
+		else
+		{
+			throwOnBadListHelper(parent, node);
+		}
+	}
+}
+
 
 
 
@@ -1564,11 +1797,22 @@ static void afterLoadHelper(const char* name, Mod* mod, std::map<std::string, T*
 	std::ostringstream errorStream;
 	int errorLimit = 30;
 	int errorCount = 0;
+
+	errorStream << "During linking rulesets of " << name << ":\n";
 	for (auto& rule : list)
 	{
 		try
 		{
 			(rule.second->* func)(mod);
+		}
+		catch (LoadRuleException &e)
+		{
+			++errorCount;
+			errorStream << e.what() << "\n";
+			if (errorCount == errorLimit)
+			{
+				break;
+			}
 		}
 		catch (Exception &e)
 		{
@@ -1635,6 +1879,14 @@ void Mod::loadAll()
 	auto mods = FileMap::getRulesets();
 
 	Log(LOG_INFO) << "Loading begins...";
+	if (Options::oxceModValidationLevel < LOG_ERROR)
+	{
+		Log(LOG_ERROR) << "Validation of mod data disabled, game can crash when run";
+	}
+	else if (Options::oxceModValidationLevel < LOG_WARNING)
+	{
+		Log(LOG_WARNING) << "Validation of mod data reduced, game can behave incorrectly";
+	}
 	_scriptGlobal->beginLoad();
 	_modData.clear();
 	_modData.resize(mods.size());
@@ -1757,8 +2009,8 @@ void Mod::loadAll()
 	afterLoadHelper("research", this, _research, &RuleResearch::afterLoad);
 	afterLoadHelper("items", this, _items, &RuleItem::afterLoad);
 	afterLoadHelper("manufacture", this, _manufacture, &RuleManufacture::afterLoad);
-	afterLoadHelper("units", this, _units, &Unit::afterLoad);
 	afterLoadHelper("armors", this, _armors, &Armor::afterLoad);
+	afterLoadHelper("units", this, _units, &Unit::afterLoad);
 	afterLoadHelper("soldiers", this, _soldiers, &RuleSoldier::afterLoad);
 	afterLoadHelper("facilities", this, _facilities, &RuleBaseFacility::afterLoad);
 	afterLoadHelper("enviroEffects", this, _enviroEffects, &RuleEnviroEffects::afterLoad);
@@ -1849,6 +2101,7 @@ void Mod::loadAll()
 	if (!_recommendedUserOptions.empty() && !Options::oxceRecommendedOptionsWereSet)
 	{
 		_recommendedUserOptions.erase("maximizeInfoScreens"); // FIXME: make proper categorisations in the next release
+		_recommendedUserOptions.erase("oxceModValidationLevel");
 
 		const std::vector<OptionInfo> &options = Options::getOptionInfo();
 		for (std::vector<OptionInfo>::const_iterator i = options.begin(); i != options.end(); ++i)
@@ -1869,6 +2122,7 @@ void Mod::loadAll()
 		_fixedUserOptions.erase("oxceLinks");
 		_fixedUserOptions.erase("oxceUpdateCheck");
 		_fixedUserOptions.erase("maximizeInfoScreens"); // FIXME: make proper categorisations in the next release
+		_fixedUserOptions.erase("oxceModValidationLevel");
 		_fixedUserOptions.erase("oxceAutoNightVisionThreshold");
 
 		const std::vector<OptionInfo> &options = Options::getOptionInfo();
@@ -1984,16 +2238,38 @@ void Mod::loadResourceConfigFile(const FileMap::FileRecord &filerec)
 			rule->load(*i);
 		}
 	}
-	for (YAML::const_iterator i = doc["transparencyLUTs"].begin(); i != doc["transparencyLUTs"].end(); ++i)
+
+	if (const YAML::Node& luts = doc["transparencyLUTs"])
 	{
-		for (YAML::const_iterator j = (*i)["colors"].begin(); j != (*i)["colors"].end(); ++j)
+		const size_t start = _modCurrent->offset / ModTransparceySizeReduction;
+		const size_t limit =  _modCurrent->size / ModTransparceySizeReduction;
+		size_t curr = 0;
+
+		_transparencies.resize(start + limit);
+		for (YAML::const_iterator i = luts.begin(); i != luts.end(); ++i)
 		{
-			SDL_Color color;
-			color.r = (*j)[0].as<int>(0);
-			color.g = (*j)[1].as<int>(0);
-			color.b = (*j)[2].as<int>(0);
-			color.unused = (*j)[3].as<int>(2);
-			_transparencies.push_back(color);
+			const YAML::Node& c = (*i)["colors"];
+			if (c.IsSequence())
+			{
+				for (YAML::const_iterator j = c.begin(); j != c.end(); ++j)
+				{
+					if (curr == limit)
+					{
+						throw Exception("transparencyLUTs mod limit reach");
+					}
+					SDL_Color color;
+					color.r = (*j)[0].as<int>(0);
+					color.g = (*j)[1].as<int>(0);
+					color.b = (*j)[2].as<int>(0);
+					color.unused = (*j)[3].as<int>(2);
+					// technically its breaking change as it always overwritte from offset `start + 0` but no two mods could work correctly before this change.
+					_transparencies[start + curr++] = color;
+				}
+			}
+			else
+			{
+				throw Exception("unknown transparencyLUTs node type");
+			}
 		}
 	}
 }
@@ -2788,10 +3064,11 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 	}
 	for (YAML::const_iterator i = doc["commendations"].begin(); i != doc["commendations"].end(); ++i)
 	{
-		std::string type = (*i)["type"].as<std::string>();
-		RuleCommendations *commendations = new RuleCommendations();
-		commendations->load(*i);
-		_commendations[type] = commendations;
+		RuleCommendations *rule = loadRule(*i, &_commendations);
+		if (rule != 0)
+		{
+			rule->load(*i, this);
+		}
 	}
 	size_t count = 0;
 	for (YAML::const_iterator i = doc["aimAndArmorMultipliers"].begin(); i != doc["aimAndArmorMultipliers"].end() && count < MaxDifficultyLevels; ++i)
@@ -2857,6 +3134,12 @@ T *Mod::loadRule(const YAML::Node &node, std::map<std::string, T*> *map, std::ve
 	if (node[key])
 	{
 		std::string type = node[key].as<std::string>();
+
+		if (isEmptyRuleName(type))
+		{
+			throw Exception("Invalid value for '" + key + "' at line " + std::to_string(node[key].Mark().line));
+		}
+
 		typename std::map<std::string, T*>::const_iterator i = map->find(type);
 		if (i != map->end())
 		{
@@ -2878,6 +3161,12 @@ T *Mod::loadRule(const YAML::Node &node, std::map<std::string, T*> *map, std::ve
 	else if (node["delete"])
 	{
 		std::string type = node["delete"].as<std::string>();
+
+		if (isEmptyRuleName(type))
+		{
+			throw Exception("Invalid value for 'delete' at line " +  std::to_string(node["delete"].Mark().line));
+		}
+
 		typename std::map<std::string, T*>::iterator i = map->find(type);
 		if (i != map->end())
 		{
@@ -4081,7 +4370,7 @@ Soldier *Mod::genSoldier(SavedGame *save, std::string type) const
 {
 	Soldier *soldier = 0;
 	int newId = save->getId("STR_SOLDIER");
-	if (type.empty())
+	if (isEmptyRuleName(type))
 	{
 		type = _soldiersIndex.front();
 	}
@@ -4302,7 +4591,7 @@ RuleResearch *Mod::getFinalResearch() const
 
 RuleBaseFacility *Mod::getDestroyedFacility() const
 {
-	if (_destroyedFacility.empty())
+	if (isEmptyRuleName(_destroyedFacility))
 		return 0;
 
 	auto temp = getBaseFacility(_destroyedFacility, true);
@@ -5448,38 +5737,49 @@ Music *Mod::loadMusic(MusicFormat fmt, const std::string &file, size_t track, fl
  */
 void Mod::createTransparencyLUT(Palette *pal)
 {
-	SDL_Color desiredColor;
+	const int opacityMax = 4;
+	const SDL_Color* palColors = pal->getColors(0);
 	std::vector<Uint8> lookUpTable;
 	// start with the color sets
+	lookUpTable.reserve(_transparencies.size() * 256 * opacityMax);
 	for (std::vector<SDL_Color>::const_iterator tint = _transparencies.begin(); tint != _transparencies.end(); ++tint)
 	{
 		// then the opacity levels, using the alpha channel as the step
-		for (int opacity = 1; opacity < 1 + tint->unused * 4; opacity += tint->unused)
+		for (int opacity = 1; opacity <= opacityMax; ++opacity)
 		{
+			// pseudo interpolation of palette color with tint
+			// for small values `op` its should behave same as original TFTD
+			// but for bigger values it make result closer to tint color
+			const int op = Clamp(opacity * tint->unused, 0, 64);
+			const float co = 1.0f - Sqr(op / 64.0f); // 1.0 -> 0.0
+			const float to = op * 1.0f; // 0.0 -> 64.0
+
 			// then the palette itself
 			for (int currentColor = 0; currentColor < 256; ++currentColor)
 			{
-				// add the RGB values from the ruleset to those of the colors contained in the palette
-				// in order to determine the desired color
-				// yes all this casting and clamping is required, we're dealing with Uint8s here, and there's
-				// a lot of potential for values to wrap around, which would be very bad indeed.
-				desiredColor.r = std::min(255, (int)(pal->getColors(currentColor)->r) + (tint->r * opacity));
-				desiredColor.g = std::min(255, (int)(pal->getColors(currentColor)->g) + (tint->g * opacity));
-				desiredColor.b = std::min(255, (int)(pal->getColors(currentColor)->b) + (tint->b * opacity));
+				SDL_Color desiredColor;
 
-				Uint8 closest = 0;
+				desiredColor.r = std::min(255, (int)Round((palColors[currentColor].r * co) + (tint->r * to)));
+				desiredColor.g = std::min(255, (int)Round((palColors[currentColor].g * co) + (tint->g * to)));
+				desiredColor.b = std::min(255, (int)Round((palColors[currentColor].b * co) + (tint->b * to)));
+
+				Uint8 closest = currentColor;
 				int lowestDifference = INT_MAX;
-				// now compare each color in the palette to find the closest match to our desired one
-				for (int comparator = 0; comparator < 256; ++comparator)
+				// if opacity is zero then we stay with current color, transparet color will stay same too
+				if (op != 0 && currentColor != 0)
 				{
-					int currentDifference = Sqr(desiredColor.r - pal->getColors(comparator)->r) +
-						Sqr(desiredColor.g - pal->getColors(comparator)->g) +
-						Sqr(desiredColor.b - pal->getColors(comparator)->b);
-
-					if (currentDifference < lowestDifference)
+					// now compare each color in the palette to find the closest match to our desired one
+					for (int comparator = 1; comparator < 256; ++comparator)
 					{
-						closest = comparator;
-						lowestDifference = currentDifference;
+						int currentDifference = Sqr(desiredColor.r - palColors[comparator].r) +
+							Sqr(desiredColor.g - palColors[comparator].g) +
+							Sqr(desiredColor.b - palColors[comparator].b);
+
+						if (currentDifference < lowestDifference)
+						{
+							closest = comparator;
+							lowestDifference = currentDifference;
+						}
 					}
 				}
 				lookUpTable.push_back(closest);
@@ -5654,14 +5954,14 @@ void Mod::ScriptRegister(ScriptParserBase *parser)
 
 	Bind<Mod> mod = { parser };
 
-	mod.add<&offset<&Mod::_soundOffsetBattle>>("getSoundOffsetBattle");
-	mod.add<&offset<&Mod::_soundOffsetGeo>>("getSoundOffsetGeo");
-	mod.add<&offset<&Mod::_surfaceOffsetBasebits>>("getSpriteOffsetBasebits");
-	mod.add<&offset<&Mod::_surfaceOffsetBigobs>>("getSpriteOffsetBigobs");
-	mod.add<&offset<&Mod::_surfaceOffsetFloorob>>("getSpriteOffsetFloorob");
-	mod.add<&offset<&Mod::_surfaceOffsetHandob>>("getSpriteOffsetHandob");
-	mod.add<&offset<&Mod::_surfaceOffsetHit>>("getSpriteOffsetHit");
-	mod.add<&offset<&Mod::_surfaceOffsetSmoke>>("getSpriteOffsetSmoke");
+	mod.add<&offset<&Mod::_soundOffsetBattle>>("getSoundOffsetBattle", "convert mod sound index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_soundOffsetGeo>>("getSoundOffsetGeo", "convert mod sound index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetBasebits>>("getSpriteOffsetBasebits", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetBigobs>>("getSpriteOffsetBigobs", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetFloorob>>("getSpriteOffsetFloorob", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetHandob>>("getSpriteOffsetHandob", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetHit>>("getSpriteOffsetHit", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
+	mod.add<&offset<&Mod::_surfaceOffsetSmoke>>("getSpriteOffsetSmoke", "convert mod surface index in first argument to runtime index in given set, second argument is mod id");
 	mod.add<&Mod::getMaxDarknessToSeeUnits>("getMaxDarknessToSeeUnits");
 	mod.add<&Mod::getMaxViewDistance>("getMaxViewDistance");
 	mod.add<&getSmokeReduction>("getSmokeReduction");

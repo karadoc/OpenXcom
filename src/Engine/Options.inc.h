@@ -16,6 +16,7 @@ OPT MusicFormat preferredMusic;
 OPT SoundFormat preferredSound;
 OPT VideoFormat preferredVideo;
 OPT SDL_GrabMode captureMouse;
+OPT TextWrapping wordwrap;
 OPT SDLKey keyOk, keyCancel, keyScreenshot, keyFps, keyQuickLoad, keyQuickSave;
 
 // Geoscape options
@@ -84,6 +85,11 @@ OPT bool oxceEnableSlackingIndicator;
 OPT bool oxceEnablePaletteFlickerFix;
 OPT bool oxcePersonalLayoutIncludingArmor;
 OPT bool oxceManufactureFilterSuppliesOK;
+/**
+ * Verification level of mod data.
+ * Same levels supported as `SeverityLevel`.
+ */
+OPT int oxceModValidationLevel;
 
 OPT bool oxceEmbeddedOnly;
 OPT bool oxceListVFSContents;

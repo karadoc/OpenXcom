@@ -20,6 +20,7 @@
 #include "../Engine/Exception.h"
 #include "../Engine/ScriptBind.h"
 #include "Mod.h"
+#include "Armor.h"
 
 namespace OpenXcom
 {
@@ -29,8 +30,8 @@ namespace OpenXcom
  * @param type String defining the type.
  */
 Unit::Unit(const std::string &type) :
-	_type(type), _showFullNameInAlienInventory(-1), _armor(nullptr), _standHeight(0), _kneelHeight(0), _floatHeight(0), _value(0),
-	_moraleLossWhenKilled(100), _aggroSound(-1), _moveSound(-1), _intelligence(0), _aggression(0),
+	_type(type), _liveAlienName(Mod::STR_NULL), _showFullNameInAlienInventory(-1), _armor(nullptr), _standHeight(0), _kneelHeight(0), _floatHeight(0), _value(0),
+	_moraleLossWhenKilled(100), _moveSound(-1), _intelligence(0), _aggression(0),
 	_spotter(0), _sniper(0), _energyRecovery(30), _specab(SPECAB_NONE), _livingWeapon(false),
 	_psiWeapon("ALIEN_PSI_WEAPON"), _capturable(true), _canSurrender(false), _autoSurrender(false),
 	_isLeeroyJenkins(false), _waitIfOutsideWeaponRange(false), _pickUpWeaponsMoreActively(-1), _vip(false),
@@ -58,8 +59,9 @@ void Unit::load(const YAML::Node &node, Mod *mod)
 		load(parent, mod);
 	}
 	_type = node["type"].as<std::string>(_type);
-	_civilianRecoveryType = node["civilianRecoveryType"].as<std::string>(_civilianRecoveryType);
-	_spawnedPersonName = node["spawnedPersonName"].as<std::string>(_spawnedPersonName);
+	mod->loadNameNull(_type, _civilianRecoveryType, node["civilianRecoveryType"]);
+	mod->loadNameNull(_type, _spawnedPersonName, node["spawnedPersonName"]);
+	mod->loadNameNull(_type, _liveAlienName, node["liveAlien"]);
 	if (node["spawnedSoldier"])
 	{
 		_spawnedSoldier = node["spawnedSoldier"];
@@ -68,7 +70,7 @@ void Unit::load(const YAML::Node &node, Mod *mod)
 	_showFullNameInAlienInventory = node["showFullNameInAlienInventory"].as<int>(_showFullNameInAlienInventory);
 	_rank = node["rank"].as<std::string>(_rank);
 	_stats.merge(node["stats"].as<UnitStats>(_stats));
-	_armorName = node["armor"].as<std::string>(_armorName);
+	mod->loadName(_type, _armorName, node["armor"]);
 	_standHeight = node["standHeight"].as<int>(_standHeight);
 	_kneelHeight = node["kneelHeight"].as<int>(_kneelHeight);
 	_floatHeight = node["floatHeight"].as<int>(_floatHeight);
@@ -129,6 +131,48 @@ void Unit::afterLoad(const Mod* mod)
 	mod->linkRule(_armor, _armorName);
 	mod->linkRule(_spawnUnit, _spawnUnitName);
 	mod->linkRule(_builtInWeapons, _builtInWeaponsNames);
+	if (_liveAlienName == Mod::STR_NULL)
+	{
+		_liveAlien = mod->getItem(_type, false); // this is optional default behavior
+	}
+	else
+	{
+		mod->linkRule(_liveAlien, _liveAlienName);
+	}
+
+	mod->checkForSoftError(_armor == nullptr, _type, "Unit is missing armor", LOG_ERROR);
+	if (_armor)
+	{
+		if (_capturable && _armor->getCorpseBattlescape().front()->isRecoverable() && _spawnUnit == nullptr)
+		{
+			mod->checkForSoftError(
+				_liveAlien == nullptr && Mod::isEmptyRuleName(_civilianRecoveryType),
+				_type,
+				"Unit is capturable but there is no live alien item with same name or civilianRecoveryType",
+				LOG_INFO
+			);
+		}
+		else
+		{
+			std::string s =
+				!_capturable ? "missing capturable" :
+				!_armor->getCorpseBattlescape().front()->isRecoverable() ? "missing armor recover" :
+				_spawnUnit != nullptr ? "unit have spawn" :
+				"???";
+
+			mod->checkForSoftError(
+				_liveAlien
+				&& _liveAlien->getVehicleUnit() == nullptr
+				&& _spawnUnit == nullptr, // if unit is `_capturable` we can still get live species even if it can spawn unit
+				_type,
+				"There is live alien item but unit is not recoverable ("+ s +")",
+				LOG_INFO
+			);
+
+			// FIXME: this is too restrictive; I will need to review all the cases and probably refactor civilianRecoveryType functionality a bit too
+			//mod->checkForSoftError(!Mod::isEmptyRuleName(_civilianRecoveryType), _type, "There is civilianRecoveryType but unit is not recoverable (" + s + ")");
+		}
+	}
 }
 
 /**
@@ -305,10 +349,10 @@ const Unit *Unit::getSpawnUnit() const
 }
 
 /**
- * Gets the unit's war cry.
- * @return The id of the unit's aggro sound.
+ * Gets the unit's aggro sounds (warcries).
+ * @return List of sound IDs.
  */
-int Unit::getAggroSound() const
+const std::vector<int> &Unit::getAggroSounds() const
 {
 	return _aggroSound;
 }

@@ -195,6 +195,16 @@ BattlescapeState::BattlescapeState() :
 	_btnSkills = new BattlescapeButton(32, 24, screenWidth - 32, 25); // we need screenWidth, because that is independent of the black bars on the screen
 	_btnSkills->setVisible(false);
 
+	{
+		auto posX = (screenWidth - 32);
+		for (auto& pos :  _posSpecialActions)
+		{
+			pos = posX;
+			posX -= 32;
+		}
+	}
+
+
 	// Reset touch flags
 	_game->resetTouchButtonFlags();
 
@@ -739,7 +749,7 @@ void BattlescapeState::init()
 		}
 	}
 
-	if (_save->getAmbientSound() != -1)
+	if (_save->getAmbientSound() != Mod::NO_SOUND)
 	{
 		_game->getMod()->getSoundByDepth(_save->getDepth(), _save->getAmbientSound())->loop();
 		_game->setVolume(Options::soundVolume, Options::musicVolume, Options::uiVolume);
@@ -1818,7 +1828,7 @@ void BattlescapeState::btnNightVisionClick(Action *action)
 
 /**
  * Determines whether a playable unit is selected. Normally only player side units can be selected, but in debug mode one can play with aliens too :)
- * Is used to see if stats can be displayed and action buttons will work.
+ * Is used to see if action buttons will work.
  * @return Whether a playable unit is selected.
  */
 bool BattlescapeState::playableUnitSelected()
@@ -1844,7 +1854,7 @@ void BattlescapeState::drawItem(BattleItem* item, Surface* hand, std::vector<Num
 	if (item)
 	{
 		const RuleItem *rule = item->getRules();
-		rule->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), hand, item, _save->getAnimFrame());
+		rule->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), hand, item, _save, _save->getAnimFrame());
 		for (int slot = 0; slot < RuleItem::AmmoSlotMax; ++slot)
 		{
 			if (item->isAmmoVisibleForSlot(slot))
@@ -1913,7 +1923,7 @@ void BattlescapeState::drawItem(BattleItem* item, Surface* hand, std::vector<Num
  */
 void BattlescapeState::drawHandsItems()
 {
-	BattleUnit *battleUnit = playableUnitSelected() ? _save->getSelectedUnit() : nullptr;
+	BattleUnit *battleUnit = _battleGame->playableUnitSelected() ? _save->getSelectedUnit() : nullptr;
 	bool left = battleUnit ? battleUnit->isLeftHandPreferredForReactions() : false;
 	bool right = battleUnit ? battleUnit->isRightHandPreferredForReactions() : false;
 	drawItem(battleUnit ? battleUnit->getLeftHandWeapon() : nullptr, _btnLeftHandItem, _numAmmoLeft, _numMedikitLeft, _numTwoHandedIndicatorLeft, left);
@@ -1934,7 +1944,7 @@ void BattlescapeState::updateSoldierInfo(bool checkFOV)
 		_visibleUnit[i] = 0;
 	}
 
-	bool playableUnit = playableUnitSelected();
+	bool playableUnit = _battleGame->playableUnitSelected();
 	_rank->setVisible(playableUnit);
 	_rankTiny->setVisible(playableUnit);
 	_numTimeUnits->setVisible(playableUnit);
@@ -2198,11 +2208,14 @@ void BattlescapeState::updateSoldierInfo(bool checkFOV)
 
 void BattlescapeState::updateUiButton(const BattleUnit *battleUnit)
 {
-	bool hasPsiWeapon = battleUnit->getSpecialWeapon(BT_PSIAMP) != 0;
+	BattleItem *psiWeapon = battleUnit->getSpecialWeapon(BT_PSIAMP);
 
 	BattleType type = BT_NONE;
 	BattleItem *specialWeapon = battleUnit->getSpecialIconWeapon(type); // updates type!
 	bool hasSpecialWeapon = specialWeapon && type != BT_NONE && type != BT_AMMO && type != BT_GRENADE && type != BT_PROXIMITYGRENADE && type != BT_FLARE && type != BT_CORPSE;
+
+	// if we have psi amp with icon then it will show one button only, but if we have two psi amps and one with icon is second (this is important) then we will show both buttons.
+	bool hasPsiWeapon = psiWeapon != 0 && psiWeapon != specialWeapon;
 
 	bool hasSkills = false;
 	auto soldier = battleUnit->getGeoscapeSoldier();
@@ -2211,53 +2224,48 @@ void BattlescapeState::updateUiButton(const BattleUnit *battleUnit)
 		hasSkills = soldier->getRules()->isSkillMenuDefined();
 	}
 
+	resetUiButton();
+
+	int offset = 0;
+	auto show = [&](BattlescapeButton* btn, int spriteIndex)
+	{
+		if (offset < SPECIAL_BUTTONS_MAX)
+		{
+			_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(spriteIndex)->blitNShade(btn, 0, 0);
+			btn->setVisible(true);
+			btn->setX(_posSpecialActions[offset]);
+			++offset;
+		}
+	};
+
+
 	if (hasSpecialWeapon)
 	{
-		showUiButton(BTN_SPECIAL, specialWeapon->getRules()->getSpecialIconSprite());
+		show(_btnSpecial, specialWeapon->getRules()->getSpecialIconSprite());
 	}
-	else if (hasSkills)
+	if (hasSkills)
 	{
-		showUiButton(BTN_SKILL, soldier->getRules()->getSkillIconSprite());
+		show(_btnSkills, soldier->getRules()->getSkillIconSprite());
 	}
-	else if (hasPsiWeapon)
+	if (hasPsiWeapon)
 	{
-		showUiButton(BTN_PSI);
-	}
-	else
-	{
-		resetUiButton();
-	}
-}
-
-void BattlescapeState::showUiButton(ButtonType buttonType, int spriteIndex)
-{
-	switch (buttonType) {
-		case BTN_PSI:
-			showPsiButton(true);
-			showSpecialButton(false);
-			showSkillsButton(false);
-			break;
-		case BTN_SPECIAL:
-			showPsiButton(false);
-			showSpecialButton(true, spriteIndex);
-			showSkillsButton(false);
-			break;
-		case BTN_SKILL:
-			showPsiButton(false);
-			showSpecialButton(false);
-			showSkillsButton(true, spriteIndex);
-			break;
-		default:
-			resetUiButton();
-			break;
+		show(_btnPsi, 1);
 	}
 }
 
 void BattlescapeState::resetUiButton()
 {
-	showPsiButton(false);
-	showSpecialButton(false);
-	showSkillsButton(false);
+	BattlescapeButton* btns[] = {
+		_btnPsi,
+		_btnSkills,
+		_btnSpecial,
+	};
+
+	for (auto* btn : btns)
+	{
+		btn->setVisible(false);
+		btn->setX(_posSpecialActions[0]);
+	}
 }
 
 /**
@@ -2426,6 +2434,15 @@ void BattlescapeState::warning(const std::string &message)
 void BattlescapeState::warningRaw(const std::string &message)
 {
 	_warning->showMessage(message);
+}
+
+/**
+ * Shows a warning message without automatic translation.
+ * @param message Warning message.
+ */
+void BattlescapeState::warningLongRaw(const std::string &message)
+{
+	_warning->showMessage(message, 8);
 }
 
 /**
@@ -3115,7 +3132,7 @@ void BattlescapeState::finishBattle(bool abort, int inExitArea)
 		_game->popState();
 	}
 	_game->getCursor()->setVisible(true);
-	if (_save->getAmbientSound() != -1)
+	if (_save->getAmbientSound() != Mod::NO_SOUND)
 	{
 		_game->getMod()->getSoundByDepth(0, _save->getAmbientSound())->stopLoop();
 	}
@@ -3244,41 +3261,6 @@ void BattlescapeState::showLaunchButton(bool show)
 }
 
 /**
- * Shows the PSI button.
- * @param show Show PSI button?
- */
-void BattlescapeState::showPsiButton(bool show)
-{
-	_btnPsi->setVisible(show);
-}
-
-/**
- * Shows the special button.
- * @param show Show special button?
- */
-void BattlescapeState::showSpecialButton(bool show, int sprite)
-{
-	if (show)
-	{
-		_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(sprite)->blitNShade(_btnSpecial, 0, 0);
-	}
-	_btnSpecial->setVisible(show);
-}
-
-/**
- * Shows the skills button.
- * @param show Show skills button?
- */
-void BattlescapeState::showSkillsButton(bool show, int sprite)
-{
-	if (show)
-	{
-		_game->getMod()->getSurfaceSet("SPICONS.DAT")->getFrame(sprite)->blitNShade(_btnSkills, 0, 0);
-	}
-	_btnSkills->setVisible(show);
-}
-
-/**
  * Clears mouse-scrolling state (isMouseScrolling).
  */
 void BattlescapeState::clearMouseScrollingState()
@@ -3334,6 +3316,7 @@ bool BattlescapeState::allowButtons(bool allowSaving) const
 {
 	return ((allowSaving || _save->getSide() == FACTION_PLAYER || _save->getDebugMode())
 		&& (_battleGame->getPanicHandled() || _firstInit )
+		&& (allowSaving || !_battleGame->isBusy() || _firstInit)
 		&& (_map->getProjectile() == 0));
 }
 
@@ -3673,6 +3656,11 @@ void BattlescapeState::resize(int &dX, int &dY)
 		{
 			(*i)->setX((*i)->getX() + dX);
 		}
+	}
+
+	for (auto& pos : _posSpecialActions)
+	{
+		pos += dX;
 	}
 
 }

@@ -56,7 +56,7 @@ void RuleResearch::load(const YAML::Node &node, Mod* mod, const ModScript& parse
 	mod->loadUnorderedNames(_name, _requiresName, node["requires"]);
 	mod->loadBaseFunction(_name, _requiresBaseFunc, node["requiresBaseFunc"]);
 	_sequentialGetOneFree = node["sequentialGetOneFree"].as<bool>(_sequentialGetOneFree);
-	_getOneFreeProtectedName = node["getOneFreeProtected"].as< std::map<std::string, std::vector<std::string> > >(_getOneFreeProtectedName);
+	mod->loadNamesToNames(_name, _getOneFreeProtectedName, node["getOneFreeProtected"]);
 	_needItem = node["needItem"].as<bool>(_needItem);
 	_destroyItem = node["destroyItem"].as<bool>(_destroyItem);
 	_listOrder = node["listOrder"].as<int>(_listOrder);
@@ -89,13 +89,14 @@ void RuleResearch::afterLoad(const Mod* mod)
 	_getOneFree = mod->getResearch(_getOneFreeName);
 	_requires = mod->getResearch(_requiresName);
 
+	_getOneFreeProtected.reserve(_getOneFreeProtectedName.size());
 	for (auto& n : _getOneFreeProtectedName)
 	{
 		auto left = mod->getResearch(n.first, false);
 		if (left)
 		{
 			auto right = mod->getResearch(n.second);
-			_getOneFreeProtected[left] = right;
+			_getOneFreeProtected.push_back(std::make_pair(left, right));
 		}
 		else
 		{
@@ -215,7 +216,7 @@ const std::vector<const RuleResearch*> &RuleResearch::getGetOneFree() const
  * Gets the list(s) of ResearchProjects granted at random for free by this research (if a defined prerequisite is met).
  * @return The list(s) of ResearchProjects.
  */
-const std::map<const RuleResearch*, std::vector<const RuleResearch*> > &RuleResearch::getGetOneFreeProtected() const
+const std::vector<std::pair<const RuleResearch*, std::vector<const RuleResearch*> > > &RuleResearch::getGetOneFreeProtected() const
 {
 	return _getOneFreeProtected;
 }

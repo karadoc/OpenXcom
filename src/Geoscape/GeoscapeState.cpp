@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "GeoscapeState.h"
+#include <set>
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
@@ -914,7 +915,7 @@ void GeoscapeState::time5Seconds()
 		return;
 	}
 
-	auto crafts = updateActiveCrafts();
+	auto activeCrafts = updateActiveCrafts();
 
 	// Handle UFO logic
 	bool ufoIsAttacking = false;
@@ -954,17 +955,20 @@ void GeoscapeState::time5Seconds()
 						if (_game->getMod()->getEscortsJoinFightAgainstHK())
 						{
 							int secondaryTargets = 0;
-							for (auto craft : *crafts)
+							for (auto craft : *activeCrafts)
 							{
-								// craft is close enough and has at least one loaded weapon
-								if (craft != c && craft->getNumWeapons(true) > 0 && craft->getDistance(c) < Nautical(_game->getMod()->getEscortRange()))
+								if (!craft->getMissionComplete() && craft != c)
 								{
-									// only up to 4 dogfights = 1 main + 3 secondary
-									if (secondaryTargets < 3)
+									// craft is close enough and has at least one loaded weapon
+									if (craft->getNumWeapons(true) > 0 && craft->getDistance(c) < Nautical(_game->getMod()->getEscortRange()))
 									{
-										// Note: push_front() is used so that main target is attacked first
-										_dogfightsToBeStarted.push_front(new DogfightState(this, craft, *i, true));
-										secondaryTargets++;
+										// only up to 4 dogfights = 1 main + 3 secondary
+										if (secondaryTargets < 3)
+										{
+											// Note: push_front() is used so that main target is attacked first
+											_dogfightsToBeStarted.push_front(new DogfightState(this, craft, *i, true));
+											secondaryTargets++;
+										}
 									}
 								}
 							}
@@ -1238,10 +1242,9 @@ void GeoscapeState::time5Seconds()
 							{
 								// Start fighting escorts and other craft as well (if they are in escort range)
 								int secondaryTargets = 0;
-								for (auto craft : *crafts)
+								for (auto craft : *activeCrafts)
 								{
-									// craft is flying (i.e. not in base)
-									if (craft != (*j))
+									if (!craft->getMissionComplete() && craft != (*j))
 									{
 										// craft is close enough and has at least one loaded weapon
 										if (craft->getNumWeapons(true) > 0 && craft->getDistance((*j)) < Nautical(_game->getMod()->getEscortRange()))
@@ -1552,7 +1555,7 @@ void GeoscapeState::time10Minutes()
 
 void GeoscapeState::ufoHuntingAndEscorting()
 {
-	auto crafts = updateActiveCrafts();
+	auto activeCrafts = updateActiveCrafts();
 
 	for (std::vector<Ufo*>::iterator ufo = _game->getSavedGame()->getUfos()->begin(); ufo != _game->getSavedGame()->getUfos()->end(); ++ufo)
 	{
@@ -1576,7 +1579,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 			}
 
 			// look for more attractive target
-			for (auto craft : *crafts)
+			for (auto craft : *activeCrafts)
 			{
 				if (!craft->getMissionComplete() && !craft->getRules()->isUndetectable())
 				{
@@ -1642,7 +1645,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 
 void GeoscapeState::baseHunting()
 {
-	auto crafts = updateActiveCrafts();
+	auto activeCrafts = updateActiveCrafts();
 
 	for (std::vector<AlienBase*>::iterator ab = _game->getSavedGame()->getAlienBases()->begin(); ab != _game->getSavedGame()->getAlienBases()->end(); ++ab)
 	{
@@ -1656,7 +1659,7 @@ void GeoscapeState::baseHunting()
 			{
 				// Look for nearby craft
 				bool started = false;
-				for (auto craft : *crafts)
+				for (auto craft : *activeCrafts)
 				{
 					// Craft is flying (i.e. not in base)
 					if (craft->getStatus() == "STR_OUT" && !craft->isDestroyed() && !craft->getRules()->isUndetectable())
@@ -1847,7 +1850,7 @@ void GeoscapeState::time30Minutes()
 	}
 
 	// can be updated by previous loop
-	auto crafts = updateActiveCrafts();
+	auto activeCrafts = updateActiveCrafts();
 
 	// Handle UFO detection and give aliens points
 	for (auto ufo : *_game->getSavedGame()->getUfos())
@@ -1891,15 +1894,16 @@ void GeoscapeState::time30Minutes()
 
 				auto detected = DETECTION_NONE;
 				auto alreadyTracked = ufo->getDetected();
+				auto save = _game->getSavedGame();
 
 				for (auto base : *_game->getSavedGame()->getBases())
 				{
-					detected = maskBitOr(detected, base->detect(ufo, alreadyTracked));
+					detected = maskBitOr(detected, base->detect(ufo, save, alreadyTracked));
 				}
 
-				for (auto craft : *crafts)
+				for (auto craft : *activeCrafts)
 				{
-					detected = maskBitOr(detected, craft->detect(ufo, alreadyTracked));
+					detected = maskBitOr(detected, craft->detect(ufo, save, alreadyTracked));
 				}
 
 				if (!alreadyTracked)
@@ -2096,13 +2100,25 @@ void GeoscapeState::time1Hour()
 			}
 		}
 	}
+	bool postpone = false;
 	for (std::vector<MissionSite*>::iterator i = _game->getSavedGame()->getMissionSites()->begin(); i != _game->getSavedGame()->getMissionSites()->end(); ++i)
 	{
 		if (!(*i)->getDetected())
 		{
+			postpone = true;
 			(*i)->setDetected(true);
 			popup(new MissionDetectedState(*i, this));
-			break;
+			break; // only one popup per hour!
+		}
+	}
+	if (postpone)
+	{
+		for (auto* mission : *_game->getSavedGame()->getMissionSites())
+		{
+			if (!mission->getDetected())
+			{
+				mission->setSecondsRemaining(mission->getSecondsRemaining() + 3600); // +1 hour
+			}
 		}
 	}
 
@@ -2404,25 +2420,34 @@ void GeoscapeState::time1Day()
 				popup(new NewPossibleFacilityState(base, _globe, newPossibleFacilities));
 			}
 			// 3j. now iterate through all the bases and remove this project from their labs (unless it can still yield more stuff!)
-			for (Base *otherBase : *saveGame->getBases())
+			std::vector<const RuleResearch*> topicsToCheck;
+			topicsToCheck.push_back(research);
+			if (bonus)
 			{
-				for (ResearchProject* otherProject : otherBase->getResearch())
+				topicsToCheck.push_back(bonus);
+			}
+			for (auto *myResearchRule : topicsToCheck)
+			{
+				for (Base *otherBase : *saveGame->getBases())
 				{
-					if (research->getName() == otherProject->getRules()->getName())
+					for (ResearchProject *otherProject : otherBase->getResearch())
 					{
-						if (saveGame->hasUndiscoveredGetOneFree(research, true))
+						if (myResearchRule == otherProject->getRules())
 						{
-							// This research topic still has some more undiscovered non-disabled and *AVAILABLE* "getOneFree" topics, keep it!
-						}
-						else if (saveGame->hasUndiscoveredProtectedUnlock(research, mod))
-						{
-							// This research topic still has one or more undiscovered non-disabled "protected unlocks", keep it!
-						}
-						else
-						{
-							// This topic can't give you anything else anymore, remove it!
-							otherBase->removeResearch(otherProject);
-							break;
+							if (saveGame->hasUndiscoveredGetOneFree(myResearchRule, true))
+							{
+								// This research topic still has some more undiscovered non-disabled and *AVAILABLE* "getOneFree" topics, keep it!
+							}
+							else if (saveGame->hasUndiscoveredProtectedUnlock(myResearchRule, mod))
+							{
+								// This research topic still has one or more undiscovered non-disabled "protected unlocks", keep it!
+							}
+							else
+							{
+								// This topic can't give you anything else anymore, remove it!
+								otherBase->removeResearch(otherProject);
+								break;
+							}
 						}
 					}
 				}
@@ -2747,7 +2772,9 @@ void GeoscapeState::globeClick(Action *action)
 		std::vector<Target*> v = _globe->getTargets(mouseX, mouseY, false, 0);
 		if (!v.empty())
 		{
-			_game->pushState(new MultipleTargetsState(v, 0, this));
+			// Pass empty vector
+			std::vector<Craft*> crafts;
+			_game->pushState(new MultipleTargetsState(v, crafts, this));
 		}
 	}
 
@@ -3322,6 +3349,22 @@ void GeoscapeState::determineAlienMissions()
 	std::vector<RuleMissionScript*> availableMissions;
 	std::map<int, bool> conditions;
 
+	std::set<std::string> xcomBaseRegions;
+	std::set<std::string> xcomBaseCountries;
+	for (auto& xcomBase : *save->getBases())
+	{
+		auto region = save->locateRegion(*xcomBase);
+		if (region)
+		{
+			xcomBaseRegions.insert(region->getRules()->getType());
+		}
+		auto country = save->locateCountry(*xcomBase);
+		if (country)
+		{
+			xcomBaseCountries.insert(country->getRules()->getType());
+		}
+	}
+
 	// sorry to interrupt, but before we start determining the actual monthly missions, let's determine and/or adjust our overall game plan
 	{
 		std::vector<RuleArcScript*> relevantArcScripts;
@@ -3366,6 +3409,28 @@ void GeoscapeState::determineAlienMissions()
 					for (auto &triggerFacility : arcScript->getFacilityTriggers())
 					{
 						triggerHappy = (save->isFacilityBuilt(triggerFacility.first) == triggerFacility.second);
+						if (!triggerHappy)
+							break;
+					}
+				}
+				if (triggerHappy)
+				{
+					// xcom base requirements
+					for (auto& triggerXcomBase : arcScript->getXcomBaseInRegionTriggers())
+					{
+						bool found = (xcomBaseRegions.find(triggerXcomBase.first) != xcomBaseRegions.end());
+						triggerHappy = (found == triggerXcomBase.second);
+						if (!triggerHappy)
+							break;
+					}
+				}
+				if (triggerHappy)
+				{
+					// xcom base requirements by country
+					for (auto& triggerXcomBase2 : arcScript->getXcomBaseInCountryTriggers())
+					{
+						bool found = (xcomBaseCountries.find(triggerXcomBase2.first) != xcomBaseCountries.end());
+						triggerHappy = (found == triggerXcomBase2.second);
 						if (!triggerHappy)
 							break;
 					}
@@ -3493,6 +3558,28 @@ void GeoscapeState::determineAlienMissions()
 						break;
 				}
 			}
+			if (triggerHappy)
+			{
+				// xcom base requirements
+				for (auto& triggerXcomBase : command->getXcomBaseInRegionTriggers())
+				{
+					bool found = (xcomBaseRegions.find(triggerXcomBase.first) != xcomBaseRegions.end());
+					triggerHappy = (found == triggerXcomBase.second);
+					if (!triggerHappy)
+						break;
+				}
+			}
+			if (triggerHappy)
+			{
+				// xcom base requirements by country
+				for (auto& triggerXcomBase2 : command->getXcomBaseInCountryTriggers())
+				{
+					bool found = (xcomBaseCountries.find(triggerXcomBase2.first) != xcomBaseCountries.end());
+					triggerHappy = (found == triggerXcomBase2.second);
+					if (!triggerHappy)
+						break;
+				}
+			}
 			// levels one and two passed: insert this command into the array.
 			if (triggerHappy)
 			{
@@ -3590,6 +3677,28 @@ void GeoscapeState::determineAlienMissions()
 					for (auto &triggerFacility : eventScript->getFacilityTriggers())
 					{
 						triggerHappy = (save->isFacilityBuilt(triggerFacility.first) == triggerFacility.second);
+						if (!triggerHappy)
+							break;
+					}
+				}
+				if (triggerHappy)
+				{
+					// xcom base requirements
+					for (auto& triggerXcomBase : eventScript->getXcomBaseInRegionTriggers())
+					{
+						bool found = (xcomBaseRegions.find(triggerXcomBase.first) != xcomBaseRegions.end());
+						triggerHappy = (found == triggerXcomBase.second);
+						if (!triggerHappy)
+							break;
+					}
+				}
+				if (triggerHappy)
+				{
+					// xcom base requirements by country
+					for (auto& triggerXcomBase2 : eventScript->getXcomBaseInCountryTriggers())
+					{
+						bool found = (xcomBaseCountries.find(triggerXcomBase2.first) != xcomBaseCountries.end());
+						triggerHappy = (found == triggerXcomBase2.second);
 						if (!triggerHappy)
 							break;
 					}

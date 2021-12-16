@@ -1787,7 +1787,7 @@ bool TileEngine::checkReactionFire(BattleUnit *unit, const BattleAction &origina
 		// start iterating through the possible reactors until the current unit is the one with the highest score.
 		while (reactor != 0)
 		{
-			if (!tryReaction(reactor, unit, originalAction))
+			if (reactor->count > 10 || !tryReaction(reactor, unit, originalAction))
 			{
 				for (std::vector<ReactionScore>::iterator i = spotters.begin(); i != spotters.end(); ++i)
 				{
@@ -1806,6 +1806,7 @@ bool TileEngine::checkReactionFire(BattleUnit *unit, const BattleAction &origina
 			// nice shot, kid. don't get cocky.
 			result = true;
 			reactor->reactionScore -= reactor->reactionReduction;
+			reactor->count += 1;
 			reactor = getReactor(spotters, unit);
 		}
 	}
@@ -1967,8 +1968,15 @@ TileEngine::ReactionScore TileEngine::determineReactionType(BattleUnit *unit, Ba
 		nullptr,
 		BA_NONE,
 		unit->getReactionScore(),
-		0,
+		0.0,
+		1,
 	};
+
+	// to avoid 0 that casue infinite loop we set minimal reaction handed by logic, should correacty handle units with 1 point in reaction and 1/1000 TU
+	if (reaction.reactionScore <= 0.001)
+	{
+		return reaction;
+	}
 
 	auto setReaction = [](ReactionScore& re, BattleActionType type, BattleItem* weapon)
 	{
@@ -2089,7 +2097,7 @@ bool TileEngine::tryReaction(ReactionScore *reaction, BattleUnit *target, const 
 			auto *origTarg = _save->getTile(originalAction.target) ? _save->getTile(originalAction.target)->getUnit() : nullptr;
 
 			ModScript::ReactionCommon::Output arg{ reactionChance, dist };
-			ModScript::ReactionCommon::Worker worker{ target, unit, action.weapon, action.type, originalAction.weapon, originalAction.skillRules, originalAction.type, origTarg, moveType, arc, _save };
+			ModScript::ReactionCommon::Worker worker{ target, unit, action.weapon, action.type, reaction->count, originalAction.weapon, originalAction.skillRules, originalAction.type, origTarg, moveType, arc, _save };
 			if (originalAction.weapon)
 			{
 				worker.execute(originalAction.weapon->getRules()->getScript<ModScript::ReactionWeaponAction>(), arg);
@@ -4060,7 +4068,7 @@ int TileEngine::meleeAttackCalculate(BattleActionAttack::ReadOnly attack, const 
 	int attackStrength = BattleUnit::getFiringAccuracy(attack, _save->getBattleGame()->getMod());
 	int defenseStrength = victim->getArmor()->getMeleeDodge(victim);
 	int arc = getArcDirection(getDirectionTo(victim->getPositionVexels(), attack.attacker->getPositionVexels()), victim->getDirection());
-	int defenseStrengthPenalty = Clamp((int)(defenseStrength * (arc * victim->getArmor()->getMeleeDodgeBackPenalty() / 4.0f)), 0, defenseStrength);
+	int defenseStrengthPenalty = Clamp((int)(defenseStrength * (arc * victim->getArmor()->getMeleeDodgeBackPenalty() / 4.0f)), 0, std::max(0, defenseStrength));
 
 	auto type = attack.type;
 	auto attacker = attack.attacker;

@@ -359,6 +359,20 @@ int Pathfinding::getTUCost(Position startPosition, int direction, Position *endP
 		}
 	}
 
+	// pre-calculate fire penalty (to make it consistent for 2x2 units)
+	auto firePenaltyCost = 0;
+	if (_unit->getFaction() != FACTION_PLAYER &&
+		_unit->getSpecialAbility() < SPECAB_BURNFLOOR)
+	{
+		for (int i = 0; i < numberOfParts; ++i)
+		{
+			if (destinationTile[i]->getFire() > 0)
+			{
+				firePenaltyCost = 32; // try to find a better path, but don't exclude this path entirely.
+			}
+		}
+	}
+
 	// calculate cost and some final checks
 	auto totalCost = 0;
 	for (int i = 0; i < numberOfParts; ++i)
@@ -441,10 +455,8 @@ int Pathfinding::getTUCost(Position startPosition, int direction, Position *endP
 		}
 
 		cost += wallcost;
-		if (_unit->getFaction() != FACTION_PLAYER &&
-			_unit->getSpecialAbility() < SPECAB_BURNFLOOR &&
-			destinationTile[i]->getFire() > 0)
-			cost += 32; // try to find a better path, but don't exclude this path entirely.
+
+		cost += firePenaltyCost;
 
 		// TFTD thing: underwater tiles on fire or filled with smoke cost 2 TUs more for whatever reason.
 		if (_save->getDepth() > 0 && (destinationTile[i]->getFire() > 0 || destinationTile[i]->getSmoke() > 0))
@@ -903,11 +915,11 @@ bool Pathfinding::previewPath(bool bRemove)
 	int tus = _unit->getTimeUnits();
 	if (_unit->isKneeled())
 	{
-		tus -= 8;
+		tus -= _unit->getKneelUpCost();
 	}
 	int energy = _unit->getEnergy();
 	int size = _unit->getArmor()->getSize() - 1;
-	int total = _unit->isKneeled() ? 8 : 0;
+	int total = _unit->isKneeled() ? _unit->getKneelUpCost() : 0;
 	if (_unit->getArmor()->getTurnBeforeFirstStep())
 	{
 		int dir = getStartDirection();

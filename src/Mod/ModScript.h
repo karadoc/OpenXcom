@@ -88,11 +88,11 @@ class ModScript
 	//					unit script
 	////////////////////////////////////////////////////////////
 
-	struct RecolorUnitParser : ScriptParserEvents<Output, const BattleUnit*, int, int, int, int>
+	struct RecolorUnitParser : ScriptParserEvents<Output, const BattleUnit*, const SavedBattleGame*, int, int, int, int>
 	{
 		RecolorUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
-	struct SelectUnitParser : ScriptParserEvents<Output, const BattleUnit*, int, int, int>
+	struct SelectUnitParser : ScriptParserEvents<Output, const BattleUnit*, const SavedBattleGame*, int, int, int>
 	{
 		SelectUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
@@ -101,7 +101,7 @@ class ModScript
 		SelectMoveSoundUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
-	struct ReactionUnitParser : ScriptParserEvents<Output, const BattleUnit*, const BattleUnit*, const BattleItem*, int, const BattleItem*, const RuleSkill*, int, const BattleUnit*, int, int, const SavedBattleGame*>
+	struct ReactionUnitParser : ScriptParserEvents<Output, const BattleUnit*, const BattleUnit*, const BattleItem*, int, int, const BattleItem*, const RuleSkill*, int, const BattleUnit*, int, int, const SavedBattleGame*>
 	{
 		ReactionUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
@@ -169,11 +169,11 @@ class ModScript
 	{
 		NewTurnItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
-	struct RecolorItemParser : ScriptParserEvents<Output, const BattleItem*, int, int, int>
+	struct RecolorItemParser : ScriptParserEvents<Output, const BattleItem*, const SavedBattleGame*, int, int, int>
 	{
 		RecolorItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
-	struct SelectItemParser : ScriptParserEvents<Output, const BattleItem*, int, int, int>
+	struct SelectItemParser : ScriptParserEvents<Output, const BattleItem*, const SavedBattleGame*, int, int, int>
 	{
 		SelectItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
@@ -238,12 +238,12 @@ class ModScript
 	//					ufo script
 	////////////////////////////////////////////////////////////
 
-	struct DetectUfoFromBaseParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, int, int, int, int, int, int>
+	struct DetectUfoFromBaseParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, const SavedGame*, int, int, int, int, int, int>
 	{
 		DetectUfoFromBaseParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
-	struct DetectUfoFromCraftParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, const Craft*, int, int, int, int>
+	struct DetectUfoFromCraftParser : ScriptParserEvents<ScriptOutputArgs<int&, int&>, const Ufo*, const SavedGame*, const Craft*, int, int, int, int>
 	{
 		DetectUfoFromCraftParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};

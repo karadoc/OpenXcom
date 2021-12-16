@@ -139,6 +139,7 @@ void create()
 	_info.push_back(OptionInfo("preferredMusic", (int*)&preferredMusic, MUSIC_AUTO));
 	_info.push_back(OptionInfo("preferredSound", (int*)&preferredSound, SOUND_AUTO));
 	_info.push_back(OptionInfo("preferredVideo", (int*)&preferredVideo, VIDEO_FMV));
+	_info.push_back(OptionInfo("wordwrap", (int*)&wordwrap, WRAP_AUTO));
 	_info.push_back(OptionInfo("musicAlwaysLoop", &musicAlwaysLoop, false));
 	_info.push_back(OptionInfo("touchEnabled", &touchEnabled, false));
 	_info.push_back(OptionInfo("rootWindowedMode", &rootWindowedMode, false));
@@ -238,6 +239,7 @@ void create()
 	_info.push_back(OptionInfo("oxceEnablePaletteFlickerFix", &oxceEnablePaletteFlickerFix, false));
 	_info.push_back(OptionInfo("oxcePersonalLayoutIncludingArmor", &oxcePersonalLayoutIncludingArmor, true));
 	_info.push_back(OptionInfo("oxceManufactureFilterSuppliesOK", &oxceManufactureFilterSuppliesOK, false));
+	_info.push_back(OptionInfo("oxceModValidationLevel", &oxceModValidationLevel, (int)LOG_WARNING));
 
 	_info.push_back(OptionInfo("oxceEmbeddedOnly", &oxceEmbeddedOnly, true));
 	_info.push_back(OptionInfo("oxceListVFSContents", &oxceListVFSContents, false));
@@ -445,8 +447,9 @@ static void _setDefaultMods()
 
 /**
  * Resets the options back to their defaults.
+ * @param includeMods Reset mods to default as well.
  */
-void resetDefault()
+void resetDefault(bool includeMods)
 {
 	for (std::vector<OptionInfo>::iterator i = _info.begin(); i != _info.end(); ++i)
 	{
@@ -454,10 +457,13 @@ void resetDefault()
 	}
 	backupDisplay();
 
-	mods.clear();
-	if (!_dataList.empty())
+	if (includeMods)
 	{
-		_setDefaultMods();
+		mods.clear();
+		if (!_dataList.empty())
+		{
+			_setDefaultMods();
+		}
 	}
 }
 
@@ -604,7 +610,7 @@ bool init()
 	if (showHelp())
 		return false;
 	create();
-	resetDefault();
+	resetDefault(true);
 	loadArgs();
 	setFolders();
 	_setDefaultMods();

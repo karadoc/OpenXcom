@@ -795,7 +795,7 @@ void InventoryState::saveGlobalLayout(int index, bool includingArmor)
 	_createInventoryTemplate(*tmpl);
 
 	// optionally save armor info too
-	if (includingArmor)
+	if (includingArmor && _battleGame->getSelectedUnit()->getGeoscapeSoldier())
 	{
 		_game->getSavedGame()->setGlobalEquipmentLayoutArmor(index, _battleGame->getSelectedUnit()->getArmor()->getType());
 	}
@@ -2005,7 +2005,7 @@ void InventoryState::think()
 			r.w -= 2;
 			r.h -= 2;
 			_selAmmo->drawRect(&r, Palette::blockOffset(0)+15);
-			firstAmmo->getRules()->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), _selAmmo, firstAmmo, anim);
+			firstAmmo->getRules()->drawHandSprite(_game->getMod()->getSurfaceSet("BIGOBS.PCK"), _selAmmo, firstAmmo, _game->getSavedGame()->getSavedBattle(), anim);
 		}
 		else
 		{

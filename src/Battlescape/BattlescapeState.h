@@ -46,9 +46,6 @@ class BattlescapeGame;
  */
 class BattlescapeState : public State
 {
-
-enum ButtonType { BTN_PSI, BTN_SPECIAL, BTN_SKILL };
-
 private:
 	Surface *_rank, *_rankTiny;
 	InteractiveSurface *_icons;
@@ -61,11 +58,16 @@ private:
 	InteractiveSurface *_btnStats;
 	BattlescapeButton *_btnReserveNone, *_btnReserveSnap, *_btnReserveAimed, *_btnReserveAuto, *_btnReserveKneel, *_btnZeroTUs;
 	InteractiveSurface *_btnLeftHandItem, *_btnRightHandItem;
+
+	static const int SPECIAL_BUTTONS_MAX = 3;
+	int _posSpecialActions[SPECIAL_BUTTONS_MAX];
+
 	static const int VISIBLE_MAX = 10;
 	std::string _txtVisibleUnitTooltip[VISIBLE_MAX+2];
 	InteractiveSurface *_btnVisibleUnit[VISIBLE_MAX];
 	NumberText *_numVisibleUnit[VISIBLE_MAX];
 	BattleUnit *_visibleUnit[VISIBLE_MAX];
+
 	WarningMessage *_warning;
 	Text *_txtName;
 	NumberText *_numTimeUnits, *_numEnergy, *_numHealth, *_numMorale, *_numLayers;
@@ -108,12 +110,6 @@ private:
 	void blinkHealthBar();
 	/// Shows the unit kneel state.
 	void toggleKneelButton(BattleUnit* unit);
-	/// Shows the PSI button.
-	void showPsiButton(bool show);
-	/// Shows the special weapon button.
-	void showSpecialButton(bool show, int sprite = 1);
-	/// Shows the skills menu button.
-	void showSkillsButton(bool show, int sprite = 1);
 public:
 	/// Selects the next soldier.
 	void selectNextPlayerUnit(bool checkReselect = false, bool setReselect = false, bool checkInventory = false, bool checkFOV = true);
@@ -236,6 +232,8 @@ public:
 	void warning(const std::string &message);
 	/// Show warning message, no translation.
 	void warningRaw(const std::string &message);
+	/// Show warning message that stay longer on screen, no translation.
+	void warningLongRaw(const std::string &message);
 	/// Gets melee damage preview.
 	std::string getMeleeDamagePreview(BattleUnit *actor, BattleItem *weapon) const;
 	/// Handles keypresses.
@@ -246,8 +244,7 @@ public:
 	void finishBattle(bool abort, int inExitArea);
 	/// Show the launch button.
 	void showLaunchButton(bool show);
-	/// Show one of Psi, Special or Skill button
-	void showUiButton(ButtonType buttonType, int spriteIndex = 1);
+	/// Reset visiblity of special buttons like psi or skill.
 	void resetUiButton();
 	/// Clears mouse-scrolling state.
 	void clearMouseScrollingState();

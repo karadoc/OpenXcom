@@ -328,10 +328,11 @@ std::string Soldier::getName(bool statstring, unsigned int maxLength) const
 {
 	if (statstring && !_statString.empty())
 	{
-		UString name = Unicode::convUtf8ToUtf32(_name);
-		if (name.length() + _statString.length() > maxLength)
+		auto nameCodePointLength = Unicode::codePointLengthUTF8(_name);
+		auto statCodePointLength = Unicode::codePointLengthUTF8(_statString);
+		if (nameCodePointLength + statCodePointLength > maxLength)
 		{
-			return Unicode::convUtf32ToUtf8(name.substr(0, maxLength - _statString.length())) + "/" + _statString;
+			return Unicode::codePointSubstrUTF8(_name, 0, maxLength - statCodePointLength) + "/" + _statString;
 		}
 		else
 		{
@@ -362,16 +363,10 @@ std::string Soldier::getCallsign(unsigned int maxLength) const
 {
 	std::ostringstream ss;
 	ss << "\"";
-	ss << _callsign;
+	ss << Unicode::codePointSubstrUTF8(_callsign, 0, maxLength);
 	ss << "\"";
-	if (_callsign.length() + 2 > maxLength)
-	{
-		return ss.str().substr(0, maxLength);
-	}
-	else
-	{
-		return ss.str();
-	}
+
+	return ss.str();
 }
 
 /**
@@ -1601,7 +1596,7 @@ void Soldier::transform(const Mod *mod, RuleSoldierTransformation *transformatio
 		RuleSoldier* sourceSoldierType = _rules;
 
 		// change soldier type if needed
-		if (!transformationRule->getProducedSoldierType().empty() && _rules->getType() != transformationRule->getProducedSoldierType())
+		if (!Mod::isEmptyRuleName(transformationRule->getProducedSoldierType()) && _rules->getType() != transformationRule->getProducedSoldierType())
 		{
 			_rules = mod->getSoldier(transformationRule->getProducedSoldierType());
 
@@ -1666,7 +1661,7 @@ void Soldier::transform(const Mod *mod, RuleSoldierTransformation *transformatio
 
 	if (!transformationRule->isKeepingSoldierArmor())
 	{
-		if (transformationRule->getProducedSoldierArmor().empty())
+		if (Mod::isEmptyRuleName(transformationRule->getProducedSoldierArmor()))
 		{
 			// default armor of the soldier's type
 			_armor = mod->getArmor(_rules->getArmor());
@@ -1703,7 +1698,7 @@ void Soldier::transform(const Mod *mod, RuleSoldierTransformation *transformatio
 	}
 
 	// Award a soldier bonus, if defined
-	if (!transformationRule->getSoldierBonusType().empty())
+	if (!Mod::isEmptyRuleName(transformationRule->getSoldierBonusType()))
 	{
 		auto it2 = _transformationBonuses.find(transformationRule->getSoldierBonusType());
 		if (it2 != _transformationBonuses.end())
@@ -1769,7 +1764,7 @@ UnitStats Soldier::calculateStatChanges(const Mod *mod, RuleSoldierTransformatio
 	statChange.bravery = ((statChange.bravery + (sign * 5)) / 10) * 10;
 
 	RuleSoldier *transformationSoldierType = _rules;
-	if (!transformationRule->getProducedSoldierType().empty())
+	if (!Mod::isEmptyRuleName(transformationRule->getProducedSoldierType()))
 	{
 		transformationSoldierType = mod->getSoldier(transformationRule->getProducedSoldierType());
 	}
