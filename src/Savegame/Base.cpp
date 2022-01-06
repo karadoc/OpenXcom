@@ -47,6 +47,7 @@
 #include "../Engine/Logger.h"
 #include "../Engine/Collections.h"
 #include "WeightedOptions.h"
+#include "AlienMission.h"
 
 namespace OpenXcom
 {
@@ -55,7 +56,8 @@ namespace OpenXcom
  * Initializes an empty base.
  * @param mod Pointer to mod.
  */
-Base::Base(const Mod *mod) : Target(), _mod(mod), _scientists(0), _engineers(0), _inBattlescape(false), _retaliationTarget(false), _fakeUnderwater(false)
+Base::Base(const Mod *mod) : Target(), _mod(mod), _scientists(0), _engineers(0), _inBattlescape(false),
+	_retaliationTarget(false), _retaliationMission(nullptr), _fakeUnderwater(false)
 {
 	_items = new ItemContainer();
 }
@@ -227,6 +229,18 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 	}
 
 	_retaliationTarget = node["retaliationTarget"].as<bool>(_retaliationTarget);
+	if (const YAML::Node& mission = node["retaliationMissionUniqueId"])
+	{
+		int missionId = mission.as<int>();
+		for (auto* i : save->getAlienMissions())
+		{
+			if (i->getId() == missionId)
+			{
+				_retaliationMission = i;
+				break;
+			}
+		}
+	}
 	_fakeUnderwater = node["fakeUnderwater"].as<bool>(_fakeUnderwater);
 
 	isOverlappingOrOverflowing(); // don't crash, just report in the log file...
@@ -354,6 +368,8 @@ YAML::Node Base::save() const
 	}
 	if (_retaliationTarget)
 		node["retaliationTarget"] = _retaliationTarget;
+	if (_retaliationMission)
+		node["retaliationMissionUniqueId"] = _retaliationMission->getId();
 	if (_fakeUnderwater)
 		node["fakeUnderwater"] = _fakeUnderwater;
 	return node;
@@ -1410,18 +1426,10 @@ int Base::getFreeTrainingSpace() const
  * Containment Space in the base.
  * @return Containment Lab space.
  */
-int Base::getUsedContainment(int prisonType) const
+int Base::getUsedContainment(int prisonType, bool onlyExternal) const
 {
 	int total = 0;
 	RuleItem *rule = 0;
-	for (std::map<std::string, int>::iterator i = _items->getContents()->begin(); i != _items->getContents()->end(); ++i)
-	{
-		rule = _mod->getItem((i)->first, true);
-		if (rule->isAlien() && rule->getPrisonType() == prisonType)
-		{
-			total += (i)->second;
-		}
-	}
 	for (std::vector<Transfer*>::const_iterator i = _transfers.begin(); i != _transfers.end(); ++i)
 	{
 		if ((*i)->getType() == TRANSFER_ITEM)
@@ -1436,13 +1444,26 @@ int Base::getUsedContainment(int prisonType) const
 	for (std::vector<ResearchProject*>::const_iterator i = _research.begin(); i != _research.end(); ++i)
 	{
 		const RuleResearch *projRules = (*i)->getRules();
-		if (projRules->needItem())
+		if (projRules->needItem() && projRules->destroyItem())
 		{
 			rule = _mod->getItem(projRules->getName());
 			if (rule->isAlien() && rule->getPrisonType() == prisonType)
 			{
 				++total;
 			}
+		}
+	}
+	if (onlyExternal)
+	{
+		return total;
+	}
+
+	for (std::map<std::string, int>::iterator i = _items->getContents()->begin(); i != _items->getContents()->end(); ++i)
+	{
+		rule = _mod->getItem((i)->first, true);
+		if (rule->isAlien() && rule->getPrisonType() == prisonType)
+		{
+			total += (i)->second;
 		}
 	}
 	return total;
@@ -1539,8 +1560,13 @@ int Base::getGravShields() const
 	return total;
 }
 
-void Base::setupDefenses()
+void Base::setupDefenses(AlienMission* am)
 {
+	if (am->getRules().getObjective() == OBJECTIVE_RETALIATION)
+	{
+		setRetaliationMission(am);
+	}
+
 	_defenses.clear();
 	for (std::vector<BaseFacility*>::const_iterator i = _facilities.begin(); i != _facilities.end(); ++i)
 	{
@@ -2006,6 +2032,49 @@ void Base::destroyFacility(std::vector<BaseFacility*>::iterator facility)
 	_destroyedFacilitiesCache[(*facility)->getRules()] += 1;
 	delete *facility;
 	_facilities.erase(facility);
+}
+
+/**
+ * Cancels all prisoner interrogations. Cancels all incoming prisoner transfers.
+ */
+void Base::cleanupPrisons(int prisonType)
+{
+	// cancel all interrogations
+	Collections::deleteIf(_research, _research.size(),
+		[&](ResearchProject* project)
+		{
+			const RuleResearch* projRules = project->getRules();
+			if (projRules->needItem() && projRules->destroyItem())
+			{
+				RuleItem* rule = _mod->getItem(projRules->getName());
+				if (rule->isAlien() && rule->getPrisonType() == prisonType)
+				{
+					_scientists += project->getAssigned();
+					project->setAssigned(0);
+					getStorageItems()->addItem(projRules->getName(), 1);
+					return true;
+				}
+			}
+			return false;
+		}
+	);
+
+	// act as if all incoming prisoners arrived already, let player decide what to do with them
+	Collections::deleteIf(_transfers, _transfers.size(),
+		[&](Transfer* transfer)
+		{
+			if (transfer->getType() == TRANSFER_ITEM)
+			{
+				RuleItem* rule = _mod->getItem(transfer->getItems(), true);
+				if (rule->isAlien() && rule->getPrisonType() == prisonType)
+				{
+					getStorageItems()->addItem(transfer->getItems(), transfer->getQuantity());
+					return true;
+				}
+			}
+			return false;
+		}
+	);
 }
 
 /**

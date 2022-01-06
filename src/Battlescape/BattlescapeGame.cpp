@@ -887,7 +887,7 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 						deathStat->setUnitStats(murderer);
 						deathStat->faction = murderer->getOriginalFaction();
 					}
-					_parentState->getGame()->getSavedGame()->killSoldier(victim->getGeoscapeSoldier(), deathStat);
+					_parentState->getGame()->getSavedGame()->killSoldier(getMod(), victim->getGeoscapeSoldier(), deathStat);
 				}
 			}
 			else if ((*j)->getStunlevel() >= (*j)->getHealth() && (*j)->getStatus() != STATUS_UNCONSCIOUS)
@@ -980,6 +980,7 @@ void BattlescapeGame::handleNonTargetAction()
 			{
 				_parentState->warning(_currentAction.weapon->getRules()->getPrimeActionMessage());
 				_currentAction.weapon->setFuseTimer(_currentAction.value);
+				playSound(_currentAction.weapon->getRules()->getPrimeSound()); // prime sound
 				_save->getTileEngine()->calculateLighting(LL_UNITS, _currentAction.actor->getPosition());
 				_save->getTileEngine()->calculateFOV(_currentAction.actor->getPosition(), _currentAction.weapon->getVisibilityUpdateRange(), false);
 			}
@@ -994,6 +995,7 @@ void BattlescapeGame::handleNonTargetAction()
 			{
 				_parentState->warning(_currentAction.weapon->getRules()->getUnprimeActionMessage());
 				_currentAction.weapon->setFuseTimer(-1);
+				playSound(_currentAction.weapon->getRules()->getUnprimeSound()); // unprime sound
 				_save->getTileEngine()->calculateLighting(LL_UNITS, _currentAction.actor->getPosition());
 				_save->getTileEngine()->calculateFOV(_currentAction.actor->getPosition(), _currentAction.weapon->getVisibilityUpdateRange(), false);
 			}

@@ -733,13 +733,24 @@ void DogfightState::think()
 			}
 		}
 		_delayedRecolorDone = true;
+
+		// Note: init() is never called for DogfightState, so we'll do it here instead
+		{
+			auto& sounds = _game->getMod()->getStartDogfightSounds();
+			int soundId = sounds.empty() ? Mod::NO_SOUND : sounds[RNG::generate(0, sounds.size() - 1)];
+			if (soundId != Mod::NO_SOUND)
+			{
+				auto* customSound = _game->getMod()->getSound("GEO.CAT", soundId);
+				customSound->play();
+			}
+		}
 	}
 	if (!_endDogfight)
 	{
 		update();
 		_craftDamageAnimTimer->think(this, 0);
 	}
-	if (!_ufoIsAttacking)
+	if (!_ufoIsAttacking || _ufo->getStatus() == Ufo::LANDED)
 	{
 		if (!_craft->isInDogfight() || _craft->getDestination() != _ufo || _ufo->getStatus() == Ufo::LANDED)
 		{
@@ -1404,7 +1415,7 @@ void DogfightState::update()
 			std::vector<Craft*> followers = _ufo->getCraftFollowers();
 			for (std::vector<Craft*>::iterator i = followers.begin(); i != followers.end(); ++i)
 			{
-				if (((*i)->getNumSoldiers() == 0 && (*i)->getNumVehicles() == 0) || !(*i)->getRules()->getAllowLanding())
+				if ((*i)->getNumTotalUnits() == 0 || !(*i)->getRules()->getAllowLanding())
 				{
 					(*i)->returnToBase();
 				}

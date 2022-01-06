@@ -47,7 +47,8 @@
 namespace OpenXcom
 {
 
-AlienMission::AlienMission(const RuleAlienMission &rule) : _rule(rule), _nextWave(0), _nextUfoCounter(0), _spawnCountdown(0), _liveUfos(0), _interrupted(false), _uniqueID(0), _missionSiteZone(-1), _base(0)
+AlienMission::AlienMission(const RuleAlienMission &rule) : _rule(rule), _nextWave(0), _nextUfoCounter(0), _spawnCountdown(0), _liveUfos(0),
+	_interrupted(false), _multiUfoRetaliationInProgress(false), _uniqueID(0), _missionSiteZone(-1), _base(0)
 {
 	// Empty by design.
 }
@@ -77,7 +78,7 @@ private:
  * @param node The YAML node containing the data.
  * @param game The game data, required to locate the alien base.
  */
-void AlienMission::load(const YAML::Node& node, SavedGame &game)
+void AlienMission::load(const YAML::Node& node, SavedGame &game, const Mod* mod)
 {
 	_region = node["region"].as<std::string>(_region);
 	_race = node["race"].as<std::string>(_race);
@@ -86,6 +87,7 @@ void AlienMission::load(const YAML::Node& node, SavedGame &game)
 	_spawnCountdown = node["spawnCountdown"].as<size_t>(_spawnCountdown);
 	_liveUfos = node["liveUfos"].as<size_t>(_liveUfos);
 	_interrupted = node["interrupted"].as<bool>(_interrupted);
+	_multiUfoRetaliationInProgress = node["multiUfoRetaliationInProgress"].as<bool>(_multiUfoRetaliationInProgress);
 	_uniqueID = node["uniqueID"].as<int>(_uniqueID);
 	if (const YAML::Node &base = node["alienBase"])
 	{
@@ -105,6 +107,24 @@ void AlienMission::load(const YAML::Node& node, SavedGame &game)
 		_base = *found;
 	}
 	_missionSiteZone = node["missionSiteZone"].as<int>(_missionSiteZone);
+
+	// fix invalid saves
+	RuleRegion* region = mod->getRegion(_region, false);
+	if (!region)
+	{
+		Log(LOG_ERROR) << "Corrupted save: Mission with uniqueID: " << _uniqueID << " has an invalid region: " << _region;
+		_interrupted = true;
+		if (_missionSiteZone > -1)
+		{
+			_missionSiteZone = 0;
+		}
+		_region = mod->getRegionsList().front();
+		if (_liveUfos > 0)
+		{
+			Log(LOG_ERROR) << "Mission still has some live UFOs, please leave them be until they disappear.";
+		}
+		Log(LOG_ERROR) << "Mission was interrupted! Temporarily assigned to a new region: " << _region;
+	}
 }
 
 /**
@@ -124,6 +144,10 @@ YAML::Node AlienMission::save() const
 	if (_interrupted)
 	{
 		node["interrupted"] = _interrupted;
+	}
+	if (_multiUfoRetaliationInProgress)
+	{
+		node["multiUfoRetaliationInProgress"] = _multiUfoRetaliationInProgress;
 	}
 	node["uniqueID"] = _uniqueID;
 	if (_base)
@@ -176,7 +200,7 @@ private:
 void AlienMission::think(Game &engine, const Globe &globe)
 {
 	// if interrupted, don't generate any more UFOs or anything else
-	if (_interrupted)
+	if (_interrupted || _multiUfoRetaliationInProgress)
 	{
 		return;
 	}
@@ -722,6 +746,13 @@ private:
  */
 void AlienMission::ufoReachedWaypoint(Ufo &ufo, Game &engine, const Globe &globe)
 {
+	if (_interrupted)
+	{
+		ufo.setDetected(false);
+		ufo.setStatus(Ufo::DESTROYED);
+		return;
+	}
+
 	const Mod &mod = *engine.getMod();
 	SavedGame &game = *engine.getSavedGame();
 	const size_t curWaypoint = ufo.getTrajectoryPoint();
@@ -768,13 +799,21 @@ void AlienMission::ufoReachedWaypoint(Ufo &ufo, Game &engine, const Globe &globe
 			ufo.setStatus(Ufo::DESTROYED);
 
 			MissionArea area = regionRules.getMissionZones().at(trajectory.getZone(curWaypoint)).areas.at(_missionSiteZone);
+			if (wave.objectiveOnTheLandingSite)
+			{
+				// Note: 'area' is a local variable; we're not changing the ruleset
+				area.lonMin = ufo.getLongitude();
+				area.lonMax = ufo.getLongitude();
+				area.latMin = ufo.getLatitude();
+				area.latMax = ufo.getLatitude();
+			}
 			MissionSite *missionSite = spawnMissionSite(game, mod, area, &ufo);
 			if (missionSite)
 			{
 				std::vector<Craft*> followers = ufo.getCraftFollowers();
 				for (std::vector<Craft*>::iterator c = followers.begin(); c != followers.end(); ++c)
 				{
-					if ((*c)->getNumSoldiers() != 0)
+					if ((*c)->getNumTotalUnits() > 0)
 					{
 						(*c)->setDestination(missionSite);
 					}
@@ -1067,6 +1106,10 @@ std::pair<double, double> AlienMission::getWaypoint(const MissionWave &wave, con
 
 	if (_missionSiteZone != -1 && wave.objective && trajectory.getZone(nextWaypoint) == (size_t)(_rule.getSpawnZone()))
 	{
+		if (wave.objectiveOnTheLandingSite)
+		{
+			return getLandPointForMissionSite(globe, region, _rule.getSpawnZone(), _missionSiteZone, ufo);
+		}
 		const MissionArea *area = &region.getMissionZones().at(_rule.getSpawnZone()).areas.at(_missionSiteZone);
 		return std::make_pair(area->lonMin, area->latMin);
 	}
@@ -1149,10 +1192,81 @@ std::pair<double, double> AlienMission::getLandPoint(const Globe &globe, const R
 
 		if (tries == 100)
 		{
-			Log(LOG_DEBUG) << "Region: " << region.getType() << " Longitude: " << pos.first << " Latitude: " << pos.second << " invalid zone: " << zone << " ufo forced to land on water!";
+			Log(LOG_WARNING) << "Region: " << region.getType() << " Longitude: " << pos.first << " Latitude: " << pos.second << " invalid zone: " << zone << " ufo forced to land on water (or invalid texture)!";
 			if (wantsToLandOnFakeWater)
 			{
-				Log(LOG_DEBUG) << "UFO: " << ufo.getRules()->getType() << " wanted to land on fake water.";
+				Log(LOG_WARNING) << "UFO: " << ufo.getRules()->getType() << " wanted to land on fake water.";
+			}
+		}
+	}
+	return pos;
+}
+
+/**
+ * Get a random point for the given region, zone and area.
+ * The point doesn't necessarily need to be inside the region boundaries.
+ * The point will be used to land a UFO, which immediately converts into a mission site, so it HAS to be on land (or fake water).
+ */
+std::pair<double, double> AlienMission::getLandPointForMissionSite(const Globe& globe, const RuleRegion& region, size_t zone, int area, const Ufo& ufo)
+{
+	// Full error report in case of corrupted saves and/or modding-related issues
+	// Note: checking only areas; zones were already checked earlier in getWaypoint()
+	if (region.getMissionZones().at(zone).areas.empty())
+	{
+		std::stringstream ss;
+		ss << "Error occurred while trying to determine land+site point for mission type: " << _rule.getType() << " in region: " << region.getType() << ", in zone: " << zone;
+		ss << ", zone has no valid areas.";
+		throw Exception(ss.str());
+	}
+	else if ((size_t)area >= region.getMissionZones().at(zone).areas.size())
+	{
+		std::stringstream ss;
+		ss << "Error occurred while trying to determine land+site point for mission type: " << _rule.getType() << " in region: " << region.getType() << ", in zone: " << zone;
+		ss << ", mission tried to find a land+site point in area " << area;
+		ss << ", but this zone only has areas valid up to " << region.getMissionZones().at(zone).areas.size() - 1 << ".";
+		throw Exception(ss.str());
+	}
+
+	std::pair<double, double> pos;
+	{
+		int tries = 0;
+		bool wantsToLandOnFakeWater = RNG::percent(ufo.getRules()->getFakeWaterLandingChance());
+		bool found = false;
+		while (!found)
+		{
+			pos = region.getRandomPoint(zone, area); // pass the area as a parameter too!
+			++tries;
+
+			if (tries == 100)
+			{
+				found = true; // forced decision
+			}
+			else if (globe.insideLand(pos.first, pos.second) /* && region.insideRegion(pos.first, pos.second) */) // doesn't need to be inside the region!
+			{
+				bool isFakeWater = globe.insideFakeUnderwaterTexture(pos.first, pos.second);
+				if (wantsToLandOnFakeWater)
+				{
+					if (isFakeWater)
+					{
+						found = true; // found landing point on fake water
+					}
+				}
+				else
+				{
+					if (!isFakeWater)
+					{
+						found = true; // found landing point on land
+					}
+				}
+			}
+		}
+
+		if (tries == 100)
+		{
+			Log(LOG_WARNING) << "Region: " << region.getType() << " Longitude: " << pos.first << " Latitude: " << pos.second << " zone: " << zone << " area: " << area << " ufo forced to land on water (or invalid texture)!";
+			if (wantsToLandOnFakeWater)
+			{
+				Log(LOG_WARNING) << "UFO: " << ufo.getRules()->getType() << " wanted to land on fake water.";
 			}
 		}
 	}

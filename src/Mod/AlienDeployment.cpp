@@ -51,6 +51,7 @@ namespace YAML
 			node["alienRank"] = rhs.alienRank;
 			node["customUnitType"] = rhs.customUnitType;
 			node["lowQty"] = rhs.lowQty;
+			node["medQty"] = rhs.medQty;
 			node["highQty"] = rhs.highQty;
 			node["dQty"] = rhs.dQty;
 			node["extraQty"] = rhs.extraQty;
@@ -68,6 +69,7 @@ namespace YAML
 			rhs.alienRank = node["alienRank"].as<int>(rhs.alienRank);
 			rhs.customUnitType = node["customUnitType"].as<std::string>(rhs.customUnitType);
 			rhs.lowQty = node["lowQty"].as<int>(rhs.lowQty);
+			rhs.medQty = node["medQty"].as<int>(rhs.medQty);
 			rhs.highQty = node["highQty"].as<int>(rhs.highQty);
 			rhs.dQty = node["dQty"].as<int>(rhs.dQty);
 			rhs.extraQty = node["extraQty"].as<int>(0); // give this a default, as it's not 100% needed, unlike the others.
@@ -180,14 +182,14 @@ namespace OpenXcom
  * @param type String defining the type.
  */
 AlienDeployment::AlienDeployment(const std::string &type) :
-	_type(type), _bughuntMinTurn(0), _width(0), _length(0), _height(0), _civilians(0), _markCiviliansAsVIP(false), _civilianSpawnNodeRank(0),
+	_type(type), _missionBountyItemCount(1), _bughuntMinTurn(0), _width(0), _length(0), _height(0), _civilians(0), _markCiviliansAsVIP(false), _civilianSpawnNodeRank(0),
 	_shade(-1), _minShade(-1), _maxShade(-1), _finalDestination(false), _isAlienBase(false), _isHidden(false), _fakeUnderwaterSpawnChance(0),
 	_alert("STR_ALIENS_TERRORISE"), _alertBackground("BACK03.SCR"), _alertDescription(""), _alertSound(-1),
 	_markerName("STR_TERROR_SITE"), _markerIcon(-1), _durationMin(0), _durationMax(0), _minDepth(0), _maxDepth(0),
 	_genMissionFrequency(0), _genMissionLimit(1000),
 	_objectiveType(-1), _objectivesRequired(0), _objectiveCompleteScore(0), _objectiveFailedScore(0), _despawnPenalty(0), _abortPenalty(0), _points(0),
 	_turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE), _keepCraftAfterFailedMission(false), _allowObjectiveRecovery(false), _escapeType(ESCAPE_NONE), _vipSurvivalPercentage(0),
-	_baseDetectionRange(0), _baseDetectionChance(100), _huntMissionMaxFrequency(60)
+	_baseDetectionRange(0), _baseDetectionChance(100), _huntMissionMaxFrequency(60), _resetAlienBaseAgeAfterUpgrade(false), _resetAlienBaseAge(false)
 {
 }
 
@@ -221,8 +223,11 @@ void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 	_customUfo = node["customUfo"].as<std::string>(_customUfo);
 	_enviroEffects = node["enviroEffects"].as<std::string>(_enviroEffects);
 	_startingCondition = node["startingCondition"].as<std::string>(_startingCondition);
-	_unlockedResearch = node["unlockedResearch"].as<std::string>(_unlockedResearch);
+	_unlockedResearchOnSuccess = node["unlockedResearch"].as<std::string>(_unlockedResearchOnSuccess);
+	_unlockedResearchOnFailure = node["unlockedResearchOnFailure"].as<std::string>(_unlockedResearchOnFailure);
+	_unlockedResearchOnDespawn = node["unlockedResearchOnDespawn"].as<std::string>(_unlockedResearchOnDespawn);
 	_missionBountyItem = node["missionBountyItem"].as<std::string>(_missionBountyItem);
+	_missionBountyItemCount = node["missionBountyItemCount"].as<int>(_missionBountyItemCount);
 	_bughuntMinTurn = node["bughuntMinTurn"].as<int>(_bughuntMinTurn);
 	_data = node["data"].as< std::vector<DeploymentData> >(_data);
 	_reinforcements = node["reinforcements"].as< std::vector<ReinforcementsData> >(_reinforcements);
@@ -282,6 +287,18 @@ void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 	}
 	_missionCompleteText = node["missionCompleteText"].as<std::string>(_missionCompleteText);
 	_missionFailedText = node["missionFailedText"].as<std::string>(_missionFailedText);
+	if (node["successEvents"])
+	{
+		_successEvents.load(node["successEvents"]);
+	}
+	if (node["despawnEvents"])
+	{
+		_despawnEvents.load(node["despawnEvents"]);
+	}
+	if (node["failureEvents"])
+	{
+		_failureEvents.load(node["failureEvents"]);
+	}
 	_despawnPenalty = node["despawnPenalty"].as<int>(_despawnPenalty);
 	_abortPenalty = node["abortPenalty"].as<int>(_abortPenalty);
 	_points = node["points"].as<int>(_points);
@@ -324,6 +341,8 @@ void AlienDeployment::load(const YAML::Node &node, Mod *mod)
 			_alienBaseUpgrades.push_back(std::make_pair(nn->first.as<size_t>(0), nw));
 		}
 	}
+	_resetAlienBaseAgeAfterUpgrade = node["resetAlienBaseAgeAfterUpgrade"].as<bool>(_resetAlienBaseAgeAfterUpgrade);
+	_resetAlienBaseAge = node["resetAlienBaseAge"].as<bool>(_resetAlienBaseAge);
 }
 
 /**
@@ -352,15 +371,6 @@ const std::string& AlienDeployment::getEnviroEffects() const
 const std::string& AlienDeployment::getStartingCondition() const
 {
 	return _startingCondition;
-}
-
-/**
-* Returns the research topic to be unlocked after a successful mission.
-* @return String ID for research topic.
-*/
-std::string AlienDeployment::getUnlockedResearch() const
-{
-	return _unlockedResearch;
 }
 
 /**

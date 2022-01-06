@@ -909,6 +909,14 @@ void Mod::playMusic(const std::string &name, int id)
 		if (music != _muteMusic)
 		{
 			_playingMusic = name;
+			for (auto& item : _musics)
+			{
+				if (item.second == music)
+				{
+					setCurrentMusicTrack(item.first);
+					break;
+				}
+			}
 		}
 		Log(LOG_VERBOSE)<<"Mod::playMusic('" << name << "'): playing " << _playingMusic;
 	}
@@ -930,7 +938,7 @@ SoundSet *Mod::getSoundSet(const std::string &name, bool error) const
  * @param sound ID of the sound.
  * @return Pointer to the sound.
  */
-Sound *Mod::getSound(const std::string &set, int sound, bool error) const
+Sound *Mod::getSound(const std::string &set, int sound) const
 {
 	if (Options::mute)
 	{
@@ -944,14 +952,14 @@ Sound *Mod::getSound(const std::string &set, int sound, bool error) const
 			Sound *s = ss->getSound(sound);
 			if (s == 0)
 			{
-				Log(LOG_VERBOSE) << "Sound " << sound << " in " << set << " not found";
+				Log(LOG_ERROR) << "Sound " << sound << " in " << set << " not found";
 				return _muteSound;
 			}
 			return s;
 		}
 		else
 		{
-			Log(LOG_VERBOSE) << "SoundSet " << set << " not found";
+			Log(LOG_ERROR) << "SoundSet " << set << " not found";
 			return _muteSound;
 		}
 	}
@@ -982,12 +990,12 @@ const std::vector<Uint16> *Mod::getVoxelData() const
  * @param sound ID of the sound.
  * @return Pointer to the sound.
  */
-Sound *Mod::getSoundByDepth(unsigned int depth, unsigned int sound, bool error) const
+Sound *Mod::getSoundByDepth(unsigned int depth, unsigned int sound) const
 {
 	if (depth == 0 || _disableUnderwaterSounds)
-		return getSound("BATTLE.CAT", sound, error);
+		return getSound("BATTLE.CAT", sound);
 	else
-		return getSound("BATTLE2.CAT", sound, error);
+		return getSound("BATTLE2.CAT", sound);
 }
 
 /**
@@ -2158,6 +2166,10 @@ void Mod::loadMod(const std::vector<FileMap::FileRecord> &rulesetFiles, ModScrip
 		{
 			loadFile(*i, parsers);
 		}
+		catch (Exception &e)
+		{
+			throw Exception(i->fullpath + ": " + std::string(e.what()));
+		}
 		catch (YAML::Exception &e)
 		{
 			throw Exception(i->fullpath + ": " + std::string(e.what()));
@@ -2808,6 +2820,8 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		if ((*i)["annoyedSound"])
 			loadSoundOffset(type, _annoyedSound[type], (*i)["annoyedSound"], "BATTLE.CAT");
 	}
+	loadSoundOffset("global", _selectBaseSound, doc["selectBaseSound"], "BATTLE.CAT");
+	loadSoundOffset("global", _startDogfightSound, doc["startDogfightSound"], "BATTLE.CAT");
 	_flagByKills = doc["flagByKills"].as<std::vector<int> >(_flagByKills);
 
 	_defeatScore = doc["defeatScore"].as<int>(_defeatScore);
@@ -3267,9 +3281,16 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 		else if (node.IsScalar())
 		{
 			int randomSoldiers = node.as<int>(0);
-			for (int s = 0; s < randomSoldiers; ++s)
+			if (randomSoldiers > 0 && soldierTypes.empty())
 			{
-				randomTypes.push_back(soldierTypes[RNG::generate(0, soldierTypes.size() - 1)]);
+				Log(LOG_ERROR) << "Cannot generate soldiers for the starting base. There are no available soldier types. Maybe all of them are locked by research?";
+			}
+			else
+			{
+				for (int s = 0; s < randomSoldiers; ++s)
+				{
+					randomTypes.push_back(soldierTypes[RNG::generate(0, soldierTypes.size() - 1)]);
+				}
 			}
 		}
 		// Generate soldiers
@@ -3300,7 +3321,7 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 				Craft *found = 0;
 				for (auto& craft : *base->getCrafts())
 				{
-					if (!found && craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getSoldiers())
+					if (!found && craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getMaxUnits())
 					{
 						// Remember transporter as fall-back, but search further for interceptors
 						found = craft;
@@ -3318,7 +3339,7 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 				Craft *found = 0;
 				for (auto& craft : *base->getCrafts())
 				{
-					if (craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getSoldiers())
+					if (craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getMaxUnits())
 					{
 						// First available transporter will do
 						found = craft;

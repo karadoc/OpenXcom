@@ -33,7 +33,6 @@
 #include "../Mod/RuleRegion.h"
 #include "../Mod/RuleSoldier.h"
 #include "../Savegame/Base.h"
-#include "../Savegame/GeoscapeEvent.h"
 #include "../Savegame/Region.h"
 #include "../Savegame/SavedGame.h"
 #include "../Savegame/Soldier.h"
@@ -47,7 +46,7 @@ namespace OpenXcom
  * Initializes all the elements in the Geoscape Event window.
  * @param geoEvent Pointer to the event.
  */
-GeoscapeEventState::GeoscapeEventState(GeoscapeEvent *geoEvent) : _eventRule(geoEvent->getRules())
+GeoscapeEventState::GeoscapeEventState(const RuleEvent& eventRule) : _eventRule(eventRule)
 {
 	_screen = false;
 
@@ -237,6 +236,7 @@ void GeoscapeEventState::eventLogic()
 		}
 	}
 
+	std::vector<const RuleResearch*> topicsToCheck;
 	if (!possibilities.empty())
 	{
 		size_t pickResearch = RNG::generate(0, possibilities.size() - 1);
@@ -250,6 +250,7 @@ void GeoscapeEventState::eventLogic()
 		}
 
 		save->addFinishedResearch(eventResearch, mod, hq, true);
+		topicsToCheck.push_back(eventResearch);
 		_researchName = alreadyResearched ? "" : eventResearch->getName();
 
 		if (!eventResearch->getLookup().empty())
@@ -262,6 +263,7 @@ void GeoscapeEventState::eventLogic()
 		if (auto bonus = save->selectGetOneFree(eventResearch))
 		{
 			save->addFinishedResearch(bonus, mod, hq, true);
+			topicsToCheck.push_back(bonus);
 			_bonusResearchName = bonus->getName();
 
 			if (!bonus->getLookup().empty())
@@ -272,6 +274,12 @@ void GeoscapeEventState::eventLogic()
 			}
 		}
 	}
+
+	// Side effects:
+	// 1. remove obsolete research projects from all bases
+	// 2. handle items spawned by research
+	// 3. handle events spawned by research
+	save->handlePrimaryResearchSideEffects(topicsToCheck, mod, hq);
 }
 
 /**

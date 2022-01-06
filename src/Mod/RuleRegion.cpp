@@ -83,9 +83,19 @@ void RuleRegion::load(const YAML::Node &node)
 		int zn = 0;
 		for (auto &z : _missionZones)
 		{
+			if (z.areas.size() < 1)
+			{
+				Log(LOG_WARNING) << "Empty zone, region: " << _type << ", zone: " << zn;
+				continue;
+			}
 			int an = 0;
+			bool firstAreaType = z.areas.at(0).isPoint();
 			for (auto &a : z.areas)
 			{
+				if (a.isPoint() != firstAreaType)
+				{
+					Log(LOG_WARNING) << "Mixed area types (point vs non-point), region: " << _type << ", zone: " << zn << ", area: " << an;
+				}
 				if (a.lonMin > a.lonMax)
 				{
 					Log(LOG_ERROR) << "Crossing the prime meridian in mission zones requires a different syntax, region: " << _type << ", zone: " << zn << ", area: " << an << ", lonMin: " << Rad2Deg(a.lonMin) << ", lonMax: " << Rad2Deg(a.lonMax);
@@ -202,11 +212,11 @@ const std::vector<MissionZone> &RuleRegion::getMissionZones() const
  * @param zone The target zone.
  * @return A pair of longitude and latitude.
  */
-std::pair<double, double> RuleRegion::getRandomPoint(size_t zone) const
+std::pair<double, double> RuleRegion::getRandomPoint(size_t zone, int area) const
 {
 	if (zone < _missionZones.size())
 	{
-		size_t a = RNG::generate(0, _missionZones[zone].areas.size() - 1);
+		size_t a = area != -1 ? area : RNG::generate(0, _missionZones[zone].areas.size() - 1);
 		double lonMin = _missionZones[zone].areas[a].lonMin;
 		double lonMax = _missionZones[zone].areas[a].lonMax;
 		double latMin = _missionZones[zone].areas[a].latMin;

@@ -515,7 +515,7 @@ void SaveConverter::loadDatZonal()
 	}
 	YAML::Node node;
 	node["regions"] = chances;
-	_save->getAlienStrategy().load(node);
+	_save->getAlienStrategy().load(node, _mod);
 }
 
 /**
@@ -546,7 +546,7 @@ void SaveConverter::loadDatActs()
 		subnode["missions"] = i->second;
 		node["possibleMissions"].push_back(subnode);
 	}
-	_save->getAlienStrategy().load(node);
+	_save->getAlienStrategy().load(node, _mod);
 }
 
 /**
@@ -592,7 +592,7 @@ void SaveConverter::loadDatMissions()
 				}
 				node["missionSiteZone"] = RNG::generate(0, rule->getMissionZones().at(missionZone).areas.size() - 1);
 			}
-			m->load(node, *_save);
+			m->load(node, *_save, _mod);
 			_save->getAlienMissions().push_back(m);
 			_missions[std::make_pair(mission, region)] = m;
 		}
@@ -971,7 +971,7 @@ void SaveConverter::loadDatCraft()
 					subnode["nextUfoCounter"] = 0;
 					subnode["spawnCountdown"] = 1000;
 					subnode["uniqueID"] = _save->getId("ALIEN_MISSIONS");
-					m->load(subnode, *_save);
+					m->load(subnode, *_save, _mod);
 					_save->getAlienMissions().push_back(m);
 					_missions[std::make_pair(mission, region)] = m;
 					if (mission == 6)

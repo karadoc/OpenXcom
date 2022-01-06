@@ -501,7 +501,7 @@ void SavedGame::load(const std::string &filename, Mod *mod, Language *lang)
 		{
 			const RuleAlienMission &mRule = *mod->getAlienMission(missionType);
 			AlienMission *mission = new AlienMission(mRule);
-			mission->load(*it, *this);
+			mission->load(*it, *this, mod);
 			_activeMissions.push_back(mission);
 		}
 		else
@@ -675,7 +675,7 @@ void SavedGame::load(const std::string &filename, Mod *mod, Language *lang)
 			Log(LOG_ERROR) << "Failed to load research " << id;
 		}
 	}
-	_alienStrategy->load(doc["alienStrategy"]);
+	_alienStrategy->load(doc["alienStrategy"], mod);
 
 	for (YAML::const_iterator i = doc["deadSoldiers"].begin(); i != doc["deadSoldiers"].end(); ++i)
 	{
@@ -958,6 +958,15 @@ void SavedGame::save(const std::string &filename, Mod *mod) const
 	for (std::set<const RuleItem*>::const_iterator i = _autosales.begin(); i != _autosales.end(); ++i)
 	{
 		node["autoSales"].push_back((*i)->getName());
+	}
+	// snapshot of the user options (just for debugging purposes)
+	{
+		YAML::Node tmpNode;
+		for (auto& info : Options::getOptionInfo())
+		{
+			info.save(tmpNode);
+		}
+		node["options"] = tmpNode;
 	}
 	if (_battleGame != 0)
 	{
@@ -2929,8 +2938,13 @@ bool SavedGame::isUfoOnIgnoreList(int ufoId)
  * @param soldier Pointer to dead soldier.
  * @param cause Pointer to cause of death, NULL if missing in action.
  */
-std::vector<Soldier*>::iterator SavedGame::killSoldier(Soldier *soldier, BattleUnitKills *cause)
+std::vector<Soldier*>::iterator SavedGame::killSoldier(const Mod* mod, Soldier *soldier, BattleUnitKills *cause)
 {
+	// OXCE: soldiers are buried in their default armor (...nicer stats in the Memorial GUI; no free armor if resurrected)
+	soldier->setArmor(mod->getArmor(soldier->getRules()->getArmor()));
+	soldier->setReplacedArmor(0);
+	soldier->setTransformedArmor(0);
+
 	std::vector<Soldier*>::iterator j;
 	for (std::vector<Base*>::const_iterator i = _bases.begin(); i != _bases.end(); ++i)
 	{
@@ -3090,6 +3104,199 @@ void SavedGame::clearLinksForAlienBase(AlienBase* alienBase, const Mod* mod)
 				break;
 			}
 		}
+	}
+}
+
+/**
+ * Delete the given retaliation mission.
+ */
+void SavedGame::deleteRetaliationMission(AlienMission* am, Base* base)
+{
+	for (std::vector<Ufo*>::iterator i = _ufos.begin(); i != _ufos.end();)
+	{
+		if ((*i)->getMission() == am)
+		{
+			delete (*i);
+			i = _ufos.erase(i);
+		}
+		else
+		{
+			++i;
+		}
+	}
+	for (std::vector<AlienMission*>::iterator i = _activeMissions.begin(); i != _activeMissions.end(); ++i)
+	{
+		if ((*i) == am)
+		{
+			delete (*i);
+			_activeMissions.erase(i);
+			break;
+		}
+	}
+	if (base)
+	{
+		base->setRetaliationMission(nullptr);
+	}
+}
+
+/**
+ * Spawn a Geoscape event from the event rules.
+ * @return True if successful.
+ */
+bool SavedGame::spawnEvent(const RuleEvent* eventRules)
+{
+	if (!eventRules)
+	{
+		return false;
+	}
+
+	GeoscapeEvent* newEvent = new GeoscapeEvent(*eventRules);
+	int minutes = (eventRules->getTimer() + (RNG::generate(0, eventRules->getTimerRandom()))) / 30 * 30;
+	if (minutes < 60) minutes = 60; // just in case
+	newEvent->setSpawnCountdown(minutes);
+	_geoscapeEvents.push_back(newEvent);
+
+	// remember that it has been generated
+	addGeneratedEvent(eventRules);
+
+	return true;
+}
+
+/**
+ * Checks if an instant Geoscape event can be spawned.
+ */
+bool SavedGame::canSpawnInstantEvent(const RuleEvent* eventRules)
+{
+	if (!eventRules)
+	{
+		return false;
+	}
+
+	bool interrupted = false;
+	if (!eventRules->getInterruptResearch().empty())
+	{
+		if (isResearched(eventRules->getInterruptResearch(), false))
+		{
+			interrupted = true;
+		}
+	}
+
+	if (!interrupted)
+	{
+		addGeneratedEvent(eventRules);
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Handles research unlocked by successful/failed missions and despawned mission sites.
+ * 1. Adds the research topic to finished research list. Silently.
+ * 2. Adds also getOneFree bonus and possible lookup(s). Also silently.
+ * 3. Handles alien mission interruption.
+ */
+bool SavedGame::handleResearchUnlockedByMissions(const RuleResearch* research, const Mod* mod)
+{
+	if (!research)
+	{
+		return false;
+	}
+	if (_bases.empty())
+	{
+		return false; // all bases lost, game over
+	}
+	Base* base = _bases.front();
+
+	std::vector<const RuleResearch*> researchVec;
+	researchVec.push_back(research);
+	addFinishedResearch(research, mod, base, true);
+	if (!research->getLookup().empty())
+	{
+		researchVec.push_back(mod->getResearch(research->getLookup(), true));
+		addFinishedResearch(researchVec.back(), mod, base, true);
+	}
+
+	if (auto bonus = selectGetOneFree(research))
+	{
+		researchVec.push_back(bonus);
+		addFinishedResearch(bonus, mod, base, true);
+		if (!bonus->getLookup().empty())
+		{
+			researchVec.push_back(mod->getResearch(bonus->getLookup(), true));
+			addFinishedResearch(researchVec.back(), mod, base, true);
+		}
+	}
+
+	// check and interrupt alien missions if necessary (based on unlocked research)
+	for (auto* am : _activeMissions)
+	{
+		auto& interruptResearchName = am->getRules().getInterruptResearch();
+		if (!interruptResearchName.empty())
+		{
+			auto* interruptResearch = mod->getResearch(interruptResearchName, true);
+			if (std::find(researchVec.begin(), researchVec.end(), interruptResearch) != researchVec.end())
+			{
+				am->setInterrupted(true);
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Handles research side effects for primary research sources.
+ */
+void SavedGame::handlePrimaryResearchSideEffects(const std::vector<const RuleResearch*> &topicsToCheck, const Mod* mod, Base* base)
+{
+	for (auto* myResearchRule : topicsToCheck)
+	{
+		// 3j. now iterate through all the bases and remove this project from their labs (unless it can still yield more stuff!)
+		for (Base* otherBase : _bases)
+		{
+			for (ResearchProject* otherProject : otherBase->getResearch())
+			{
+				if (myResearchRule == otherProject->getRules())
+				{
+					if (hasUndiscoveredGetOneFree(myResearchRule, true))
+					{
+						// This research topic still has some more undiscovered non-disabled and *AVAILABLE* "getOneFree" topics, keep it!
+					}
+					else if (hasUndiscoveredProtectedUnlock(myResearchRule, mod))
+					{
+						// This research topic still has one or more undiscovered non-disabled "protected unlocks", keep it!
+					}
+					else
+					{
+						// This topic can't give you anything else anymore, remove it!
+						otherBase->removeResearch(otherProject);
+						break;
+					}
+				}
+			}
+		}
+		// 3k. handle spawned items
+		RuleItem* spawnedItem = mod->getItem(myResearchRule->getSpawnedItem());
+		if (spawnedItem)
+		{
+			Transfer* t = new Transfer(1);
+			t->setItems(myResearchRule->getSpawnedItem(), std::max(1, myResearchRule->getSpawnedItemCount()));
+			base->getTransfers()->push_back(t);
+		}
+		for (auto& spawnedItemName2 : myResearchRule->getSpawnedItemList())
+		{
+			RuleItem* spawnedItem2 = mod->getItem(spawnedItemName2);
+			if (spawnedItem2)
+			{
+				Transfer* t = new Transfer(1);
+				t->setItems(spawnedItemName2);
+				base->getTransfers()->push_back(t);
+			}
+		}
+		// 3l. handle spawned events
+		RuleEvent* spawnedEventRule = mod->getEvent(myResearchRule->getSpawnedEvent());
+		spawnEvent(spawnedEventRule);
 	}
 }
 

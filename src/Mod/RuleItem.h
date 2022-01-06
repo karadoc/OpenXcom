@@ -332,7 +332,7 @@ private:
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
 	int _specialIconSprite;
-	std::vector<int> _reloadSound;
+	std::vector<int> _reloadSound, _primeSound, _unprimeSound;
 	std::vector<int> _fireSound, _hitSound;
 	int _hitAnimation, _hitAnimFrames;
 	std::vector<int> _hitMissSound;
@@ -345,7 +345,7 @@ private:
 	int _psiAnimation, _psiAnimFrames;
 	std::vector<int> _psiMissSound;
 	int _psiMissAnimation, _psiMissAnimFrames;
-	int _power;
+	int _power, _powerForAnimation;
 	bool _hidePower;
 	float _powerRangeReduction;
 	float _powerRangeThreshold;
@@ -364,7 +364,8 @@ private:
 	RuleItemFuseTrigger _fuseTriggerEvents;
 	bool _hiddenOnMinimap;
 	std::string _medikitActionName, _psiAttackName, _primeActionName, _unprimeActionName, _primeActionMessage, _unprimeActionMessage;
-	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _isConsumable, _isFireExtinguisher, _isExplodingInHands, _specialUseEmptyHand;
+	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _isConsumable, _isFireExtinguisher;
+	bool _isExplodingInHands, _specialUseEmptyHand, _specialUseEmptyHandShow;
 	std::string _defaultInventorySlotName;
 	const RuleInventory* _defaultInventorySlot;
 	int _defaultInvSlotX, _defaultInvSlotY;
@@ -514,6 +515,12 @@ public:
 	/// Gets the item's reload sound.
 	int getReloadSound() const;
 	const std::vector<int> &getReloadSoundRaw() const { return _reloadSound; }
+	/// Gets the item's prime sound.
+	int getPrimeSound() const;
+	const std::vector<int>& getPrimeSoundRaw() const { return _primeSound; }
+	/// Gets the item's unprime sound.
+	int getUnprimeSound() const;
+	const std::vector<int>& getUnprimeSoundRaw() const { return _unprimeSound; }
 	/// Gets the item's fire sound.
 	int getFireSound() const;
 	const std::vector<int> &getFireSoundRaw() const { return _fireSound; }
@@ -572,6 +579,8 @@ public:
 
 	/// Gets the item's power.
 	int getPower() const;
+	/// Gets the item's power used for AoE explosion animation.
+	int getPowerForAnimation() const { return _powerForAnimation; }
 	/// Should the item's power be displayed in Ufopedia or not?
 	bool getHidePower() const { return _hidePower; }
 	/// Ok, so this isn't a melee type weapon but we're using it for melee... how much damage should it do?
@@ -766,6 +775,8 @@ public:
 	bool isExplodingInHands() const;
 	/// If this is used as a speacialWeapon, is it accessed by empty hand?
 	bool isSpecialUsingEmptyHand() const;
+	/// Display icon in an empty hand?
+	bool showSpecialInEmptyHand() const { return _specialUseEmptyHandShow; }
 	/// Gets the medikit use type.
 	BattleMediKitType getMediKitType() const;
 	/// Gets the medikit custom background.

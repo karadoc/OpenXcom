@@ -21,6 +21,7 @@
 #include "TileEngine.h"
 #include "DebriefingState.h"
 #include "CannotReequipState.h"
+#include "../Geoscape/GeoscapeEventState.h"
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
 #include "../Engine/LocalizedText.h"
@@ -80,7 +81,7 @@ namespace OpenXcom
  * Initializes all the elements in the Debriefing screen.
  * @param game Pointer to the core game.
  */
-DebriefingState::DebriefingState() : _region(0), _country(0), _positiveScore(true), _destroyBase(false), _showSellButton(true), _initDone(false), _pageNumber(0)
+DebriefingState::DebriefingState() : _eventToSpawn(nullptr), _region(0), _country(0), _positiveScore(true), _destroyBase(false), _showSellButton(true), _initDone(false), _pageNumber(0)
 {
 	_missionStatistics = new MissionStatistics();
 
@@ -861,6 +862,14 @@ void DebriefingState::btnOkClick(Action *)
 	}
 	else
 	{
+		if (_eventToSpawn)
+		{
+			bool canSpawn = _game->getSavedGame()->canSpawnInstantEvent(_eventToSpawn);
+			if (canSpawn)
+			{
+				_game->pushState(new GeoscapeEventState(*_eventToSpawn));
+			}
+		}
 		if (!_deadSoldiersCommended.empty())
 		{
 			_game->pushState(new CommendationLateState(_deadSoldiersCommended));
@@ -1486,11 +1495,9 @@ void DebriefingState::prepareDebriefing()
 					}
 					// transformed armor doesn't get recovered
 					soldier->setTransformedArmor(0);
-					// soldiers are buried in the default armor (...nicer stats in memorial)
-					soldier->setArmor(_game->getMod()->getArmor(soldier->getRules()->getArmor()));
 
 					(*j)->getStatistics()->KIA = true;
-					save->killSoldier(soldier); // in case we missed the soldier death on battlescape
+					save->killSoldier(_game->getMod(), soldier); // in case we missed the soldier death on battlescape
 				}
 				else
 				{ // non soldier player = tank
@@ -1575,11 +1582,9 @@ void DebriefingState::prepareDebriefing()
 						}
 						// transformed armor doesn't get recovered
 						soldier->setTransformedArmor(0);
-						// soldiers are buried in the default armor (...nicer stats in memorial)
-						soldier->setArmor(_game->getMod()->getArmor(soldier->getRules()->getArmor()));
 
 						(*j)->getStatistics()->MIA = true;
-						save->killSoldier(soldier);
+						save->killSoldier(_game->getMod(), soldier);
 					}
 				}
 			}
@@ -1928,6 +1933,11 @@ void DebriefingState::prepareDebriefing()
 				(*i)->qty = (*i)->qty / aadivider;
 				(*i)->score = (*i)->score / aadivider;
 			}
+			else if (aadivider < -1)
+			{
+				(*i)->qty = (*i)->qty * (-1) * aadivider;
+				(*i)->score = (*i)->score * (-1) * aadivider;
+			}
 
 			// recoverable battlescape tiles are now converted to items and put in base inventory
 			if ((*i)->recovery && (*i)->qty > 0)
@@ -2001,8 +2011,25 @@ void DebriefingState::prepareDebriefing()
 		}
 	}
 
-	if (target == "STR_BASE")
+	if (base && target == "STR_BASE")
 	{
+		AlienMission* am = base->getRetaliationMission();
+		if (!am && _region)
+		{
+			// backwards-compatibility
+			am = _game->getSavedGame()->findAlienMission(_region->getRules()->getType(), OBJECTIVE_RETALIATION);
+		}
+		if (!_destroyBase && am && am->getRules().isMultiUfoRetaliation())
+		{
+			// Remember that more UFOs may be coming (again, just in case)
+			am->setMultiUfoRetaliationInProgress(true);
+		}
+		else
+		{
+			// Delete the mission and any live UFOs
+			_game->getSavedGame()->deleteRetaliationMission(am, base);
+		}
+
 		if (!_destroyBase)
 		{
 			// reequip crafts (only those on the base) after a base defense mission
@@ -2022,34 +2049,6 @@ void DebriefingState::prepareDebriefing()
 					delete (*i);
 					base = 0; // To avoid similar (potential) problems as with the deleted craft
 					_game->getSavedGame()->getBases()->erase(i);
-					break;
-				}
-			}
-		}
-
-		if (_region)
-		{
-			AlienMission* am = _game->getSavedGame()->findAlienMission(_region->getRules()->getType(), OBJECTIVE_RETALIATION);
-			for (std::vector<Ufo*>::iterator i = _game->getSavedGame()->getUfos()->begin(); i != _game->getSavedGame()->getUfos()->end();)
-			{
-				if ((*i)->getMission() == am)
-				{
-					// Note: no need to check for mission interruption here, the mission is over and will be deleted in the next step
-					delete *i;
-					i = _game->getSavedGame()->getUfos()->erase(i);
-				}
-				else
-				{
-					++i;
-				}
-			}
-			for (std::vector<AlienMission*>::iterator i = _game->getSavedGame()->getAlienMissions().begin();
-				i != _game->getSavedGame()->getAlienMissions().end(); ++i)
-			{
-				if ((AlienMission*)(*i) == am)
-				{
-					delete (*i);
-					_game->getSavedGame()->getAlienMissions().erase(i);
 					break;
 				}
 			}
@@ -2081,58 +2080,36 @@ void DebriefingState::prepareDebriefing()
 	if (success && ruleDeploy && base)
 	{
 		// Unlock research defined in alien deployment, if the mission was a success
-		const RuleResearch *research = _game->getMod()->getResearch(ruleDeploy->getUnlockedResearch());
-		if (research)
-		{
-			std::vector<const RuleResearch*> researchVec;
-			researchVec.push_back(research);
-			_game->getSavedGame()->addFinishedResearch(research, _game->getMod(), base, true);
-			if (!research->getLookup().empty())
-			{
-				researchVec.push_back(_game->getMod()->getResearch(research->getLookup(), true));
-				_game->getSavedGame()->addFinishedResearch(researchVec.back(), _game->getMod(), base, true);
-			}
-
-			if (auto bonus = _game->getSavedGame()->selectGetOneFree(research))
-			{
-				researchVec.push_back(bonus);
-				_game->getSavedGame()->addFinishedResearch(bonus, _game->getMod(), base, true);
-				if (!bonus->getLookup().empty())
-				{
-					researchVec.push_back(_game->getMod()->getResearch(bonus->getLookup(), true));
-					_game->getSavedGame()->addFinishedResearch(researchVec.back(), _game->getMod(), base, true);
-				}
-			}
-
-			// check and interrupt alien missions if necessary (based on unlocked research)
-			for (auto am : _game->getSavedGame()->getAlienMissions())
-			{
-				auto interruptResearchName = am->getRules().getInterruptResearch();
-				if (!interruptResearchName.empty())
-				{
-					auto interruptResearch = _game->getMod()->getResearch(interruptResearchName, true);
-					if (std::find(researchVec.begin(), researchVec.end(), interruptResearch) != researchVec.end())
-					{
-						am->setInterrupted(true);
-					}
-				}
-			}
-		}
+		const RuleResearch *research = _game->getMod()->getResearch(ruleDeploy->getUnlockedResearchOnSuccess());
+		save->handleResearchUnlockedByMissions(research, _game->getMod());
 
 		// Give bounty item defined in alien deployment, if the mission was a success
 		const RuleItem *bountyItem = _game->getMod()->getItem(ruleDeploy->getMissionBountyItem());
 		if (bountyItem)
 		{
-			addItemsToBaseStores(bountyItem, base, 1, true);
+			int bountyQty = std::max(1, ruleDeploy->getMissionBountyItemCount());
+			addItemsToBaseStores(bountyItem, base, bountyQty, true);
 			auto specialType = bountyItem->getSpecialType();
 			if (specialType > 1)
 			{
 				if (_recoveryStats.find(specialType) != _recoveryStats.end())
 				{
-					addStat(_recoveryStats[specialType]->name, 1, _recoveryStats[specialType]->value);
+					addStat(_recoveryStats[specialType]->name, bountyQty, bountyQty * _recoveryStats[specialType]->value);
 				}
 			}
 		}
+
+		// Generate a success event
+		_eventToSpawn = _game->getMod()->getEvent(ruleDeploy->chooseSuccessEvent());
+	}
+	else if (!success && ruleDeploy)
+	{
+		// Unlock research defined in alien deployment, if the mission was a failure
+		const RuleResearch* research = _game->getMod()->getResearch(ruleDeploy->getUnlockedResearchOnFailure());
+		save->handleResearchUnlockedByMissions(research, _game->getMod());
+
+		// Generate a failure event
+		_eventToSpawn = _game->getMod()->getEvent(ruleDeploy->chooseFailureEvent());
 	}
 
 	// remember the base for later use (of course only if it's not lost already (in that case base=0))

@@ -149,7 +149,7 @@ RuleItem::RuleItem(const std::string &type) :
 	_hitAnimation(0), _hitAnimFrames(-1), _hitMissAnimation(-1), _hitMissAnimFrames(-1),
 	_meleeAnimation(0), _meleeAnimFrames(-1), _meleeMissAnimation(-1), _meleeMissAnimFrames(-1),
 	_psiAnimation(-1), _psiAnimFrames(-1), _psiMissAnimation(-1), _psiMissAnimFrames(-1),
-	_power(0), _hidePower(false), _powerRangeReduction(0), _powerRangeThreshold(0),
+	_power(0), _powerForAnimation(0), _hidePower(false), _powerRangeReduction(0), _powerRangeThreshold(0),
 	_damageTypeSet(false), _meleeTypeSet(false),
 	_accuracyUse(0), _accuracyMind(0), _accuracyPanic(20), _accuracyThrow(100), _accuracyCloseQuarters(-1),
 	_noLOSAccuracyPenalty(-1),
@@ -157,7 +157,8 @@ RuleItem::RuleItem(const std::string &type) :
 	_clipSize(0), _specialChance(100), _tuLoad{ }, _tuUnload{ },
 	_battleType(BT_NONE), _fuseType(BFT_NONE), _fuseTriggerEvents{ }, _hiddenOnMinimap(false),
 	_medikitActionName("STR_USE_MEDI_KIT"), _psiAttackName(), _primeActionName("STR_PRIME_GRENADE"), _unprimeActionName(), _primeActionMessage("STR_GRENADE_IS_ACTIVATED"), _unprimeActionMessage("STR_GRENADE_IS_DEACTIVATED"),
-	_twoHanded(false), _blockBothHands(false), _fixedWeapon(false), _fixedWeaponShow(false), _isConsumable(false), _isFireExtinguisher(false), _isExplodingInHands(false), _specialUseEmptyHand(false),
+	_twoHanded(false), _blockBothHands(false), _fixedWeapon(false), _fixedWeaponShow(false), _isConsumable(false), _isFireExtinguisher(false),
+	_isExplodingInHands(false), _specialUseEmptyHand(false), _specialUseEmptyHandShow(false),
 	_defaultInvSlotX(0), _defaultInvSlotY(0), _waypoints(0), _invWidth(1), _invHeight(1),
 	_painKiller(0), _heal(0), _stimulant(0), _medikitType(BMT_NORMAL), _medikitTargetSelf(false), _medikitTargetImmune(false), _medikitTargetMatrix(63),
 	_woundRecovery(0), _healthRecovery(0), _stunRecovery(0), _energyRecovery(0), _manaRecovery(0), _moraleRecovery(0), _painKillerRecovery(1.0f),
@@ -399,6 +400,8 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	mod->loadSpriteOffset(_type, _specialIconSprite, node["specialIconSprite"], "SPICONS.DAT");
 
 	mod->loadSoundOffset(_type, _reloadSound, node["reloadSound"], "BATTLE.CAT");
+	mod->loadSoundOffset(_type, _primeSound, node["primeSound"], "BATTLE.CAT");
+	mod->loadSoundOffset(_type, _unprimeSound, node["unprimeSound"], "BATTLE.CAT");
 	mod->loadSoundOffset(_type, _fireSound, node["fireSound"], "BATTLE.CAT");
 	mod->loadSoundOffset(_type, _hitSound, node["hitSound"], "BATTLE.CAT");
 	mod->loadSoundOffset(_type, _hitMissSound, node["hitMissSound"], "BATTLE.CAT");
@@ -515,6 +518,7 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	}
 
 	_power = node["power"].as<int>(_power);
+	_powerForAnimation = node["powerForAnimation"].as<int>(_powerForAnimation);
 	_hidePower = node["hidePower"].as<bool>(_hidePower);
 	_medikitActionName = node["medikitActionName"].as<std::string>(_medikitActionName);
 	_psiAttackName = node["psiAttackName"].as<std::string>(_psiAttackName);
@@ -609,6 +613,7 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
 	_isFireExtinguisher = node["isFireExtinguisher"].as<bool>(_isFireExtinguisher);
 	_isExplodingInHands = node["isExplodingInHands"].as<bool>(_isExplodingInHands);
 	_specialUseEmptyHand = node["specialUseEmptyHand"].as<bool>(_specialUseEmptyHand);
+	_specialUseEmptyHandShow = node["specialUseEmptyHandShow"].as<bool>(_specialUseEmptyHandShow);
 	_invWidth = node["invWidth"].as<int>(_invWidth);
 	_invHeight = node["invHeight"].as<int>(_invHeight);
 
@@ -1066,6 +1071,24 @@ int RuleItem::getRandomSound(const std::vector<int> &vector, int defaultValue) c
 int RuleItem::getReloadSound() const
 {
 	return getRandomSound(_reloadSound);
+}
+
+/**
+ * Gets the item's prime sound.
+ * @return The prime sound id.
+ */
+int RuleItem::getPrimeSound() const
+{
+	return getRandomSound(_primeSound);
+}
+
+/**
+ * Gets the item's unprime sound.
+ * @return The unprime sound id.
+ */
+int RuleItem::getUnprimeSound() const
+{
+	return getRandomSound(_unprimeSound);
 }
 
 /**

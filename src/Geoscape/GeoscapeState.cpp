@@ -1018,7 +1018,7 @@ void GeoscapeState::time5Seconds()
 				{
 					mission->setWaveCountdown(30 * (RNG::generate(0, 400) + 48));
 					(*i)->setDestination(0);
-					base->setupDefenses();
+					base->setupDefenses(mission);
 					timerReset();
 					if (!base->getDefenses()->empty())
 					{
@@ -1105,13 +1105,13 @@ void GeoscapeState::time5Seconds()
 					}
 				}
 				// if a transport craft has been shot down, kill all the soldiers on board.
-				if ((*j)->getRules()->getSoldiers() > 0)
+				if ((*j)->getRules()->getMaxUnits() > 0)
 				{
 					for (std::vector<Soldier*>::iterator k = (*i)->getSoldiers()->begin(); k != (*i)->getSoldiers()->end();)
 					{
 						if ((*k)->getCraft() == (*j))
 						{
-							k = _game->getSavedGame()->killSoldier(*k);
+							k = _game->getSavedGame()->killSoldier(_game->getMod(), *k);
 						}
 						else
 						{
@@ -1143,7 +1143,7 @@ void GeoscapeState::time5Seconds()
 							w->setLatitude(u->getLatitude());
 							w->setId(u->getId());
 							(*j)->setDestination(0);
-							popup(new GeoscapeCraftState((*j), _globe, w));
+							popup(new GeoscapeCraftState((*j), _globe, w, false));
 						}
 					}
 					if (u->getStatus() == Ufo::LANDED && (*j)->isInDogfight())
@@ -1292,7 +1292,7 @@ void GeoscapeState::time5Seconds()
 					case Ufo::LANDED:
 					case Ufo::CRASHED:
 					case Ufo::DESTROYED: // Just before expiration
-						if (((*j)->getNumSoldiers() > 0 || (*j)->getNumVehicles() > 0) && (*j)->getRules()->getAllowLanding())
+						if ((*j)->getNumTotalUnits() > 0 && (*j)->getRules()->getAllowLanding())
 						{
 							if (!(*j)->isInDogfight())
 							{
@@ -1321,7 +1321,7 @@ void GeoscapeState::time5Seconds()
 				}
 				else if (m != 0)
 				{
-					if (((*j)->getNumSoldiers() > 0 || (*j)->getNumVehicles() > 0) && (*j)->getRules()->getAllowLanding())
+					if ((*j)->getNumTotalUnits() > 0 && (*j)->getRules()->getAllowLanding())
 					{
 						// look up polygons texture
 						int texture, shade;
@@ -1344,7 +1344,7 @@ void GeoscapeState::time5Seconds()
 				{
 					if (b->isDiscovered())
 					{
-						if (((*j)->getNumSoldiers() > 0 || (*j)->getNumVehicles() > 0) && (*j)->getRules()->getAllowLanding())
+						if ((*j)->getNumTotalUnits() > 0 && (*j)->getRules()->getAllowLanding())
 						{
 							int texture, shade;
 							_globe->getPolygonTextureAndShade(b->getLongitude(), b->getLatitude(), &texture, &shade);
@@ -1605,7 +1605,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 						(*ufo)->setId(_game->getSavedGame()->getId("STR_UFO"));
 					}
 					// inform the player
-					if ((*ufo)->getRules()->getHuntAlertSound() > -1)
+					if ((*ufo)->getRules()->getHuntAlertSound() != Mod::NO_SOUND)
 					{
 						_game->getMod()->getSound("GEO.CAT", (*ufo)->getRules()->getHuntAlertSound())->play();
 					}
@@ -1746,6 +1746,21 @@ bool GeoscapeState::processMissionSite(MissionSite *site)
 			removeSite = noFollowers; // CHEEKY EXPLOIT
 		}
 	}
+	if (removeSite)
+	{
+		// Unlock research defined in alien deployment, if the mission site despawned
+		const RuleResearch* research = _game->getMod()->getResearch(site->getDeployment()->getUnlockedResearchOnDespawn());
+		_game->getSavedGame()->handleResearchUnlockedByMissions(research, _game->getMod());
+
+		// Generate a despawn event
+		auto eventRules = _game->getMod()->getEvent(site->getDeployment()->chooseDespawnEvent());
+		bool canSpawn = _game->getSavedGame()->canSpawnInstantEvent(eventRules);
+		if (canSpawn)
+		{
+			timerReset();
+			popup(new GeoscapeEventState(*eventRules));
+		}
+	}
 
 	int score = removeSite ? site->getDeployment()->getDespawnPenalty() : site->getDeployment()->getPoints();
 
@@ -1775,7 +1790,30 @@ void GeoscapeState::time30Minutes()
 	// Decrease mission countdowns
 	for (auto am : _game->getSavedGame()->getAlienMissions())
 	{
+		size_t abCount = _game->getSavedGame()->getAlienBases()->size();
+
 		am->think(*_game, *_globe);
+
+		if (abCount < _game->getSavedGame()->getAlienBases()->size())
+		{
+			AlienBase* newAlienBase = _game->getSavedGame()->getAlienBases()->back();
+			if (!newAlienBase->isDiscovered() && am->getRules().showAlienBase())
+			{
+				newAlienBase->setDiscovered(true);
+				popup(new AlienBaseState(newAlienBase, this));
+			}
+		}
+
+		if (am->getRules().getObjective() == OBJECTIVE_RETALIATION && am->isOver())
+		{
+			for (auto* xcomBase : *_game->getSavedGame()->getBases())
+			{
+				if (xcomBase->getRetaliationMission() == am)
+				{
+					xcomBase->setRetaliationMission(nullptr);
+				}
+			}
+		}
 	}
 
 	// Remove finished missions
@@ -1975,7 +2013,7 @@ void GeoscapeState::time30Minutes()
 			if (!interrupted)
 			{
 				timerReset();
-				popup(new GeoscapeEventState(ge));
+				popup(new GeoscapeEventState(ge->getRules()));
 			}
 		}
 	}
@@ -2067,9 +2105,8 @@ void GeoscapeState::time1Hour()
 				popup(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg((*i)->getName()), _palette, _game->getMod()->getInterface("geoscape")->getElement("errorMessage")->color, "BACK13.SCR", _game->getMod()->getInterface("geoscape")->getElement("errorPalette")->color));
 				popup(new SellState((*i), 0));
 			}
-			else if (!_game->getSavedGame()->getAlienContainmentChecked())
+			if (!_game->getSavedGame()->getAlienContainmentChecked())
 			{
-				_game->getSavedGame()->setAlienContainmentChecked(true);
 				std::map<int, int> prisonTypes;
 				RuleItem *rule = nullptr;
 				for (auto &item : *(*i)->getStorageItems()->getContents())
@@ -2085,7 +2122,6 @@ void GeoscapeState::time1Hour()
 					int prisonType = p.first;
 					if ((*i)->getUsedContainment(prisonType) > (*i)->getAvailableContainment(prisonType))
 					{
-						_game->getSavedGame()->setAlienContainmentChecked(false);
 						timerReset();
 						popup(new ErrorMessageState(
 							trAlt("STR_CONTAINMENT_EXCEEDED", prisonType).arg((*i)->getName()),
@@ -2100,6 +2136,8 @@ void GeoscapeState::time1Hour()
 			}
 		}
 	}
+	_game->getSavedGame()->setAlienContainmentChecked(true); // check only once after reload
+
 	bool postpone = false;
 	for (std::vector<MissionSite*>::iterator i = _game->getSavedGame()->getMissionSites()->begin(); i != _game->getSavedGame()->getMissionSites()->end(); ++i)
 	{
@@ -2274,8 +2312,8 @@ void GeoscapeState::time1Day()
 			base->removeResearch(project);
 			project = nullptr;
 
-			// 3b. handle interrogation and spawned items/events
-			if (Options::retainCorpses && research->destroyItem())
+			// 3b. handle interrogation
+			if (Options::retainCorpses && research->needItem() && research->destroyItem())
 			{
 				auto ruleUnit = mod->getUnit(research->getName(), false);
 				if (ruleUnit)
@@ -2286,25 +2324,6 @@ void GeoscapeState::time1Day()
 						base->getStorageItems()->addItem(ruleCorpse->getType());
 					}
 				}
-			}
-			RuleItem *spawnedItem = _game->getMod()->getItem(research->getSpawnedItem());
-			if (spawnedItem)
-			{
-				Transfer *t = new Transfer(1);
-				t->setItems(research->getSpawnedItem());
-				base->getTransfers()->push_back(t);
-			}
-			RuleEvent* spawnedEventRule = _game->getMod()->getEvent(research->getSpawnedEvent());
-			if (spawnedEventRule)
-			{
-				GeoscapeEvent* newEvent = new GeoscapeEvent(*spawnedEventRule);
-				int minutes = (spawnedEventRule->getTimer() + (RNG::generate(0, spawnedEventRule->getTimerRandom()))) / 30 * 30;
-				if (minutes < 60) minutes = 60; // just in case
-				newEvent->setSpawnCountdown(minutes);
-				saveGame->getGeoscapeEvents().push_back(newEvent);
-
-				// remember that it has been generated
-				saveGame->addGeneratedEvent(spawnedEventRule);
 			}
 			// 3c. handle getonefrees (topic+lookup)
 			if ((bonus = saveGame->selectGetOneFree(research)))
@@ -2387,6 +2406,8 @@ void GeoscapeState::time1Day()
 			}
 			if (!newPossibleManufacture.empty())
 			{
+				Collections::sortVector(newPossibleManufacture);
+				Collections::sortVectorMakeUnique(newPossibleManufacture);
 				popup(new NewPossibleManufactureState(base, newPossibleManufacture));
 			}
 			std::vector<RuleItem *> newPossiblePurchase;
@@ -2397,6 +2418,8 @@ void GeoscapeState::time1Day()
 			}
 			if (!newPossiblePurchase.empty())
 			{
+				Collections::sortVector(newPossiblePurchase);
+				Collections::sortVectorMakeUnique(newPossiblePurchase);
 				popup(new NewPossiblePurchaseState(base, newPossiblePurchase));
 			}
 			std::vector<RuleCraft *> newPossibleCraft;
@@ -2407,6 +2430,8 @@ void GeoscapeState::time1Day()
 			}
 			if (!newPossibleCraft.empty())
 			{
+				Collections::sortVector(newPossibleCraft);
+				Collections::sortVectorMakeUnique(newPossibleCraft);
 				popup(new NewPossibleCraftState(base, newPossibleCraft));
 			}
 			std::vector<RuleBaseFacility *> newPossibleFacilities;
@@ -2417,41 +2442,22 @@ void GeoscapeState::time1Day()
 			}
 			if (!newPossibleFacilities.empty())
 			{
+				Collections::sortVector(newPossibleFacilities);
+				Collections::sortVectorMakeUnique(newPossibleFacilities);
 				popup(new NewPossibleFacilityState(base, _globe, newPossibleFacilities));
 			}
-			// 3j. now iterate through all the bases and remove this project from their labs (unless it can still yield more stuff!)
+
 			std::vector<const RuleResearch*> topicsToCheck;
 			topicsToCheck.push_back(research);
 			if (bonus)
 			{
 				topicsToCheck.push_back(bonus);
 			}
-			for (auto *myResearchRule : topicsToCheck)
-			{
-				for (Base *otherBase : *saveGame->getBases())
-				{
-					for (ResearchProject *otherProject : otherBase->getResearch())
-					{
-						if (myResearchRule == otherProject->getRules())
-						{
-							if (saveGame->hasUndiscoveredGetOneFree(myResearchRule, true))
-							{
-								// This research topic still has some more undiscovered non-disabled and *AVAILABLE* "getOneFree" topics, keep it!
-							}
-							else if (saveGame->hasUndiscoveredProtectedUnlock(myResearchRule, mod))
-							{
-								// This research topic still has one or more undiscovered non-disabled "protected unlocks", keep it!
-							}
-							else
-							{
-								// This topic can't give you anything else anymore, remove it!
-								otherBase->removeResearch(otherProject);
-								break;
-							}
-						}
-					}
-				}
-			}
+			// Side effects:
+			// 1. remove obsolete research projects from all bases
+			// 2. handle items spawned by research
+			// 3. handle events spawned by research
+			saveGame->handlePrimaryResearchSideEffects(topicsToCheck, _game->getMod(), base);
 		}
 
 		// Handle soldier wounds and martial training
@@ -2529,10 +2535,10 @@ void GeoscapeState::time1Day()
 	// check and interrupt alien missions if necessary (based on discovered research)
 	for (auto am : saveGame->getAlienMissions())
 	{
-		auto researchName = am->getRules().getInterruptResearch();
+		auto& researchName = am->getRules().getInterruptResearch();
 		if (!researchName.empty())
 		{
-			auto research = mod->getResearch(researchName, true);
+			auto* research = mod->getResearch(researchName, true);
 			if (saveGame->isResearched(research, false)) // ignore debug mode
 			{
 				am->setInterrupted(true);
@@ -2774,7 +2780,7 @@ void GeoscapeState::globeClick(Action *action)
 		{
 			// Pass empty vector
 			std::vector<Craft*> crafts;
-			_game->pushState(new MultipleTargetsState(v, crafts, this));
+			_game->pushState(new MultipleTargetsState(v, crafts, this, true));
 		}
 	}
 
@@ -2804,7 +2810,7 @@ void GeoscapeState::btnInterceptClick(Action *)
 	{
 		return;
 	}
-	_game->pushState(new InterceptState(_globe));
+	_game->pushState(new InterceptState(_globe, false));
 }
 
 /**
@@ -3650,6 +3656,8 @@ void GeoscapeState::determineAlienMissions()
 				(month < 1 || eventScript->getMaxScore() >= currentScore) &&
 				(month < 1 || eventScript->getMinFunds() <= currentFunds) &&
 				(month < 1 || eventScript->getMaxFunds() >= currentFunds) &&
+				(eventScript->getMissionMinRuns() == 0  || eventScript->getMissionMinRuns() <= strategy.getMissionsRun(eventScript->getMissionVarName())) &&
+				(eventScript->getMissionMaxRuns() == -1 || eventScript->getMissionMaxRuns() >= strategy.getMissionsRun(eventScript->getMissionVarName())) &&
 				eventScript->getMinDifficulty() <= save->getDifficulty() &&
 				eventScript->getMaxDifficulty() >= save->getDifficulty())
 			{
@@ -3760,14 +3768,7 @@ void GeoscapeState::determineAlienMissions()
 			// 4. generate
 			for (auto eventRules : toBeGenerated)
 			{
-				GeoscapeEvent *newEvent = new GeoscapeEvent(*eventRules);
-				int minutes = (eventRules->getTimer() + (RNG::generate(0, eventRules->getTimerRandom()))) / 30 * 30;
-				if (minutes < 60) minutes = 60; // just in case
-				newEvent->setSpawnCountdown(minutes);
-				_game->getSavedGame()->getGeoscapeEvents().push_back(newEvent);
-
-				// remember that it has been generated
-				save->addGeneratedEvent(eventRules);
+				save->spawnEvent(eventRules);
 			}
 		}
 	}
@@ -3782,6 +3783,11 @@ void GeoscapeState::determineAlienMissions()
 			auto upgrade = mod->getDeployment(upgradeId, false);
 			if (upgrade && upgrade != alienBase->getDeployment())
 			{
+				if (alienBase->getDeployment()->resetAlienBaseAgeAfterUpgrade() || upgrade->resetAlienBaseAge())
+				{
+					// reset base age to zero
+					alienBase->setStartMonth(month);
+				}
 				alienBase->setDeployment(upgrade);
 			}
 		}
@@ -3855,6 +3861,49 @@ bool GeoscapeState::processCommand(RuleMissionScript *command)
 				}
 			}
 
+			// -----------------------------------------------------------
+			// Summary of mission site spawning algorithms (objective: 3)
+			// -----------------------------------------------------------
+
+			// Type 1:
+			// - no UFOs involved
+			// - only 1 wave
+			// - the wave specifies the alien deployment directly (e.g. `ufo: STR_ARTIFACT_SITE_P1 # spawn this site directly`)
+			// - example (1): STR_ALIEN_ARTIFACT (TFTD)
+			// Support for non-point areas: yes, without any additional ruleset changes required
+			const MissionWave& wave = missionRules->getWave(0);
+			bool spawnMissionSiteDirectly = (mod->getDeployment(wave.ufoType) && !mod->getUfo(wave.ufoType) && !mod->getDeployment(wave.ufoType)->getMarkerName().empty());
+
+			// Type 2:
+			// - no UFOs involved
+			// - only 1 wave
+			// - the wave does NOT specify the alien deployment directly (e.g. `ufo: dummy #don't spawn a ufo, we only want the site`)
+			//   -> option A: alien deployment is chosen randomly = from the area's texture definition
+			//   -> option B: alien deployment is specified by the mission's `siteType` (overrides option A if both are defined)
+			// - example (2A): STR_ALIEN_SHIP_ATTACK (TFTD)
+			// - example (2B): none in vanilla, only mods
+			// Support for non-point areas: yes, without any additional ruleset changes required
+			// bool spawnMissionSiteByTexture = area.texture < 0
+			// bool spawnMissionSiteBySiteType = !missionRules->getSiteType().empty();
+
+			// Type 3:
+			// - with UFOs waves
+			// - only 1 wave with `objective: true`
+			// - the wave does NOT specify the alien deployment (because it already specifies the UFO type)
+			//   -> option A: alien deployment is chosen randomly = from the area's texture definition
+			//   -> option B: alien deployment is specified by the mission's `siteType` (overrides option A if both are defined)
+			// - example (3A): STR_ALIEN_SURFACE_ATTACK (TFTD)
+			// - example (3B): none in vanilla, only mods
+			// Support for non-point areas: yes, but it is recommended to use one more wave attribute: `objectiveOnTheLandingSite: true`
+			//   -> false: UFO always lands in the top-left corner of the area; site spawns randomly inside the area
+			//   ->  true: UFO lands randomly inside the area; site spawns exactly on the UFO landing site
+			// bool spawnMissionSiteByTexture = area.texture < 0
+			bool spawnMissionSiteBySiteType = !missionRules->getSiteType().empty();
+
+			// -----------------------------------------------
+			// End of the summary
+			// -----------------------------------------------
+
 			for (std::vector<std::string>::iterator i = regions.begin(); i != regions.end();)
 			{
 				// we don't want the same mission running in any given region twice simultaneously, so prune the list as needed.
@@ -3887,7 +3936,7 @@ bool GeoscapeState::processCommand(RuleMissionScript *command)
 						{
 							validAreas.push_back(std::make_pair(region->getType(), counter));
 						}
-						else if (!(*j).isPoint() && (*j).texture < 0)
+						else if (!(*j).isPoint() && ((*j).texture < 0 || spawnMissionSiteBySiteType || spawnMissionSiteDirectly))
 						{
 							validAreas.push_back(std::make_pair(region->getType(), counter));
 						}

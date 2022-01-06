@@ -496,6 +496,9 @@ void SoldierTransformationState::performTransformation()
 	{
 		destinationSoldier = _sourceSoldier;
 
+		// some players want to rename soldiers too
+		destinationSoldier->setName(_edtSoldier->getText());
+
 		if (_sourceSoldier->getDeath())
 		{
 			// true resurrect = remove from Memorial Wall
@@ -524,7 +527,7 @@ void SoldierTransformationState::performTransformation()
 		_base->getTransfers()->push_back(transfer);
 	}
 
-	destinationSoldier->transform(_game->getMod(), _transformationRule, _sourceSoldier);
+	destinationSoldier->transform(_game->getMod(), _transformationRule, _sourceSoldier, _base);
 }
 
 void SoldierTransformationState::retire()

@@ -257,10 +257,15 @@ NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *stat
 	}
 
 	std::string messageReinforcements;
-	if (_battleGame->getSide() == FACTION_HOSTILE && !_battleGame->getBattleGame()->areAllEnemiesNeutralized())
+	bool allowReinforcements = _battleGame->getSide() == FACTION_HOSTILE && _battleGame->getTurn() > 0;
+	if (_battleGame->getSide() == FACTION_PLAYER && _battleGame->getTurn() == 0)
+	{
+		allowReinforcements = true;
+	}
+	if (allowReinforcements && !_battleGame->getBattleGame()->areAllEnemiesNeutralized())
 	{
 		bool showAlert = determineReinforcements();
-		if (showAlert)
+		if (showAlert && _battleGame->getTurn() > 0)
 		{
 			messageReinforcements = tr("STR_REINFORCEMENTS_ALERT");
 			_txtMessageReinforcements->setText(messageReinforcements);
@@ -523,6 +528,8 @@ bool NextTurnState::determineReinforcements()
 {
 	const AlienDeployment* deployment = _game->getMod()->getDeployment(_battleGame->getReinforcementsDeployment(), true);
 
+	int currentTurnReinforcements = _battleGame->getTurn();
+
 	if (!deployment)
 	{
 		// for backwards-compatibility! this save does not contain the data needed for this functionality...
@@ -547,14 +554,14 @@ bool NextTurnState::determineReinforcements()
 			}
 			else if (!wave.turns.empty())
 			{
-				if (std::find(wave.turns.begin(), wave.turns.end(), _currentTurn) == wave.turns.end())
+				if (std::find(wave.turns.begin(), wave.turns.end(), currentTurnReinforcements) == wave.turns.end())
 				{
 					continue;
 				}
 			}
 			else
 			{
-				if (_currentTurn < wave.minTurn || (wave.maxTurn != -1 && _currentTurn > wave.maxTurn))
+				if (currentTurnReinforcements < wave.minTurn || (wave.maxTurn != -1 && currentTurnReinforcements > wave.maxTurn))
 				{
 					continue;
 				}
@@ -812,13 +819,26 @@ bool NextTurnState::deployReinforcements(const ReinforcementsData &wave)
 	{
 		int quantity;
 
-		if (_game->getSavedGame()->getDifficulty() < DIFF_VETERAN)
-			quantity = d.lowQty + RNG::generate(0, d.dQty); // beginner/experienced
-		else if (_game->getSavedGame()->getDifficulty() < DIFF_SUPERHUMAN)
-			quantity = d.lowQty + ((d.highQty - d.lowQty) / 2) + RNG::generate(0, d.dQty); // veteran/genius
-		else
-			quantity = d.highQty + RNG::generate(0, d.dQty); // super (and beyond?)
+		switch (_game->getSavedGame()->getDifficulty())
+		{
+		case DIFF_BEGINNER:
+			quantity = d.lowQty;
+			break;
+		case DIFF_EXPERIENCED:
+			quantity = d.medQty > 0 ? d.lowQty + ((d.medQty - d.lowQty) / 2) : d.lowQty;
+			break;
+		case DIFF_VETERAN:
+			quantity = d.medQty > 0 ? d.medQty : d.lowQty + ((d.highQty - d.lowQty) / 2);
+			break;
+		case DIFF_GENIUS:
+			quantity = d.medQty > 0 ? d.medQty + ((d.highQty - d.medQty) / 2) : d.lowQty + ((d.highQty - d.lowQty) / 2);
+			break;
+		case DIFF_SUPERHUMAN:
+		default:
+			quantity = d.highQty;
+		}
 
+		quantity += RNG::generate(0, d.dQty);
 		quantity += RNG::generate(0, d.extraQty);
 
 		for (int i = 0; i < quantity; ++i)
@@ -976,7 +996,17 @@ BattleUnit* NextTurnState::addReinforcement(const ReinforcementsData &wave, Unit
 			{
 				for (auto tryZ : tmpZList)
 				{
-					if (_battleGame->setUnitPosition(unit, randomPos + Position(0, 0, tryZ)))
+					Position finalPos = randomPos + Position(0, 0, tryZ);
+					if (unit->getMovementType() != MT_FLY)
+					{
+						Tile* t = _battleGame->getTile(finalPos);
+						if (t == 0 || t->getTUCost(O_FLOOR, unit->getMovementType()) == 255)
+						{
+							// non-flying units cannot spawn on e.g. a water tile (e.g. in the POLAR terrain)
+							continue;
+						}
+					}
+					if (_battleGame->setUnitPosition(unit, finalPos))
 					{
 						unit->setRankInt(alienRank);
 						unit->setDirection(RNG::generate(0, 7));

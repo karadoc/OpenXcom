@@ -212,7 +212,7 @@ void SelectDestinationState::globeClick(Action *action)
 			w->setLatitude(lat);
 			v.push_back(w);
 		}
-		_game->pushState(new MultipleTargetsState(v, _crafts, 0));
+		_game->pushState(new MultipleTargetsState(v, _crafts, 0, false));
 	}
 }
 
@@ -335,7 +335,7 @@ void SelectDestinationState::btnCancelClick(Action *)
 
 void SelectDestinationState::btnCydoniaClick(Action *)
 {
-	if (_crafts.front()->getNumSoldiers() > 0 || _crafts.front()->getNumVehicles() > 0)
+	if (_crafts.front()->getNumTotalUnits() > 0)
 	{
 		_game->pushState(new ConfirmCydoniaState(_crafts.front()));
 	}

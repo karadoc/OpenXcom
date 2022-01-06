@@ -160,7 +160,10 @@ private:
 	RuleBaseFacilityFunctions _requiresBuyBaseFunc;
 	int _sprite, _marker;
 	std::vector<int> _skinSprites;
-	int _weapons, _soldiers, _pilots, _vehicles, _costBuy, _costRent, _costSell;
+	int _weapons, _soldiers, _pilots, _vehicles;
+	int _maxSmallSoldiers, _maxLargeSoldiers, _maxSmallVehicles, _maxLargeVehicles;
+	int _maxSmallUnits, _maxLargeUnits, _maxSoldiers, _maxVehicles;
+	int _costBuy, _costRent, _costSell;
 	char _weaponTypes[WeaponMax][WeaponTypeMax];
 	std::string _refuelItem;
 	std::string _weaponStrings[WeaponMax];
@@ -176,9 +179,13 @@ private:
 	RuleCraftStats _stats;
 	int _shieldRechargeAtBase;
 	bool _mapVisible, _forceShowInMonthlyCosts;
+	std::vector<int> _selectSound, _takeoffSound;
 
 	ModScript::CraftScripts::Container _craftScripts;
 	ScriptValues<RuleCraft> _scriptValues;
+
+	/// Gets a random sound from a given vector.
+	int getRandomSound(const std::vector<int>& vector, int defaultValue = -1) const;
 
 public:
 	/// Creates a blank craft ruleset.
@@ -208,12 +215,28 @@ public:
 	int getAcceleration() const;
 	/// Gets the craft's weapon capacity.
 	int getWeapons() const;
-	/// Gets the craft's soldier capacity.
-	int getSoldiers() const;
+	/// Gets the craft's maximum unit capacity (soldiers and vehicles, small and large).
+	int getMaxUnits() const;
 	/// Gets the craft's pilot capacity/requirement.
 	int getPilots() const;
-	/// Gets the craft's vehicle capacity.
-	int getVehicles() const;
+	/// Gets the craft's maximum vehicle capacity (incl. 2x2 soldiers).
+	int getMaxVehiclesAndLargeSoldiers() const;
+	/// Gets the craft's maximum supported number of small (size=1) soldiers.
+	int getMaxSmallSoldiers() const { return _maxSmallSoldiers; }
+	/// Gets the craft's maximum supported number of large (size=2) soldiers.
+	int getMaxLargeSoldiers() const { return _maxLargeSoldiers; }
+	/// Gets the craft's maximum supported number of small (size=1) vehicles (HWPs/SWSs).
+	int getMaxSmallVehicles() const { return _maxSmallVehicles; }
+	/// Gets the craft's maximum supported number of large (size=2) vehicles (HWPs/SWSs).
+	int getMaxLargeVehicles() const { return _maxLargeVehicles; }
+	/// Gets the craft's maximum supported number of small (size=1) units (soldiers + vehicles).
+	int getMaxSmallUnits() const { return _maxSmallUnits; }
+	/// Gets the craft's maximum supported number of large (size=2) units (soldiers + vehicles).
+	int getMaxLargeUnits() const { return _maxLargeUnits; }
+	/// Gets the craft's maximum supported number of soldiers (small + large).
+	int getMaxSoldiers() const { return _maxSoldiers; }
+	/// Gets the craft's maximum supported number of vehicles (small + large).
+	int getMaxVehicles() const { return _maxVehicles; }
 	/// Gets the craft's cost.
 	int getBuyCost() const;
 	/// Gets the craft's rent for a month.
@@ -283,6 +306,13 @@ public:
 	bool forceShowInMonthlyCosts() const;
 	/// Calculate the theoretical range of the craft in nautical miles
 	int calculateRange(int type);
+
+	/// Gets the sound played when the player directly selects a craft on the globe.
+	int getSelectSound() const;
+	const std::vector<int>& getSelectSoundRaw() const { return _selectSound; }
+	/// Gets the sound played when a craft takes off from a base.
+	int getTakeoffSound() const;
+	const std::vector<int>& getTakeoffSoundRaw() const { return _takeoffSound; }
 
 	/// Gets script.
 	template<typename Script>

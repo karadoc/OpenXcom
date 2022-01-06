@@ -48,7 +48,7 @@ namespace OpenXcom
  * @param globe Pointer to the Geoscape globe.
  * @param waypoint Pointer to the last UFO position (if redirecting the craft).
  */
-GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *waypoint) : _craft(craft), _globe(globe), _waypoint(waypoint)
+GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *waypoint, bool useCustomSound) : _craft(craft), _globe(globe), _waypoint(waypoint)
 {
 	_screen = false;
 
@@ -58,6 +58,15 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 
 	const int offset_upper = -8;
 	const int offset_lower = 120;
+
+	if (useCustomSound)
+	{
+		int soundId = craft->getRules()->getSelectSound();
+		if (soundId != Mod::NO_SOUND)
+		{
+			_customSound = _game->getMod()->getSound("GEO.CAT", soundId);
+		}
+	}
 
 	// Create objects
 	_window = new Window(this, 240, 192, 4, 4, POPUP_BOTH);
@@ -238,11 +247,11 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 	_txtRedirect->setText(tr("STR_REDIRECT_CRAFT"));
 
 	std::ostringstream ss11;
-	ss11 << tr("STR_SOLDIERS_UC") << ">" << Unicode::TOK_COLOR_FLIP << _craft->getNumSoldiers();
+	ss11 << tr("STR_SOLDIERS_UC") << ">" << Unicode::TOK_COLOR_FLIP << _craft->getNumTotalSoldiers();
 	_txtSoldier->setText(ss11.str());
 
 	std::ostringstream ss12;
-	ss12 << tr("STR_HWPS") << ">" << Unicode::TOK_COLOR_FLIP << _craft->getNumVehicles();
+	ss12 << tr("STR_HWPS") << ">" << Unicode::TOK_COLOR_FLIP << _craft->getNumTotalVehicles();
 	_txtHWP->setText(ss12.str());
 
 	if (_waypoint == 0)
@@ -261,9 +270,9 @@ GeoscapeCraftState::GeoscapeCraftState(Craft *craft, Globe *globe, Waypoint *way
 		_btnPatrol->setVisible(false);
 	}
 
-	if (_craft->getRules()->getSoldiers() == 0)
+	if (_craft->getRules()->getMaxUnits() == 0)
 		_txtSoldier->setVisible(false);
-	if (_craft->getRules()->getVehicles() == 0)
+	if (_craft->getRules()->getMaxVehiclesAndLargeSoldiers() == 0)
 		_txtHWP->setVisible(false);
 }
 

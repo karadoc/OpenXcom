@@ -29,8 +29,10 @@
 #include "../Mod/RuleManufacture.h"
 #include "../Mod/RuleMissionScript.h"
 #include "../Mod/RuleResearch.h"
+#include "../Mod/RuleSoldierTransformation.h"
 #include "../Engine/LocalizedText.h"
 #include "../Engine/Options.h"
+#include "../Engine/Unicode.h"
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
 #include "../Interface/TextButton.h"
@@ -365,6 +367,7 @@ void TechTreeViewerState::initLists()
 		std::vector<std::string> requiredByManufacture;
 		std::vector<std::string> requiredByFacilities;
 		std::vector<std::string> requiredByItems;
+		std::vector<std::string> requiredByTransformations;
 		std::vector<std::string> leadsTo;
 		const std::vector<const RuleResearch*> unlocks = rule->getUnlocked();
 		const std::vector<const RuleResearch*> disables = rule->getDisabled();
@@ -411,6 +414,18 @@ void TechTreeViewerState::initLists()
 				if (i == rule)
 				{
 					requiredByItems.push_back(item);
+				}
+			}
+		}
+
+		for (auto& transf : _game->getMod()->getSoldierTransformationList())
+		{
+			RuleSoldierTransformation* temp = _game->getMod()->getSoldierTransformation(transf);
+			for (auto& i : temp->getRequiredResearch())
+			{
+				if (i == rule->getName())
+				{
+					requiredByTransformations.push_back(transf);
 				}
 			}
 		}
@@ -691,19 +706,36 @@ void TechTreeViewerState::initLists()
 		}
 
 		// spawned item
-		if (!Mod::isEmptyRuleName(rule->getSpawnedItem()))
+		if (!Mod::isEmptyRuleName(rule->getSpawnedItem()) || !rule->getSpawnedItemList().empty())
 		{
-			_lstRight->addRow(1, tr("STR_SPAWNED_ITEM").c_str());
+			_lstRight->addRow(1, tr("STR_SPAWNED_ITEMS").c_str());
 			_lstRight->setRowColor(row, _blue);
 			_rightTopics.push_back("-");
 			_rightFlags.push_back(TTV_NONE);
 			++row;
-
+		}
+		if (!Mod::isEmptyRuleName(rule->getSpawnedItem()))
+		{
 			std::string name = tr(rule->getSpawnedItem());
 			name.insert(0, "  ");
+			if (rule->getSpawnedItemCount() > 1)
+			{
+				name.append(" x");
+				name.append(std::to_string(rule->getSpawnedItemCount()));
+			}
 			_lstRight->addRow(1, name.c_str());
 			_lstRight->setRowColor(row, _white);
 			_rightTopics.push_back(rule->getSpawnedItem());
+			_rightFlags.push_back(TTV_ITEMS);
+			++row;
+		}
+		for (auto& sil : rule->getSpawnedItemList())
+		{
+			std::string name = tr(sil);
+			name.insert(0, "  ");
+			_lstRight->addRow(1, name.c_str());
+			_lstRight->setRowColor(row, _white);
+			_rightTopics.push_back(sil);
 			_rightFlags.push_back(TTV_ITEMS);
 			++row;
 		}
@@ -804,6 +836,27 @@ void TechTreeViewerState::initLists()
 				}
 				_rightTopics.push_back((*i));
 				_rightFlags.push_back(TTV_ITEMS);
+				++row;
+			}
+		}
+
+		// 6e. required by transformations
+		if (requiredByTransformations.size() > 0)
+		{
+			_lstRight->addRow(1, tr("STR_REQUIRED_BY_TRANSFORMATIONS").c_str());
+			_lstRight->setRowColor(row, _blue);
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(TTV_NONE);
+			++row;
+
+			for (std::vector<std::string>::const_iterator i = requiredByTransformations.begin(); i != requiredByTransformations.end(); ++i)
+			{
+				std::string name = tr((*i));
+				name.insert(0, "  ");
+				_lstRight->addRow(1, name.c_str());
+				_lstRight->setRowColor(row, _white);
+				_rightTopics.push_back("-");
+				_rightFlags.push_back(TTV_NONE);
 				++row;
 			}
 		}
@@ -1181,6 +1234,83 @@ void TechTreeViewerState::initLists()
 			}
 		}
 
+		// empty line
+		_lstLeft->addRow(1, "");
+		_leftTopics.push_back("-");
+		_leftFlags.push_back(TTV_NONE);
+		++row;
+
+		// cost per unit
+		if (rule->getManufactureCost() > 0)
+		{
+			_lstLeft->addRow(1, tr("STR_TTV_COST_PER_UNIT").c_str());
+			_lstLeft->setRowColor(row, _blue);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+
+			std::ostringstream txt;
+			txt << "  ";
+			txt << Unicode::formatFunding(rule->getManufactureCost());
+			_lstLeft->addRow(1, txt.str().c_str());
+			_lstLeft->setRowColor(row, _white);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+		}
+		// engineer hours
+		if (rule->getManufactureTime() > 0)
+		{
+			_lstLeft->addRow(1, tr("STR_TTV_ENGINEER_HOURS").c_str());
+			_lstLeft->setRowColor(row, _blue);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+
+			int days = rule->getManufactureTime() / 24;
+			int hours = rule->getManufactureTime() % 24;
+			std::ostringstream txt;
+			txt << "  ";
+			txt << rule->getManufactureTime();
+			txt << " (";
+			if (days > 0)
+			{
+				txt << tr("STR_DAY_SHORT").arg(days);
+			}
+			if (hours > 0)
+			{
+				if (days > 0)
+				{
+					txt << "/";
+				}
+				txt << tr("STR_HOUR_SHORT").arg(hours);
+			}
+			txt << ")";
+			_lstLeft->addRow(1, txt.str().c_str());
+			_lstLeft->setRowColor(row, _white);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+		}
+		// work space required
+		if (rule->getRequiredSpace() > 0)
+		{
+			_lstLeft->addRow(1, tr("STR_TTV_WORK_SPACE_REQUIRED").c_str());
+			_lstLeft->setRowColor(row, _blue);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+
+			std::ostringstream txt;
+			txt << "  ";
+			txt << rule->getRequiredSpace();
+			_lstLeft->addRow(1, txt.str().c_str());
+			_lstLeft->setRowColor(row, _white);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+		}
+
 		row = 0;
 
 		// 4. outputs
@@ -1516,6 +1646,17 @@ void TechTreeViewerState::initLists()
 			{
 				spawnedBy.push_back(j);
 			}
+			else
+			{
+				for (auto& sil : temp->getSpawnedItemList())
+				{
+					if (sil == rule->getType())
+					{
+						spawnedBy.push_back(j);
+						break;
+					}
+				}
+			}
 		}
 		if (spawnedBy.size() > 0)
 		{
@@ -1534,6 +1675,31 @@ void TechTreeViewerState::initLists()
 				_leftFlags.push_back(TTV_RESEARCH);
 				++row;
 			}
+		}
+
+		// empty line
+		_lstFull->addRow(1, "");
+		_leftTopics.push_back("-");
+		_leftFlags.push_back(TTV_NONE);
+		++row;
+
+		// cost to buy
+		if (rule->getBuyCost() > 0)
+		{
+			_lstFull->addRow(1, tr("STR_TTV_COST_PER_UNIT").c_str());
+			_lstFull->setRowColor(row, _blue);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
+
+			std::ostringstream txt;
+			txt << "  ";
+			txt << Unicode::formatFunding(rule->getBuyCost());
+			_lstFull->addRow(1, txt.str().c_str());
+			_lstFull->setRowColor(row, _white);
+			_leftTopics.push_back("-");
+			_leftFlags.push_back(TTV_NONE);
+			++row;
 		}
 	}
 }

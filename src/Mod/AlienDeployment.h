@@ -38,10 +38,10 @@ struct DeploymentData
 {
 	int alienRank;
 	std::string customUnitType;
-	int lowQty, highQty, dQty, extraQty;
+	int lowQty, medQty, highQty, dQty, extraQty;
 	int percentageOutsideUfo;
 	std::vector<ItemSet> itemSets, extraRandomItems;
-	DeploymentData() : alienRank(0), lowQty(0), highQty(0), dQty(0), extraQty(0), percentageOutsideUfo(0) { }
+	DeploymentData() : alienRank(0), lowQty(0), medQty(0), highQty(0), dQty(0), extraQty(0), percentageOutsideUfo(0) { }
 };
 struct BriefingData
 {
@@ -93,7 +93,9 @@ private:
 	std::string _type;
 	std::string _customUfo;
 	std::string _enviroEffects, _startingCondition;
-	std::string _unlockedResearch, _missionBountyItem;
+	std::string _unlockedResearchOnSuccess, _unlockedResearchOnFailure, _unlockedResearchOnDespawn;
+	std::string _missionBountyItem;
+	int _missionBountyItemCount;
 	int _bughuntMinTurn;
 	std::vector<DeploymentData> _data;
 	std::vector<ReinforcementsData> _reinforcements;
@@ -113,7 +115,7 @@ private:
 	BriefingData _briefingData;
 	std::string _markerName, _objectivePopup, _objectiveCompleteText, _objectiveFailedText;
 	std::string _missionCompleteText, _missionFailedText;
-	WeightedOptions _genMission;
+	WeightedOptions _genMission, _successEvents, _failureEvents, _despawnEvents;
 	int _markerIcon, _durationMin, _durationMax, _minDepth, _maxDepth, _genMissionFrequency, _genMissionLimit;
 	int _objectiveType, _objectivesRequired, _objectiveCompleteScore, _objectiveFailedScore, _despawnPenalty, _abortPenalty, _points, _turnLimit, _cheatTurn;
 	ChronoTrigger _chronoTrigger;
@@ -124,6 +126,7 @@ private:
 	int _baseDetectionRange, _baseDetectionChance, _huntMissionMaxFrequency;
 	std::vector<std::pair<size_t, WeightedOptions*> > _huntMissionDistribution;
 	std::vector<std::pair<size_t, WeightedOptions*> > _alienBaseUpgrades;
+	bool _resetAlienBaseAgeAfterUpgrade, _resetAlienBaseAge;
 public:
 	/// Creates a blank Alien Deployment ruleset.
 	AlienDeployment(const std::string &type);
@@ -140,9 +143,15 @@ public:
 	/// Gets the Alien Deployment's starting condition.
 	const std::string& getStartingCondition() const;
 	/// Gets the research topic to be unlocked after a successful mission.
-	std::string getUnlockedResearch() const;
+	const std::string& getUnlockedResearchOnSuccess() const { return _unlockedResearchOnSuccess; }
+	/// Gets the research topic to be unlocked after a failed mission.
+	const std::string& getUnlockedResearchOnFailure() const { return _unlockedResearchOnFailure; }
+	/// Gets the research topic to be unlocked after a despawned mission site.
+	const std::string& getUnlockedResearchOnDespawn() const { return _unlockedResearchOnDespawn; }
 	/// Gets the item to be recovered/given after a successful mission.
 	std::string getMissionBountyItem() const;
+	/// Gets the number of items to be recovered/given after a successful mission.
+	int getMissionBountyItemCount() const { return _missionBountyItemCount; }
 	/// Gets the bug hunt mode minimum turn requirement (default = 0 = not used).
 	int getBughuntMinTurn() const;
 	/// Gets a pointer to the data.
@@ -183,6 +192,12 @@ public:
 	std::string getLoseCutscene() const;
 	/// Gets the cutscene to play when this mission is aborted.
 	std::string getAbortCutscene() const;
+	/// Gets geoscape event rule name to spawn after success mission.
+	std::string chooseSuccessEvent() const { return _successEvents.choose(); };
+	/// Gets geoscape event rule name to despawn after success mission.
+	std::string chooseDespawnEvent() const { return _despawnEvents.choose(); };
+	/// Gets geoscape event rule name to spawn after failure mission.
+	std::string chooseFailureEvent() const { return _failureEvents.choose(); };
 	/// Gets the alert message for this mission type.
 	std::string getAlertMessage() const;
 	/// Gets the alert background for this mission type.
@@ -261,6 +276,10 @@ public:
 
 	/// Generates an alien base upgrade.
 	std::string generateAlienBaseUpgrade(const size_t baseAgeInMonths) const;
+	/// Should the age of an alien base be reset after an upgrade (from this type)?
+	bool resetAlienBaseAgeAfterUpgrade() const { return _resetAlienBaseAgeAfterUpgrade; }
+	/// Should the age of an alien base be reset after an upgrade (into this type)?
+	bool resetAlienBaseAge() const { return _resetAlienBaseAge; }
 
 };
 

@@ -145,7 +145,7 @@ class Mod
 private:
 	Music *_muteMusic;
 	Sound *_muteSound;
-	std::string _playingMusic;
+	std::string _playingMusic, _currentMusicTrack;
 
 	std::map<std::string, Palette*> _palettes;
 	std::map<std::string, Font*> _fonts;
@@ -272,6 +272,7 @@ private:
 	bool _disableUnderwaterSounds;
 	bool _enableUnitResponseSounds;
 	std::map<std::string, std::vector<int> > _selectUnitSound, _startMovingSound, _selectWeaponSound, _annoyedSound;
+	std::vector<int> _selectBaseSound, _startDogfightSound;
 	std::vector<int> _flagByKills;
 	int _pediaReplaceCraftFuelWithRangeType;
 	std::vector<StatAdjustment> _statAdjustment;
@@ -420,10 +421,12 @@ public:
 	Music *getMusic(const std::string &name, bool error = true) const;
 	/// Gets the available music tracks.
 	const std::map<std::string, Music*> &getMusicTrackList() const;
+	const std::string& getCurrentMusicTrack() const { return _currentMusicTrack; }
+	void setCurrentMusicTrack(const std::string& currentMusicTrack) { _currentMusicTrack = currentMusicTrack; }
 	/// Plays a particular music.
 	void playMusic(const std::string &name, int id = 0);
 	/// Gets a particular sound.
-	Sound *getSound(const std::string &set, int sound, bool error = true) const;
+	Sound *getSound(const std::string &set, int sound) const;
 	/// Gets all palettes.
 	const std::map<std::string, Palette*> &getPalettes() const { return _palettes; }
 	/// Gets a particular palette.
@@ -431,7 +434,7 @@ public:
 	/// Gets list of voxel data.
 	const std::vector<Uint16> *getVoxelData() const;
 	/// Returns a specific sound from either the land or underwater sound set.
-	Sound *getSoundByDepth(unsigned int depth, unsigned int sound, bool error = true) const;
+	Sound *getSoundByDepth(unsigned int depth, unsigned int sound) const;
 	/// Gets list of LUT data.
 	const std::vector<std::vector<Uint8> > *getLUTs() const;
 
@@ -1031,6 +1034,8 @@ public:
 	const std::map<std::string, std::vector<int> > &getStartMovingSounds() const { return _startMovingSound; }
 	const std::map<std::string, std::vector<int> > &getSelectWeaponSounds() const { return _selectWeaponSound; }
 	const std::map<std::string, std::vector<int> > &getAnnoyedSounds() const { return _annoyedSound; }
+	const std::vector<int> &getSelectBaseSounds() const { return _selectBaseSound; }
+	const std::vector<int> &getStartDogfightSounds() const { return _startDogfightSound; }
 	const std::vector<int> &getFlagByKills() const;
 	StatAdjustment *getStatAdjustment(int difficulty);
 	int getDefeatScore() const;
