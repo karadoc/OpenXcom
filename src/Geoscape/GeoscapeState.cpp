@@ -199,9 +199,11 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_dogfightStartTimer = new Timer(Options::dogfightSpeed);
 	_dogfightTimer = new Timer(Options::dogfightSpeed);
 
-	_txtDebug = new Text(200, 32, 0, 0);
+	_txtDebug = new Text(254, 32, 0, 0);
 	_cbxRegion = new ComboBox(this, 150, 16, 0, 36);
-	_cbxZone = new ComboBox(this, 100, 16, 154, 36);
+	_cbxZone = new ComboBox(this, 48, 16, 154, 36);
+	_cbxArea = new ComboBox(this, 48, 16, 206, 36);
+	_cbxCountry = new ComboBox(this, 150, 16, 0, 36);
 
 	// Set palette
 	setInterface("geoscape");
@@ -250,6 +252,8 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	add(_txtDebug, "text", "geoscape");
 	add(_cbxRegion, "button", "geoscape");
 	add(_cbxZone, "button", "geoscape");
+	add(_cbxArea, "button", "geoscape");
+	add(_cbxCountry, "button", "geoscape");
 
 	// Set up objects
 	Surface *geobord = _game->getMod()->getSurface("GEOBORD.SCR");
@@ -442,6 +446,26 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 		_cbxZone->setOptions(zoneList, false);
 		_cbxZone->setVisible(false);
 		_cbxZone->onChange((ActionHandler)&GeoscapeState::cbxZoneChange);
+
+		std::vector<std::string> areaList;
+		areaList.push_back("All areas");
+		for (int z = 0; z < 100; ++z)
+		{
+			areaList.push_back(std::to_string(z));
+		}
+		_cbxArea->setOptions(areaList, false);
+		_cbxArea->setVisible(false);
+		_cbxArea->onChange((ActionHandler)&GeoscapeState::cbxAreaChange);
+
+		std::vector<std::string> countryList;
+		countryList.push_back("All countries");
+		for (auto c : *_game->getSavedGame()->getCountries())
+		{
+			countryList.push_back(c->getRules()->getType());
+		}
+		_cbxCountry->setOptions(countryList, true);
+		_cbxCountry->setVisible(false);
+		_cbxCountry->onChange((ActionHandler)&GeoscapeState::cbxCountryChange);
 	}
 
 	timeDisplay();
@@ -508,8 +532,10 @@ void GeoscapeState::handle(Action *action)
 			{
 				_txtDebug->setText("");
 			}
-			_cbxRegion->setVisible(_game->getSavedGame()->getDebugMode());
-			_cbxZone->setVisible(_game->getSavedGame()->getDebugMode());
+			_cbxRegion->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType >= 1);
+			_cbxZone->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
+			_cbxArea->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
+			_cbxCountry->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 0);
 		}
 		if (Options::debug && _game->getSavedGame()->getDebugMode() && _game->isCtrlPressed())
 		{
@@ -1751,6 +1777,11 @@ bool GeoscapeState::processMissionSite(MissionSite *site)
 		// Unlock research defined in alien deployment, if the mission site despawned
 		const RuleResearch* research = _game->getMod()->getResearch(site->getDeployment()->getUnlockedResearchOnDespawn());
 		_game->getSavedGame()->handleResearchUnlockedByMissions(research, _game->getMod());
+
+		// Increase counters
+		_game->getSavedGame()->increaseCustomCounter(site->getDeployment()->getCounterDespawn());
+		_game->getSavedGame()->increaseCustomCounter(site->getDeployment()->getCounterFailure()); // despawn is also a type of failure
+		_game->getSavedGame()->increaseCustomCounter(site->getDeployment()->getCounterAll());
 
 		// Generate a despawn event
 		auto eventRules = _game->getMod()->getEvent(site->getDeployment()->chooseDespawnEvent());
@@ -3401,6 +3432,32 @@ void GeoscapeState::determineAlienMissions()
 				}
 				if (triggerHappy)
 				{
+					// check counters
+					if (arcScript->getCounterMin() > 0)
+					{
+						if (!arcScript->getMissionVarName().empty() && arcScript->getCounterMin() > strategy.getMissionsRun(arcScript->getMissionVarName()))
+						{
+							triggerHappy = false;
+						}
+						if (!arcScript->getMissionMarkerName().empty() && arcScript->getCounterMin() > save->getLastId(arcScript->getMissionMarkerName()))
+						{
+							triggerHappy = false;
+						}
+					}
+					if (triggerHappy && arcScript->getCounterMax() != -1)
+					{
+						if (!arcScript->getMissionVarName().empty() && arcScript->getCounterMax() < strategy.getMissionsRun(arcScript->getMissionVarName()))
+						{
+							triggerHappy = false;
+						}
+						if (!arcScript->getMissionMarkerName().empty() && arcScript->getCounterMax() < save->getLastId(arcScript->getMissionMarkerName()))
+						{
+							triggerHappy = false;
+						}
+					}
+				}
+				if (triggerHappy)
+				{
 					// item requirements
 					for (auto &triggerItem : arcScript->getItemTriggers())
 					{
@@ -3546,6 +3603,32 @@ void GeoscapeState::determineAlienMissions()
 			}
 			if (triggerHappy)
 			{
+				// check counters
+				if (command->getCounterMin() > 0)
+				{
+					if (!command->getMissionVarName().empty() && command->getCounterMin() > strategy.getMissionsRun(command->getMissionVarName()))
+					{
+						triggerHappy = false;
+					}
+					if (!command->getMissionMarkerName().empty() && command->getCounterMin() > save->getLastId(command->getMissionMarkerName()))
+					{
+						triggerHappy = false;
+					}
+				}
+				if (triggerHappy && command->getCounterMax() != -1)
+				{
+					if (!command->getMissionVarName().empty() && command->getCounterMax() < strategy.getMissionsRun(command->getMissionVarName()))
+					{
+						triggerHappy = false;
+					}
+					if (!command->getMissionMarkerName().empty() && command->getCounterMax() < save->getLastId(command->getMissionMarkerName()))
+					{
+						triggerHappy = false;
+					}
+				}
+			}
+			if (triggerHappy)
+			{
 				// item requirements
 				for (auto &triggerItem : command->getItemTriggers())
 				{
@@ -3656,8 +3739,6 @@ void GeoscapeState::determineAlienMissions()
 				(month < 1 || eventScript->getMaxScore() >= currentScore) &&
 				(month < 1 || eventScript->getMinFunds() <= currentFunds) &&
 				(month < 1 || eventScript->getMaxFunds() >= currentFunds) &&
-				(eventScript->getMissionMinRuns() == 0  || eventScript->getMissionMinRuns() <= strategy.getMissionsRun(eventScript->getMissionVarName())) &&
-				(eventScript->getMissionMaxRuns() == -1 || eventScript->getMissionMaxRuns() >= strategy.getMissionsRun(eventScript->getMissionVarName())) &&
 				eventScript->getMinDifficulty() <= save->getDifficulty() &&
 				eventScript->getMaxDifficulty() >= save->getDifficulty())
 			{
@@ -3668,6 +3749,32 @@ void GeoscapeState::determineAlienMissions()
 					triggerHappy = (save->isResearched(trigger.first) == trigger.second);
 					if (!triggerHappy)
 						break;
+				}
+				if (triggerHappy)
+				{
+					// check counters
+					if (eventScript->getCounterMin() > 0)
+					{
+						if (!eventScript->getMissionVarName().empty() && eventScript->getCounterMin() > strategy.getMissionsRun(eventScript->getMissionVarName()))
+						{
+							triggerHappy = false;
+						}
+						if (!eventScript->getMissionMarkerName().empty() && eventScript->getCounterMin() > save->getLastId(eventScript->getMissionMarkerName()))
+						{
+							triggerHappy = false;
+						}
+					}
+					if (triggerHappy && eventScript->getCounterMax() != -1)
+					{
+						if (!eventScript->getMissionVarName().empty() && eventScript->getCounterMax() < strategy.getMissionsRun(eventScript->getMissionVarName()))
+						{
+							triggerHappy = false;
+						}
+						if (!eventScript->getMissionMarkerName().empty() && eventScript->getCounterMax() < save->getLastId(eventScript->getMissionMarkerName()))
+						{
+							triggerHappy = false;
+						}
+					}
 				}
 				if (triggerHappy)
 				{
@@ -4310,11 +4417,94 @@ void GeoscapeState::cbxRegionChange(Action *)
 	{
 		_game->getSavedGame()->debugRegion = (*_game->getSavedGame()->getRegions())[index-1];
 	}
+	updateZoneInfo();
 }
 
 void GeoscapeState::cbxZoneChange(Action *)
 {
 	_game->getSavedGame()->debugZone = _cbxZone->getSelected();
+	updateZoneInfo();
+}
+
+void GeoscapeState::cbxAreaChange(Action *)
+{
+	_game->getSavedGame()->debugArea = _cbxArea->getSelected();
+	updateZoneInfo();
+}
+
+void GeoscapeState::updateZoneInfo()
+{
+	std::ostringstream ss;
+	auto* save = _game->getSavedGame();
+	if (save->debugRegion)
+	{
+		auto* regionRule = save->debugRegion->getRules();
+		if (save->debugType >= 1)
+		{
+			ss << "region: " << tr(regionRule->getType()) << " [" << regionRule->getType() << "]" << std::endl;
+		}
+		if (save->debugType == 2)
+		{
+			if (save->debugZone > 0 && save->debugZone <= regionRule->getMissionZones().size())
+			{
+				auto& selectedZone = regionRule->getMissionZones().at(save->debugZone - 1);
+				ss << "zone: " << save->debugZone - 1 << std::endl;
+				if (save->debugArea > 0 && save->debugArea <= selectedZone.areas.size())
+				{
+					auto& selectedArea = selectedZone.areas.at(save->debugArea - 1);
+					ss << "area: " << save->debugArea - 1;
+					ss << ", texture: " << selectedArea.texture;
+					ss << ", name: " << tr(selectedArea.name) << " [" << selectedArea.name << "]" << std::endl;
+					if (selectedArea.isPoint())
+					{
+						ss << "point = [" << selectedArea.lonMin / M_PI * 180 << ", " << selectedArea.latMin / M_PI * 180 << "]";
+						int texture, shade;
+						_globe->getPolygonTextureAndShade(selectedArea.lonMin, selectedArea.latMin, &texture, &shade);
+						ss << ", globe texture: " << texture;
+					}
+					else
+					{
+						ss << "rect = [" << selectedArea.lonMin / M_PI * 180 << ", " << selectedArea.lonMax / M_PI * 180;
+						ss << ", " << selectedArea.latMin / M_PI * 180 << ", " << selectedArea.latMax / M_PI * 180 << "]";
+					}
+				}
+				else
+				{
+					ss << "total areas: " << selectedZone.areas.size() << std::endl;
+				}
+			}
+			else
+			{
+				ss << "total zones: " << regionRule->getMissionZones().size() << std::endl;
+			}
+		}
+	}
+	_txtDebug->setText(ss.str());
+}
+
+void GeoscapeState::cbxCountryChange(Action *)
+{
+	int index = _cbxCountry->getSelected();
+	if (index < 1)
+	{
+		_game->getSavedGame()->debugCountry = nullptr;
+	}
+	else
+	{
+		_game->getSavedGame()->debugCountry = (*_game->getSavedGame()->getCountries())[index - 1];
+	}
+
+	std::ostringstream ss;
+	auto* save = _game->getSavedGame();
+	if (save->debugCountry)
+	{
+		auto* countryRule = save->debugCountry->getRules();
+		if (save->debugType == 0)
+		{
+			ss << "country: " << tr(countryRule->getType()) << " [" << countryRule->getType() << "]" << std::endl;
+		}
+	}
+	_txtDebug->setText(ss.str());
 }
 
 }

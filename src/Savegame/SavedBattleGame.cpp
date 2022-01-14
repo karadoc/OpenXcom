@@ -151,6 +151,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 	_ecEnabledNeutral = node["ecEnabledNeutral"].as<bool>(_ecEnabledNeutral);
 	_alienCustomDeploy = node["alienCustomDeploy"].as<std::string>(_alienCustomDeploy);
 	_alienCustomMission = node["alienCustomMission"].as<std::string>(_alienCustomMission);
+	_lastUsedMapScript = node["lastUsedMapScript"].as<std::string>(_lastUsedMapScript);
 	_reinforcementsDeployment = node["reinforcementsDeployment"].as<std::string>(_reinforcementsDeployment);
 	_reinforcementsRace = node["reinforcementsRace"].as<std::string>(_reinforcementsRace);
 	_reinforcementsItemLevel = node["reinforcementsItemLevel"].as<int>(_reinforcementsItemLevel);
@@ -280,7 +281,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 
 	using ItemVec = std::vector<BattleItem*>&;
 
-	// node to load from, vector to load into, offset for maching ammo
+	// node to load from, vector to load into, offset for matching ammo
 	std::tuple<YAML::Node, ItemVec, size_t> toContainer[] =
 	{
 		std::make_tuple(node["items"], std::ref(_items), 0u),
@@ -291,7 +292,7 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 
 	for (auto& pass : toContainer)
 	{
-		// update start point for maching ammo
+		// update start point for matching ammo
 		std::get<size_t>(pass) = std::get<ItemVec>(pass).size();
 
 		for (YAML::const_iterator i = std::get<YAML::Node>(pass).begin(); i != std::get<YAML::Node>(pass).end(); ++i)
@@ -537,6 +538,7 @@ YAML::Node SavedBattleGame::save() const
 	node["ecEnabledNeutral"] = _ecEnabledNeutral;
 	node["alienCustomDeploy"] = _alienCustomDeploy;
 	node["alienCustomMission"] = _alienCustomMission;
+	node["lastUsedMapScript"] = _lastUsedMapScript;
 	node["reinforcementsDeployment"] = _reinforcementsDeployment;
 	node["reinforcementsRace"] = _reinforcementsRace;
 	node["reinforcementsItemLevel"] = _reinforcementsItemLevel;
@@ -1804,7 +1806,7 @@ BattleUnit *SavedBattleGame::convertUnit(BattleUnit *unit)
 		}
 	}
 
-	// in case of unconscious unit someone could stand on top of it, or take curret unit to invenotry, then we skip spawning any thing
+	// in case of unconscious unit someone could stand on top of it, or take current unit to inventory, then we skip spawning anything
 	if (!tile || (tile->getUnit() != nullptr && tile->getUnit() != unit))
 	{
 		return nullptr;
@@ -3259,7 +3261,7 @@ void SavedBattleGame::ScriptRegister(ScriptParserBase* parser)
 
 	Bind<SavedBattleGame> sbg = { parser };
 
-	sbg.add<&SavedBattleGame::getTurn>("getTurn", "Current turn, 0 - before battle, 1 - fisrt turn, each stage reset this value.");
+	sbg.add<&SavedBattleGame::getTurn>("getTurn", "Current turn, 0 - before battle, 1 - first turn, each stage reset this value.");
 	sbg.add<&SavedBattleGame::getAnimFrame>("getAnimFrame");
 	sbg.add<&getTileScript>("getTile", "Get tile on position x, y, z");
 

@@ -94,6 +94,7 @@ private:
 	std::string _customUfo;
 	std::string _enviroEffects, _startingCondition;
 	std::string _unlockedResearchOnSuccess, _unlockedResearchOnFailure, _unlockedResearchOnDespawn;
+	std::string _counterSuccess, _counterFailure, _counterDespawn, _counterAll;
 	std::string _missionBountyItem;
 	int _missionBountyItemCount;
 	int _bughuntMinTurn;
@@ -105,7 +106,8 @@ private:
 	std::map<std::string, int> _civiliansByType;
 	std::vector<std::string> _terrains, _music;
 	int _shade, _minShade, _maxShade;
-	std::string _nextStage, _race, _script;
+	std::string _nextStage, _race, _mapScript;
+	std::vector<std::string> _mapScripts;
 	std::vector<std::string> _randomRaces;
 	bool _finalDestination, _isAlienBase, _isHidden;
 	int _fakeUnderwaterSpawnChance;
@@ -148,6 +150,14 @@ public:
 	const std::string& getUnlockedResearchOnFailure() const { return _unlockedResearchOnFailure; }
 	/// Gets the research topic to be unlocked after a despawned mission site.
 	const std::string& getUnlockedResearchOnDespawn() const { return _unlockedResearchOnDespawn; }
+	/// Gets the name of a custom counter variable to increase on mission success.
+	const std::string& getCounterSuccess() const { return _counterSuccess; }
+	/// Gets the name of a custom counter variable to increase on mission failure (incl. mission despawn).
+	const std::string& getCounterFailure() const { return _counterFailure; }
+	/// Gets the name of a custom counter variable to increase on mission despawn.
+	const std::string& getCounterDespawn() const { return _counterDespawn; }
+	/// Gets the name of a custom counter variable to increase on any mission result (success, failure and despawn).
+	const std::string& getCounterAll() const { return _counterAll; }
 	/// Gets the item to be recovered/given after a successful mission.
 	std::string getMissionBountyItem() const;
 	/// Gets the number of items to be recovered/given after a successful mission.
@@ -183,7 +193,7 @@ public:
 	/// Gets the race to use in the next stage.
 	std::string getRace() const;
 	/// Gets the script to use for this deployment.
-	std::string getScript() const;
+	const std::string& getRandomMapScript() const;
 	/// Checks if this is the destination for the final mission (mars stage 1, t'leth stage 1).
 	bool isFinalDestination() const;
 	/// Gets the cutscene to play when this mission is won.

@@ -82,7 +82,7 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
 	_floatHeight = _armor->getFloatHeight() == -1 ? soldier->getRules()->getFloatHeight() : _armor->getFloatHeight();
 	_intelligence = 2;
 	_aggression = 1;
-	_specab = SPECAB_NONE;
+	_specab = (SpecialAbility)_armor->getSpecialAbility();
 	_movementType = _armor->getMovementType();
 	if (_movementType == MT_FLOAT)
 	{
@@ -220,6 +220,7 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 	_kneelHeight = _armor->getKneelHeight() == -1 ? soldier->getRules()->getKneelHeight() : _armor->getKneelHeight();
 	_floatHeight = _armor->getFloatHeight() == -1 ? soldier->getRules()->getFloatHeight() : _armor->getFloatHeight();
 
+	_specab = (SpecialAbility)_armor->getSpecialAbility();
 	_movementType = _armor->getMovementType();
 	if (_movementType == MT_FLOAT) {
 		if (depth > 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
@@ -1757,7 +1758,7 @@ void BattleUnit::knockOut(BattlescapeGame *battle)
 		{
 			if (newUnit->getSpawnUnit())
 			{
-				//scripts or rulesets could make new chryssalid from chryssalid, this meam we could have infinite loop there
+				//scripts or rulesets could make new chryssalid from chryssalid, this means we could have infinite loop there
 				//setting null will break it
 				newUnit->clearSpawnUnit();
 			}
@@ -5731,7 +5732,7 @@ void getListSizeHackScript(BattleUnit* bu, int& i)
 	if (bu)
 	{
 		auto& ptr = (bu->*Member);
-		//count number of elemets unitl null, and inteprted this as size of array
+		//count number of elements until null, and interpret this as size of array
 		i = std::distance(
 			std::begin(ptr),
 			std::find(std::begin(ptr), std::end(ptr), nullptr)
@@ -5828,9 +5829,9 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 	bu.add<&makeVisibleScript>("makeVisible");
 
 
-	bu.add<&setSpawnUnitScript>("setSpawnUnit", "set type of zombie will be spawn from curret unit, it will reset every thing to default (hostile & instant)");
-	bu.add<&getSpawnUnitScript>("getSpawnUnit", "get type of zombie will be spawn from curret unit");
-	bu.add<&setSpawnUnitInstantRespawnScript>("setSpawnUnitInstantRespawn", "set 1 to make unit instalty change to spawn zombie unit, other wise it will transform on death");
+	bu.add<&setSpawnUnitScript>("setSpawnUnit", "set type of zombie will be spawn from current unit, it will reset everything to default (hostile & instant)");
+	bu.add<&getSpawnUnitScript>("getSpawnUnit", "get type of zombie will be spawn from current unit");
+	bu.add<&setSpawnUnitInstantRespawnScript>("setSpawnUnitInstantRespawn", "set 1 to make unit instantly change to spawn zombie unit, other wise it will transform on death");
 	bu.add<&getSpawnUnitInstantRespawnScript>("getSpawnUnitInstantRespawn", "get state of instant respawn");
 	bu.add<&setSpawnUnitFactionScript>("setSpawnUnitFaction", "set faction of unit that will spawn");
 	bu.add<&getSpawnUnitFactionScript>("getSpawnUnitFaction", "get faction of unit that will spawn");
@@ -6039,9 +6040,9 @@ void commonBattleUnitAnimations(ScriptParserBase* parser)
 {
 	Bind<BattleUnit> bu = { parser, BindBase::ExtensionBinding{} };
 
-	bu.add<&BattleUnit::getFloorAbove>("isFloorAbove", "check if floor is show above unit");
-	bu.add<&BattleUnit::getBreathExhaleFrame>("getBreathExhaleFrame", "return aninmation frame of breath bubbles, -1 mean no animation");
-	bu.add<&BattleUnit::getBreathInhaleFrame>("getBreathInhaleFrame", "return number of frames to next breath animation start, 0 mean animation started, -1 no animation");
+	bu.add<&BattleUnit::getFloorAbove>("isFloorAbove", "check if floor is shown above unit");
+	bu.add<&BattleUnit::getBreathExhaleFrame>("getBreathExhaleFrame", "return animation frame of breath bubbles, -1 means no animation");
+	bu.add<&BattleUnit::getBreathInhaleFrame>("getBreathInhaleFrame", "return number of frames to next breath animation start, 0 means animation started, -1 no animation");
 }
 
 

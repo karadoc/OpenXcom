@@ -928,7 +928,7 @@ bool parseFullConditionImpl(ParserWriter& ph, ScriptRefData falsePos, const Scri
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	const auto truePos = ph.addLabel();
@@ -1012,7 +1012,7 @@ bool parseElse(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData*
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	auto& block = ph.clearScopeBlock();
@@ -1076,7 +1076,7 @@ bool parseLoop(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData*
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	auto& loop = ph.pushScopeBlock(BlockLoop);
@@ -1161,7 +1161,7 @@ bool parseBreak(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	ph.pushProc(Proc_goto);
@@ -1199,7 +1199,7 @@ bool parseContinue(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefD
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	ph.pushProc(Proc_goto);
@@ -1235,7 +1235,7 @@ bool parseEnd(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* 
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	auto block = ph.popScopeBlock();
@@ -1332,7 +1332,7 @@ bool parseVar(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefData* 
 		return false;
 	}
 
-	// each operation can fail, we can't revent
+	// each operation can fail, we can't prevent
 	auto correct = true;
 
 	if (size == 2)
@@ -1382,10 +1382,10 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 			return false;
 		}
 		currValueIndex[i] = outputRegsData[i].getValue<RegEnum>();
-		newValueIndex[i] = begin[i].getValueOrDefulat<RegEnum>(RegInvaild);
+		newValueIndex[i] = begin[i].getValueOrDefulat<RegEnum>(RegInvalid);
 		if (currValueIndex[i] == newValueIndex[i])
 		{
-			currValueIndex[i] = RegInvaild;
+			currValueIndex[i] = RegInvalid;
 		}
 	}
 
@@ -1400,7 +1400,7 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 		any_changed = false;
 		for (int i = 0; i < size; ++i)
 		{
-			if (currValueIndex[i] == RegInvaild)
+			if (currValueIndex[i] == RegInvalid)
 			{
 				continue;
 			}
@@ -1416,7 +1416,7 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 			if (free)
 			{
 				any_changed = true;
-				currValueIndex[i] = RegInvaild;
+				currValueIndex[i] = RegInvalid;
 				ScriptRefData temp[] = { outputRegsData[i], begin[i] };
 
 				const auto proc = ph.parser.getProc(ScriptRef{ "set" });
@@ -1440,7 +1440,7 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 		// using swap we can fix circular dependencies.
 		for (int i = 0; i < size; ++i)
 		{
-			if (currValueIndex[i] == RegInvaild)
+			if (currValueIndex[i] == RegInvalid)
 			{
 				continue;
 			}
@@ -1459,7 +1459,7 @@ bool parseReturn(const ScriptProcData& spd, ParserWriter& ph, const ScriptRefDat
 
 					// now value from 'i' is in 'j'
 					currValueIndex[j] = currValueIndex[i];
-					currValueIndex[i] = RegInvaild;
+					currValueIndex[i] = RegInvalid;
 					break;
 				}
 			}
@@ -1713,7 +1713,7 @@ CharClasses getCharClassOf(char c)
 enum TokenEnum
 {
 	TokenNone,
-	TokenInvaild,
+	TokenInvalid,
 	TokenColon,
 	TokenSemicolon,
 	TokenSymbol,
@@ -1877,7 +1877,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 
 
 	//start of new token of unknown type
-	auto type = TokenInvaild;
+	auto type = TokenInvalid;
 	auto begin = _begin;
 	const auto first = readCharacter();
 
@@ -1904,14 +1904,14 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 				}
 				else
 				{
-					type = TokenInvaild;
+					type = TokenInvalid;
 					break;
 				}
 				continue;
 			}
 			else if (next.c == '\n')
 			{
-				type = TokenInvaild;
+				type = TokenInvalid;
 				break;
 			}
 			else
@@ -1922,7 +1922,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 		}
 		if (!peekCharacter().isStartOfNextToken())
 		{
-			type = TokenInvaild;
+			type = TokenInvalid;
 		}
 
 	}
@@ -1931,7 +1931,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 	{
 		if (first.c == ':')
 		{
-			type = excepted == TokenColon ? TokenColon : TokenInvaild;
+			type = excepted == TokenColon ? TokenColon : TokenInvalid;
 		}
 		else if (first.c == ';')
 		{
@@ -1948,7 +1948,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 		}
 		else
 		{
-			type = TokenInvaild;
+			type = TokenInvalid;
 		}
 	}
 	//number like `0x1234` or `5432` or `+232`
@@ -1990,7 +1990,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 				}
 				else
 				{
-					type = TokenInvaild;
+					type = TokenInvalid;
 					break;
 				}
 			}
@@ -2010,7 +2010,7 @@ SelectedToken ScriptRefTokens::getNextToken(TokenEnum excepted)
 			}
 			else if (!next.is(CC_charRest | CC_digit))
 			{
-				type = TokenInvaild;
+				type = TokenInvalid;
 				break;
 			}
 		}
@@ -2321,7 +2321,7 @@ bool ParserWriter::pushConstTry(const ScriptRefData& data, ArgEnum type)
 bool ParserWriter::pushRegTry(const ScriptRefData& data, ArgEnum type)
 {
 	type = ArgSpecAdd(type, ArgSpecReg);
-	if (data && ArgCompatible(type, data.type, 0) && data.getValue<RegEnum>() != RegInvaild)
+	if (data && ArgCompatible(type, data.type, 0) && data.getValue<RegEnum>() != RegInvalid)
 	{
 		pushValue(static_cast<Uint8>(data.getValue<RegEnum>()));
 		return true;
@@ -2844,7 +2844,7 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 			auto ref = help.getReferece(temp);
 			if (!ref)
 			{
-				Log(LOG_ERROR) << "Unknow variable name '" << temp.toString() << "'";
+				Log(LOG_ERROR) << "Unknown variable name '" << temp.toString() << "'";
 				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
 				return false;
 			}
@@ -2861,7 +2861,7 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 			op_curr = getProc(name, name_end);
 			if (!op_curr)
 			{
-				Log(LOG_ERROR) << "Unknow operation name '" << name.toString() << name_end.toString() << "' for variable '" << ref.name.toString() << "'";
+				Log(LOG_ERROR) << "Unknown operation name '" << name.toString() << name_end.toString() << "' for variable '" << ref.name.toString() << "'";
 				Log(LOG_ERROR) << err << "invalid operation '" << op.toString() << "'";
 				return false;
 			}
@@ -2905,7 +2905,7 @@ bool ScriptParserBase::parseBase(ScriptContainerBase& destScript, const std::str
 
 			for (size_t i = 0; i < ScriptMaxArg; ++i)
 			{
-				if (args[i].getType() == TokenInvaild)
+				if (args[i].getType() == TokenInvalid)
 				{
 					Log(LOG_ERROR) << err << "invalid argument '"<<  args[i].toString() <<"' in line: '" << std::string(line_begin, line_end) << "'";
 					return false;
@@ -3243,7 +3243,7 @@ void ScriptParserEventsBase::load(const YAML::Node& scripts)
 				}
 				else
 				{
-					Log(LOG_WARNING) << "Unknow script name '" + name  + "' for " + getDescriptionNode(deleteNode);
+					Log(LOG_WARNING) << "Unknown script name '" + name  + "' for " + getDescriptionNode(deleteNode);
 				}
 			}
 			else
@@ -3278,7 +3278,7 @@ void ScriptParserEventsBase::load(const YAML::Node& scripts)
 					}
 					else
 					{
-						Log(LOG_WARNING) << "Unknow script name '" + name  + "' for " + getDescriptionNode(updateNode);
+						Log(LOG_WARNING) << "Unknown script name '" + name  + "' for " + getDescriptionNode(updateNode);
 					}
 				}
 				else if (haveNode(overrideNode))
@@ -3293,7 +3293,7 @@ void ScriptParserEventsBase::load(const YAML::Node& scripts)
 					}
 					else
 					{
-						throw Exception("Unknow script name '" + name  + "' for " + getDescriptionNode(overrideNode));
+						throw Exception("Unknown script name '" + name  + "' for " + getDescriptionNode(overrideNode));
 					}
 				}
 				else

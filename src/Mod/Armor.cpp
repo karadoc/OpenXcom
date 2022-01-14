@@ -62,7 +62,7 @@ const std::string Armor::NONE = "STR_NONE";
  */
 Armor::Armor(const std::string &type) :
 	_type(type), _infiniteSupply(false), _frontArmor(0), _sideArmor(0), _leftArmorDiff(0), _rearArmor(0), _underArmor(0),
-	_drawingRoutine(0), _drawBubbles(false), _movementType(MT_WALK), _turnBeforeFirstStep(false), _turnCost(1), _moveSound(-1), _size(1), _weight(0),
+	_drawingRoutine(0), _drawBubbles(false), _movementType(MT_WALK), _specab(SPECAB_NONE), _turnBeforeFirstStep(false), _turnCost(1), _moveSound(-1), _size(1), _weight(0),
 	_visibilityAtDark(0), _visibilityAtDay(0), _personalLight(15),
 	_camouflageAtDay(0), _camouflageAtDark(0), _antiCamouflageAtDay(0), _antiCamouflageAtDark(0), _heatVision(0), _psiVision(0), _psiCamouflage(0),
 	_deathFrames(3), _constantAnimation(false), _hasInventory(true), _forcedTorso(TORSO_USE_GENDER),
@@ -82,7 +82,7 @@ Armor::Armor(const std::string &type) :
 	_energyRecovery.setEnergyRecovery();
 	_stunRecovery.setStunRecovery();
 
-	_customArmorPreviewIndex.push_back(0);
+	_customArmorPreviewIndex.push_back(Mod::NO_SURFACE);
 }
 
 /**
@@ -137,6 +137,7 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers, Mod *mod)
 	_drawingRoutine = node["drawingRoutine"].as<int>(_drawingRoutine);
 	_drawBubbles = node["drawBubbles"].as<bool>(_drawBubbles);
 	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
+	_specab = (SpecialAbility)node["specab"].as<int>(_specab);
 
 	_turnBeforeFirstStep = node["turnBeforeFirstStep"].as<bool>(_turnBeforeFirstStep);
 	_turnCost = node["turnCost"].as<int>(_turnCost);
@@ -251,6 +252,22 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers, Mod *mod)
  */
 void Armor::afterLoad(const Mod* mod)
 {
+	mod->verifySoundOffset(_type, _moveSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _deathSoundMale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _deathSoundFemale, "BATTLE.CAT");
+
+	mod->verifySoundOffset(_type, _selectUnitSoundMale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _selectUnitSoundFemale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _startMovingSoundMale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _startMovingSoundFemale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _selectWeaponSoundMale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _selectWeaponSoundFemale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _annoyedSoundMale, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _annoyedSoundFemale, "BATTLE.CAT");
+
+	mod->verifySpriteOffset(_type, _customArmorPreviewIndex, "CustomArmorPreviews");
+
+
 	mod->linkRule(_corpseBattle, _corpseBattleNames);
 	mod->linkRule(_corpseGeo, _corpseGeoName);
 	mod->linkRule(_builtInWeapons, _builtInWeaponsNames);
@@ -485,6 +502,15 @@ bool Armor::drawBubbles() const
 MovementType Armor::getMovementType() const
 {
 	return _movementType;
+}
+
+/**
+ * Gets the armor's special ability.
+ * @return The armor's specab.
+ */
+int Armor::getSpecialAbility() const
+{
+	return (int)_specab;
 }
 
 /**

@@ -211,7 +211,7 @@ RuleItem::RuleItem(const std::string &type) :
 
 	_confAuto.shots = 3;
 
-	_customItemPreviewIndex.push_back(0);
+	_customItemPreviewIndex.push_back(Mod::NO_SURFACE);
 }
 
 /**
@@ -725,6 +725,34 @@ void RuleItem::load(const YAML::Node &node, Mod *mod, int listOrder, const ModSc
  */
 void RuleItem::afterLoad(const Mod* mod)
 {
+	mod->verifySpriteOffset(_type, _bigSprite, "BIGOBS.PCK");
+	mod->verifySpriteOffset(_type, _floorSprite, "FLOOROB.PCK");
+	mod->verifySpriteOffset(_type, _handSprite, "HANDOB.PCK");
+	// Projectiles: this will check only if first one is correct
+	mod->verifySpriteOffset(_type, _bulletSprite, "Projectiles");
+	mod->verifySpriteOffset(_type, _specialIconSprite, "SPICONS.DAT");
+
+	mod->verifySoundOffset(_type, _reloadSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _fireSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _hitSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _hitMissSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _meleeSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _meleeHitSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _meleeMissSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _psiSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _psiMissSound, "BATTLE.CAT");
+	mod->verifySoundOffset(_type, _explosionHitSound, "BATTLE.CAT");
+
+	mod->verifySpriteOffset(_type, _hitAnimation, "SMOKE.PCK");
+	mod->verifySpriteOffset(_type, _hitMissAnimation, "SMOKE.PCK");
+	mod->verifySpriteOffset(_type, _meleeAnimation, "HIT.PCK");
+	mod->verifySpriteOffset(_type, _meleeMissAnimation, "HIT.PCK");
+	mod->verifySpriteOffset(_type, _psiAnimation, "HIT.PCK");
+	mod->verifySpriteOffset(_type, _psiMissAnimation, "HIT.PCK");
+
+	mod->verifySpriteOffset(_type, _customItemPreviewIndex, "CustomItemPreviews");
+
+
 	_requires = mod->getResearch(_requiresName);
 	_requiresBuy = mod->getResearch(_requiresBuyName);
 	// fixedWeapons can mean vehicle
@@ -1705,7 +1733,7 @@ int RuleItem::getSpecialChance() const
  */
 void RuleItem::drawHandSprite(const SurfaceSet *texture, Surface *surface, const BattleItem *item, const SavedBattleGame *save, int animFrame) const
 {
-	//TODO: spit this function to one using only `this` and another using only `item`
+	//TODO: split this function to one using only `this` and another using only `item`
 	const Surface *frame = nullptr;
 	if (item)
 	{
