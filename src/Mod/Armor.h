@@ -78,6 +78,8 @@ private:
 	SpecialAbility _specab;
 	bool _turnBeforeFirstStep;
 	int _turnCost;
+	int _moveTimeCostPercent = 100;
+	int _moveEnergyCostPercent = 100;
 	int _moveSound;
 	std::vector<int> _deathSoundMale, _deathSoundFemale;
 	std::vector<int> _selectUnitSoundMale, _selectUnitSoundFemale;
@@ -154,6 +156,8 @@ public:
 	/// Gets the research required to be able to equip this armor.
 	const RuleResearch* getRequiredResearch() const;
 
+	/// Armor have layered armor definition. Check by Prefix.
+	bool hasLayersDefinition() const { return !_layersDefaultPrefix.empty(); }
 	/// Gets the default prefix for layered armor sprite names.
 	const std::string &getLayersDefaultPrefix() const { return _layersDefaultPrefix; }
 	/// Gets the overrides for layered armor sprite name prefix, per layer.
@@ -174,6 +178,10 @@ public:
 	bool getTurnBeforeFirstStep() const { return _turnBeforeFirstStep; }
 	/// Gets the turn cost.
 	int getTurnCost() const { return _turnCost; }
+	/// Multiplier of move TU cost.
+	int getMoveTimeCostPercent() const { return _moveTimeCostPercent; }
+	/// Multiplier of move Energy cost.
+	int getMoveEnergyCostPercent() const { return _moveEnergyCostPercent; }
 
 	/// Gets the move sound id. Overrides default/unit's move sound. To be used in BattleUnit constructors only too!
 	int getMoveSound() const;

@@ -29,6 +29,7 @@
 #include "../Savegame/Craft.h"
 #include "../Mod/RuleManufacture.h"
 #include "../Mod/RuleBaseFacility.h"
+#include "../Mod/RuleCraft.h"
 #include "../Engine/Script.h"
 
 namespace OpenXcom
@@ -155,6 +156,8 @@ private:
 	std::map<std::string, int> _manufactureRuleStatus;
 	std::map<std::string, int> _researchRuleStatus;
 	std::map<std::string, bool> _hiddenPurchaseItemsMap;
+	std::map<std::string, RuleCraftDeployment> _customRuleCraftDeployments;
+	Base* _previewBase;
 	std::vector<AlienMission*> _activeMissions;
 	std::vector<GeoscapeEvent*> _geoscapeEvents;
 	bool _debug, _warned;
@@ -243,6 +246,8 @@ public:
 	int getLastId(const std::string& name);
 	/// Increase a custom counter.
 	void increaseCustomCounter(const std::string& name);
+	/// Decrease a custom counter.
+	void decreaseCustomCounter(const std::string& name);
 	/// Resets the list of object IDs.
 	const std::map<std::string, int> &getAllIds() const;
 	/// Resets the list of object IDs.
@@ -309,6 +314,12 @@ public:
 	int getUfopediaRuleStatus(const std::string &ufopediaRule);
 	/// Gets the list of hidden items
 	const std::map<std::string, bool> &getHiddenPurchaseItems();
+	/// Gets the list of player-defined save-specific RuleCraft '_deployment' overrides
+	std::map<std::string, RuleCraftDeployment>& getCustomRuleCraftDeployments() { return _customRuleCraftDeployments; }
+	/// Gets the preview base.
+	Base* getPreviewBase() { return _previewBase; }
+	/// Sets the preview base.
+	void setPreviewBase(Base* previewBase) { _previewBase = previewBase; }
 	/// Gets the status of a manufacture rule.
 	int getManufactureRuleStatus(const std::string &manufactureRule);
 	/// Gets all the research rule status info.
@@ -446,7 +457,7 @@ public:
 	/// Checks if a UFO is on the ignore list.
 	bool isUfoOnIgnoreList(int ufoId);
 	/// Handles a soldier's death.
-	std::vector<Soldier*>::iterator killSoldier(const Mod* mod, Soldier *soldier, BattleUnitKills *cause = 0);
+	std::vector<Soldier*>::iterator killSoldier(bool resetArmor, Soldier *soldier, BattleUnitKills *cause = 0);
 	/// enables/disables autosell for an item type
 	void setAutosell(const RuleItem *itype, const bool enabled);
 	/// get autosell state for an item type

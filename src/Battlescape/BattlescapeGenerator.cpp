@@ -62,6 +62,7 @@
 #include "../Mod/RuleBaseFacility.h"
 #include "../Mod/Texture.h"
 #include "BattlescapeState.h"
+#include "Pathfinding.h"
 
 namespace OpenXcom
 {
@@ -526,11 +527,21 @@ void BattlescapeGenerator::nextStage()
 					// change soldier's armor (needed for inventory view!)
 					(*j)->getGeoscapeSoldier()->setArmor(transformedArmor);
 					// change battleunit's armor
-					(*j)->updateArmorFromSoldier(_game->getMod(), (*j)->getGeoscapeSoldier(), transformedArmor, _save->getDepth());
+					(*j)->updateArmorFromSoldier(_game->getMod(), (*j)->getGeoscapeSoldier(), transformedArmor, _save->getDepth(), true);
 					// remove old special built-in weapons and replace them with new fresh special built-in weapons
 					// TODO? if this was a limited-use weapon, it will have full ammo again!
 					(*j)->removeSpecialWeapons(_save);
 					(*j)->setSpecialWeapon(_save, false);
+				}
+			}
+			else if ((*j)->getOriginalFaction() == FACTION_PLAYER)
+			{
+				// HWPs
+				auto transformedArmor = enviro->getArmorTransformation((*j)->getArmor());
+				if (transformedArmor)
+				{
+					// change battleunit's armor
+					(*j)->updateArmorFromNonSoldier(_game->getMod(), transformedArmor, _save->getDepth());
 				}
 			}
 		}
@@ -707,6 +718,8 @@ void BattlescapeGenerator::nextStage()
  */
 void BattlescapeGenerator::run()
 {
+	bool isPreview = _save->isPreview();
+
 	_save->setAlienCustom(_alienCustomDeploy ? _alienCustomDeploy->getType() : "", _alienCustomMission ? _alienCustomMission->getType() : "");
 
 	// Note: this considers also fake underwater UFO deployment (via _alienCustomMission)
@@ -781,7 +794,28 @@ void BattlescapeGenerator::run()
 		throw Exception("Map generator encountered an error: " + terrainMapScript + " script not found.");
 	}
 
+	if (isPreview && _craftRules)
+	{
+		// resize the map if needed
+		for (auto* dims : *_craftRules->getBattlescapeTerrainData()->getMapBlocks())
+		{
+			if (dims->getSizeX() > _mapsize_x)
+			{
+				_mapsize_x = dims->getSizeX();
+			}
+			if (dims->getSizeY() > _mapsize_y)
+			{
+				_mapsize_y = dims->getSizeY();
+			}
+		}
+	}
+
 	generateMap(script, ruleDeploy->getCustomUfoName());
+
+	if (isPreview)
+	{
+		_save->revealMap();
+	}
 
 	setupObjectives(ruleDeploy);
 
@@ -795,13 +829,13 @@ void BattlescapeGenerator::run()
 	{
 		enviro = _game->getMod()->getEnviroEffects(_terrain->getEnviroEffects());
 	}
-	deployXCOM(startingCondition, enviro);
+	deployXCOM(isPreview ? nullptr : startingCondition, isPreview ? nullptr : enviro);
 
 	int civilianSpawnNodeRank = ruleDeploy->getCivilianSpawnNodeRank();
 	bool markCiviliansAsVIP = ruleDeploy->getMarkCiviliansAsVIP();
 
 	// Special case: deploy civilians before aliens
-	if (civilianSpawnNodeRank > 0)
+	if (!isPreview && civilianSpawnNodeRank > 0)
 	{
 		deployCivilians(markCiviliansAsVIP, civilianSpawnNodeRank, ruleDeploy->getCivilians());
 		for (std::map<std::string, int>::const_iterator i = ruleDeploy->getCiviliansByType().begin(); i != ruleDeploy->getCiviliansByType().end(); ++i)
@@ -812,15 +846,18 @@ void BattlescapeGenerator::run()
 
 	size_t unitCount = _save->getUnits()->size();
 
-	deployAliens(_alienCustomDeploy ? _alienCustomDeploy : ruleDeploy);
+	if (!isPreview)
+	{
+		deployAliens(_alienCustomDeploy ? _alienCustomDeploy : ruleDeploy);
+	}
 
-	if (unitCount == _save->getUnits()->size())
+	if (!isPreview && unitCount == _save->getUnits()->size())
 	{
 		throw Exception("Map generator encountered an error: no alien units could be placed on the map.");
 	}
 
 	// Normal case: deploy civilians after aliens
-	if (civilianSpawnNodeRank == 0)
+	if (!isPreview && civilianSpawnNodeRank == 0)
 	{
 		deployCivilians(markCiviliansAsVIP, civilianSpawnNodeRank, ruleDeploy->getCivilians());
 		for (std::map<std::string, int>::const_iterator i = ruleDeploy->getCiviliansByType().begin(); i != ruleDeploy->getCiviliansByType().end(); ++i)
@@ -829,12 +866,12 @@ void BattlescapeGenerator::run()
 		}
 	}
 
-	if (_generateFuel)
+	if (!isPreview && _generateFuel)
 	{
 		fuelPowerSources();
 	}
 
-	if (_ufo && _ufo->getStatus() == Ufo::CRASHED)
+	if (!isPreview && _ufo && _ufo->getStatus() == Ufo::CRASHED)
 	{
 		explodePowerSources();
 	}
@@ -851,17 +888,22 @@ void BattlescapeGenerator::run()
  */
 void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondition, const RuleEnviroEffects* enviro)
 {
+	bool isPreview = _save->isPreview();
+
 	_save->applyEnviroEffects(enviro);
 
 	RuleInventory *ground = _inventorySlotGround;
 
 	if (_craft != 0)
+	{
 		_base = _craft->getBase();
+		_craft->resetTemporaryCustomVehicleDeploymentFlags();
+	}
 
 	// we will need this during debriefing to show a list of recovered items
 	// Note: saved info is required only because of base defense missions, other missions could work without a save too
 	// IMPORTANT: the number of vehicles and their ammo has been messed up by Base::setupDefenses() already :( and will need to be handled separately later
-	if (_base != 0)
+	if (!isPreview && _base != 0)
 	{
 		ItemContainer *rememberMe = _save->getBaseStorageItems();
 		for (std::map<std::string, int>::iterator i = _base->getStorageItems()->getContents()->begin(); i != _base->getStorageItems()->getContents()->end(); ++i)
@@ -944,13 +986,21 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 				}
 				else
 				{
-					std::string replacedArmor;
+					Armor* replacedArmor = nullptr;
 					if (startingCondition)
-						replacedArmor = startingCondition->getArmorReplacement((*i)->getRules()->getType(), (*i)->getArmor()->getType());
-					if (!replacedArmor.empty())
+					{
+						std::string replacedArmorType = startingCondition->getArmorReplacement((*i)->getRules()->getType(), (*i)->getArmor()->getType());
+						replacedArmor = _game->getMod()->getArmor(replacedArmorType, true);
+						if (replacedArmor && replacedArmor->getSize() > (*i)->getArmor()->getSize())
+						{
+							// cannot switch into a bigger armor size!
+							replacedArmor = nullptr;
+						}
+					}
+					if (replacedArmor)
 					{
 						(*i)->setReplacedArmor((*i)->getArmor());
-						(*i)->setArmor(_game->getMod()->getArmor(replacedArmor));
+						(*i)->setArmor(replacedArmor);
 					}
 				}
 			}
@@ -1043,6 +1093,12 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 			(*i)->setInventoryTile(_craftInventoryTile);
 			(*i)->setVisible(false);
 		}
+	}
+
+	if (isPreview)
+	{
+		// alright, that's enough
+		return;
 	}
 
 	if (_craft != 0)
@@ -1238,13 +1294,16 @@ BattleUnit *BattlescapeGenerator::addXCOMVehicle(Vehicle *v)
 	BattleUnit *unit = addXCOMUnit(_save->createTempUnit(rule, FACTION_PLAYER, _unitSequence++));
 	if (unit)
 	{
-		_save->createItemForUnit(v->getRules(), unit, true);
-		if (v->getRules()->getVehicleClipAmmo())
+		if (!_save->isPreview())
 		{
-			BattleItem *ammoItem = _save->createItemForUnit(v->getRules()->getVehicleClipAmmo(), unit);
-			if (ammoItem)
+			_save->createItemForUnit(v->getRules(), unit, true);
+			if (v->getRules()->getVehicleClipAmmo())
 			{
-				ammoItem->setAmmoQuantity(v->getAmmo());
+				BattleItem *ammoItem = _save->createItemForUnit(v->getRules()->getVehicleClipAmmo(), unit);
+				if (ammoItem)
+				{
+					ammoItem->setAmmoQuantity(v->getAmmo());
+				}
 			}
 		}
 		unit->setTurretType(v->getRules()->getTurretType());
@@ -1261,6 +1320,16 @@ BattleUnit *BattlescapeGenerator::addXCOMVehicle(Vehicle *v)
  */
 BattleUnit *BattlescapeGenerator::addXCOMUnit(BattleUnit *unit)
 {
+	if (_save->isPreview() && !_save->getCraftForPreview())
+	{
+		// base preview, one standard unit is enough
+		if (_save->getUnits()->size() > 0 && !_save->getUnits()->back()->isSummonedPlayerUnit())
+		{
+			delete unit;
+			return nullptr;
+		}
+	}
+
 	if (_baseInventory)
 	{
 		if (unit->hasInventory())
@@ -1296,20 +1365,66 @@ BattleUnit *BattlescapeGenerator::addXCOMUnit(BattleUnit *unit)
 				}
 			}
 		}
-		else if (_craft && !_craftRules->getDeployment().empty())
+		else if (_craft && _craft->hasCustomDeployment())
 		{
-			if (_craftInventoryTile == 0)
+			setCustomCraftInventoryTile();
+
+			bool canPlace = false;
+			Position pos;
+			int dir = 0;
+			if (unit->getGeoscapeSoldier())
 			{
-				// Craft inventory tile position defined in the ruleset
-				const std::vector<int> coords = _craftRules->getCraftInventoryTile();
-				if (coords.size() >= 3)
+				auto& depl = _craft->getCustomSoldierDeployment().at(unit->getGeoscapeSoldier()->getId()); // crashes if not found
+				pos = depl.first + Position(_craftPos.x * 10, _craftPos.y * 10, _craftZ);
+				dir = depl.second;
+				canPlace = true;
+			}
+			else
+			{
+				auto& deplVec = _craft->getCustomVehicleDeployment();
+				for (auto& depl : deplVec)
 				{
-					Position craftInventoryTilePosition = Position(coords[0] + (_craftPos.x * 10), coords[1] + (_craftPos.y * 10), coords[2] + _craftZ);
-					canPlaceXCOMUnit(_save->getTile(craftInventoryTilePosition));
+					if (depl.type == unit->getType() && !depl.used)
+					{
+						pos = depl.pos + Position(_craftPos.x * 10, _craftPos.y * 10, _craftZ);
+						dir = depl.dir;
+						canPlace = true;
+						depl.used = true; // mark as used, i.e. don't try the same for the next vehicle unit
+						break;
+					}
 				}
 			}
+			if (!canPlace)
+			{
+				throw Exception("Unit generator encountered an error: custom craft deployment failed.");
+			}
+			else
+			{
+				for (int x = 0; x < unit->getArmor()->getSize(); ++x)
+				{
+					for (int y = 0; y < unit->getArmor()->getSize(); ++y)
+					{
+						canPlace = (canPlace && canPlaceXCOMUnit(_save->getTile(pos + Position(x, y, 0))));
+					}
+				}
+			}
+			if (canPlace)
+			{
+				if (_save->setUnitPosition(unit, pos))
+				{
+					_save->getUnits()->push_back(unit);
+					_save->initUnit(unit);
+					unit->setDirection(dir);
+					return unit;
+				}
+			}
+		}
+		else if (_craft && _save->hasCustomDeployment(_craftRules))
+		{
+			setCustomCraftInventoryTile();
 
-			for (std::vector<std::vector<int> >::const_iterator i = _craftRules->getDeployment().begin(); i != _craftRules->getDeployment().end(); ++i)
+			auto& deploy = _save->getCustomDeployment(_craftRules);
+			for (RuleCraftDeployment::const_iterator i = deploy.begin(); i != deploy.end(); ++i)
 			{
 				Position pos = Position((*i)[0] + (_craftPos.x * 10), (*i)[1] + (_craftPos.y * 10), (*i)[2] + _craftZ);
 				int dir = (*i)[3];
@@ -1335,6 +1450,11 @@ BattleUnit *BattlescapeGenerator::addXCOMUnit(BattleUnit *unit)
 		}
 		else
 		{
+			if (_craft)
+			{
+				setCustomCraftInventoryTile();
+			}
+
 			for (int i = 0; i < _mapsize_x * _mapsize_y * _mapsize_z; ++i)
 			{
 				if (canPlaceXCOMUnit(_save->getTile(i)))
@@ -1354,6 +1474,23 @@ BattleUnit *BattlescapeGenerator::addXCOMUnit(BattleUnit *unit)
 }
 
 /**
+ * Tries to set a custom craft inventory tile.
+ */
+void BattlescapeGenerator::setCustomCraftInventoryTile()
+{
+	if (_craftInventoryTile == 0)
+	{
+		// Craft inventory tile position defined in the ruleset
+		const std::vector<int> coords = _craftRules->getCraftInventoryTile();
+		if (coords.size() >= 3)
+		{
+			Position craftInventoryTilePosition = Position(coords[0] + (_craftPos.x * 10), coords[1] + (_craftPos.y * 10), coords[2] + _craftZ);
+			canPlaceXCOMUnit(_save->getTile(craftInventoryTilePosition));
+		}
+	}
+}
+
+/**
  * Checks if a soldier/tank can be placed on a given tile.
  * @param tile the given tile.
  * @return whether the unit can be placed here.
@@ -1365,7 +1502,7 @@ bool BattlescapeGenerator::canPlaceXCOMUnit(Tile *tile)
 		tile->getFloorSpecialTileType() == START_POINT &&
 		!tile->getMapData(O_OBJECT) &&
 		tile->getMapData(O_FLOOR) && // for clarity this is checked again, first time was in `getFloorSpecialTileType`
-		tile->getMapData(O_FLOOR)->getTUCost(MT_WALK) < 255)
+		tile->getMapData(O_FLOOR)->getTUCost(MT_WALK) != Pathfinding::INVALID_MOVE_COST)
 	{
 		if (_craftInventoryTile == 0)
 			_craftInventoryTile = tile;
@@ -1531,7 +1668,15 @@ BattleUnit *BattlescapeGenerator::addAlien(Unit *rules, int alienRank, bool outs
 			node = _save->getSpawnNode(Node::nodeRank[alienRank][i], unit);
 	}
 
-	int difficulty = _game->getSavedGame()->getDifficultyCoefficient();
+	int aliensFacingCraftOdds = 20 * _game->getSavedGame()->getDifficultyCoefficient();
+	{
+		int diff = _game->getSavedGame()->getDifficulty();
+		auto& custom = _game->getMod()->getAliensFacingCraftOdds();
+		if (custom.size() > (size_t)diff)
+		{
+			aliensFacingCraftOdds = custom[diff];
+		}
+	}
 
 	if (node && _save->setUnitPosition(unit, node->getPosition()))
 	{
@@ -1539,7 +1684,7 @@ BattleUnit *BattlescapeGenerator::addAlien(Unit *rules, int alienRank, bool outs
 		unit->setRankInt(alienRank);
 		int dir = _save->getTileEngine()->faceWindow(node->getPosition());
 		Position craft = _game->getSavedGame()->getSavedBattle()->getUnits()->at(0)->getPosition();
-		if (Position::distance2d(node->getPosition(), craft) <= 20 && RNG::percent(20 * difficulty))
+		if (Position::distance2d(node->getPosition(), craft) <= 20 && RNG::percent(aliensFacingCraftOdds))
 			dir = unit->directionTo(craft);
 		if (dir != -1)
 			unit->setDirection(dir);
@@ -1558,7 +1703,7 @@ BattleUnit *BattlescapeGenerator::addAlien(Unit *rules, int alienRank, bool outs
 			unit->setRankInt(alienRank);
 			int dir = _save->getTileEngine()->faceWindow(unit->getPosition());
 			Position craft = _game->getSavedGame()->getSavedBattle()->getUnits()->at(0)->getPosition();
-			if (Position::distance2d(unit->getPosition(), craft) <= 20 && RNG::percent(20 * difficulty))
+			if (Position::distance2d(unit->getPosition(), craft) <= 20 && RNG::percent(aliensFacingCraftOdds))
 				dir = unit->directionTo(craft);
 			if (dir != -1)
 				unit->setDirection(dir);

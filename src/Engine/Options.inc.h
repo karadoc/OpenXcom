@@ -55,6 +55,7 @@ OPT SDLKey keyGeoDailyPilotExperience, keyGeoUfoTracker, keyGeoTechTreeViewer, k
 	keyRemoveSoldiersFromTraining, keyAddSoldiersToTraining,
 	keyInventoryArmor, keyInventoryAvatar, keyInventorySave, keyInventoryLoad,
 	keyInvSavePersonalEquipment, keyInvLoadPersonalEquipment, keyInvShowPersonalEquipment,
+	keyBattleShowLayers,
 	keyBattleUseSpecial,
 	keyBattleActionItem1, keyBattleActionItem2, keyBattleActionItem3, keyBattleActionItem4, keyBattleActionItem5,
 	keyNightVisionToggle, keyNightVisionHold, keySelectMusicTrack;
@@ -76,9 +77,11 @@ OPT int oxceAutoNightVisionThreshold;
 OPT bool oxceRememberDisabledCraftWeapons;
 OPT bool showBarOverflowLayers; // Karadoc's option for using different colours to represent overflow in status bars (such as the stamina bar in the battlescape).
 OPT bool oxceEnableOffCentreShooting;
+OPT bool oxceShowEnergyInPathReview;
 
 // OXCE hidden, accessible only via options.cfg
 OPT bool oxceFatFingerLinks;
+OPT int oxceThrottleMouseMoveEvent;
 OPT bool oxceHighlightNewTopicsHidden;
 OPT int oxceInterceptGuiMaintenanceTimeHidden;
 OPT bool oxceEnableUnitResponseSounds;

@@ -27,6 +27,8 @@
 namespace OpenXcom
 {
 
+const std::string RuleCraft::DEFAULT_CRAFT_DEPLOYMENT_PREVIEW = "STR_CRAFT_DEPLOYMENT_PREVIEW";
+
 /**
  * Creates a blank ruleset for a certain
  * type of craft.
@@ -41,7 +43,7 @@ RuleCraft::RuleCraft(const std::string &type) :
 	_keepCraftAfterFailedMission(false), _allowLanding(true), _spacecraft(false), _notifyWhenRefueled(false), _autoPatrol(false), _undetectable(false),
 	_listOrder(0), _maxItems(0), _maxAltitude(-1), _maxStorageSpace(0.0), _stats(),
 	_shieldRechargeAtBase(1000),
-	_mapVisible(true), _forceShowInMonthlyCosts(false)
+	_mapVisible(true), _forceShowInMonthlyCosts(false), _useAllStartTiles(false)
 {
 	for (int i = 0; i < WeaponMax; ++ i)
 	{
@@ -132,13 +134,13 @@ void RuleCraft::load(const YAML::Node &node, Mod *mod, int listOrder, const ModS
 		RuleTerrain *rule = new RuleTerrain(terrain["name"].as<std::string>());
 		rule->load(terrain, mod);
 		_battlescapeTerrainData = rule;
-		if (const YAML::Node &craftInventoryTile = node["craftInventoryTile"])
-		{
-			_craftInventoryTile = craftInventoryTile.as<std::vector<int> >(_craftInventoryTile);
-		}
+	}
+	if (const YAML::Node& craftInventoryTile = node["craftInventoryTile"])
+	{
+		_craftInventoryTile = craftInventoryTile.as<std::vector<int> >(_craftInventoryTile);
 	}
 	_maxSkinIndex = node["maxSkinIndex"].as<int>(_maxSkinIndex);
-	_deployment = node["deployment"].as< std::vector< std::vector<int> > >(_deployment);
+	_deployment = node["deployment"].as< RuleCraftDeployment >(_deployment);
 	_keepCraftAfterFailedMission = node["keepCraftAfterFailedMission"].as<bool>(_keepCraftAfterFailedMission);
 	_allowLanding = node["allowLanding"].as<bool>(_allowLanding);
 	_spacecraft = node["spacecraft"].as<bool>(_spacecraft);
@@ -190,6 +192,8 @@ void RuleCraft::load(const YAML::Node &node, Mod *mod, int listOrder, const ModS
 	_shieldRechargeAtBase = node["shieldRechargedAtBase"].as<int>(_shieldRechargeAtBase);
 	_mapVisible = node["mapVisible"].as<bool>(_mapVisible);
 	_forceShowInMonthlyCosts = node["forceShowInMonthlyCosts"].as<bool>(_forceShowInMonthlyCosts);
+	_useAllStartTiles = node["useAllStartTiles"].as<bool>(_useAllStartTiles);
+	_customPreview = node["customPreview"].as<std::string>(_customPreview);
 
 	mod->loadSoundOffset(_type, _selectSound, node["selectSound"], "GEO.CAT");
 	mod->loadSoundOffset(_type, _takeoffSound, node["takeoffSound"], "GEO.CAT");
@@ -499,7 +503,7 @@ int RuleCraft::getListOrder() const
  * Gets the deployment layout for this craft.
  * @return The deployment layout.
  */
-const std::vector<std::vector<int> > &RuleCraft::getDeployment() const
+const RuleCraftDeployment &RuleCraft::getDeployment() const
 {
 	return _deployment;
 }
@@ -625,6 +629,33 @@ bool RuleCraft::isMapVisible() const
 bool RuleCraft::forceShowInMonthlyCosts() const
 {
 	return _forceShowInMonthlyCosts;
+}
+
+/**
+ * Can the player utilize all start tiles on a craft or only the ones specified in the '_deployment' list?
+ * @return can use all or not?
+ */
+bool RuleCraft::useAllStartTiles() const
+{
+	return _useAllStartTiles;
+}
+
+/**
+ * Gets the craft's custom preview type.
+ * @return String ID of an alienDeployment.
+ */
+const std::string& RuleCraft::getCustomPreviewType() const
+{
+	return _customPreview.empty() ? DEFAULT_CRAFT_DEPLOYMENT_PREVIEW : _customPreview;
+}
+
+/**
+ * Gets the craft's custom preview type.
+ * @return String ID of an alienDeployment or an empty string.
+ */
+const std::string& RuleCraft::getCustomPreviewTypeRaw() const
+{
+	return _customPreview;
 }
 
 /**

@@ -53,6 +53,7 @@ private:
 	TextList *_lstRawData;
 	ToggleTextButton *_btnIncludeDebug, *_btnIncludeIds, *_btnIncludeDefaults;
 	TextButton *_btnOk;
+	TextButton *_btnPreview;
 
 	Uint8 _purple, _pink, _blue, _white, _gold;
 
@@ -76,10 +77,10 @@ private:
 	void endHeading();
 
 	template<typename T, typename Callback>
-	void addVectorOfGeneric(std::ostringstream &ss, const std::vector<T> &vec, const std::string &propertyName, Callback&& func);
+	void addVectorOfGeneric(std::ostringstream &ss, const std::vector<T> &vec, const std::string &propertyName, Callback&& func, bool translate = true);
 
 	void addSingleString(std::ostringstream &ss, const std::string &id, const std::string &propertyName, const std::string &defaultId = "", bool translate = true);
-	void addVectorOfStrings(std::ostringstream &ss, const std::vector<std::string> &vec, const std::string &propertyName);
+	void addVectorOfStrings(std::ostringstream &ss, const std::vector<std::string> &vec, const std::string &propertyName, bool translate = true);
 
 	void addVectorOfResearch(std::ostringstream &ss, const std::vector<const RuleResearch *> &vec, const std::string &propertyName);
 
@@ -183,6 +184,8 @@ public:
 	void btnRefreshClick(Action *action);
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
+	/// Handler for clicking the [Preview] button.
+	void btnPreviewClick(Action *action);
 	/// Handler for clicking the [Previous] button.
 	void btnPrevClick(Action *action);
 	/// Handler for clicking the [Next] button.

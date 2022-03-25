@@ -31,6 +31,8 @@
 #include "../Engine/Options.h"
 #include "../Mod/AlienDeployment.h"
 #include "../Mod/MapScript.h"
+#include "../Mod/RuleCraft.h"
+#include "../Savegame/Craft.h"
 #include "../Savegame/Tile.h"
 
 namespace OpenXcom
@@ -105,7 +107,7 @@ AbortMissionState::AbortMissionState(SavedBattleGame *battleGame, BattlescapeSta
 	}
 
 	// Calculate values
-	auto tally = _battleGame->getBattleGame()->tallyUnits();
+	auto tally = _battleGame->isPreview() ? _battleGame->tallyUnitsForPreview() : _battleGame->getBattleGame()->tallyUnits();
 	_inEntrance = tally.inEntrance;
 	_inExit = tally.inExit;
 	_outside = tally.inField;
@@ -140,7 +142,7 @@ AbortMissionState::AbortMissionState(SavedBattleGame *battleGame, BattlescapeSta
 		_txtInExit->setVisible(false);
 		_txtOutside->setVisible(false);
 	}
-	else if (!exit)
+	else if (!exit || _battleGame->isPreview())
 	{
 		_txtInEntrance->setY(26);
 		_txtOutside->setY(54);
@@ -151,12 +153,20 @@ AbortMissionState::AbortMissionState(SavedBattleGame *battleGame, BattlescapeSta
 	_txtAbort->setAlign(ALIGN_CENTER);
 	_txtAbort->setHighContrast(true);
 	_txtAbort->setText(tr("STR_ABORT_MISSION_QUESTION"));
+	if (_battleGame->isPreview())
+	{
+		_txtAbort->setText(tr("STR_CRAFT_DEPLOYMENT_QUESTION"));
+	}
 
 
 	_btnOk->setText(tr("STR_OK"));
 	_btnOk->setHighContrast(true);
 	_btnOk->onMouseClick((ActionHandler)&AbortMissionState::btnOkClick);
 	_btnOk->onKeyboardPress((ActionHandler)&AbortMissionState::btnOkClick, Options::keyOk);
+	if (_battleGame->isPreview() && (_outside > 0 || _inEntrance <= 0))
+	{
+		_btnOk->setVisible(false);
+	}
 
 
 	_btnCancel->setText(tr("STR_CANCEL_UC"));
@@ -182,6 +192,23 @@ AbortMissionState::~AbortMissionState()
  */
 void AbortMissionState::btnOkClick(Action *)
 {
+	if (_battleGame->isPreview())
+	{
+		if (_battleGame->getCraftForPreview()->getId() == RuleCraft::DUMMY_CRAFT_ID)
+		{
+			// dummy craft, generic deployment schema
+			_battleGame->saveDummyCraftDeployment();
+		}
+		else
+		{
+			// real craft, real unit deployment
+			_battleGame->saveCustomCraftDeployment();
+		}
+
+		_game->popState();
+		return;
+	}
+
 	_game->popState();
 	_battleGame->setAborted(true);
 	_state->finishBattle(true, _inExit);

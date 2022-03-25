@@ -21,6 +21,7 @@
 #include "Map.h"
 #include "Camera.h"
 #include "Particle.h"
+#include "Pathfinding.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Surface.h"
 #include "../Mod/Mod.h"
@@ -314,7 +315,7 @@ int Projectile::calculateThrow(double accuracy)
 		if (_action.type == BA_THROW
 			&& endTile
 			&& endTile->getMapData(O_OBJECT)
-			&& endTile->getMapData(O_OBJECT)->getTUCost(MT_WALK) == 255
+			&& endTile->getMapData(O_OBJECT)->getTUCost(MT_WALK) == Pathfinding::INVALID_MOVE_COST
 			&& !(endTile->isBigWall() && (endTile->getMapData(O_OBJECT)->getBigWall()<1 || endTile->getMapData(O_OBJECT)->getBigWall()>3)))
 		{
 			test = V_OUTOFBOUNDS;
@@ -454,6 +455,11 @@ bool Projectile::move()
 		{
 			_position--;
 			return false;
+		}
+		else if (_position > 1)
+		{
+			// calc avg of two voxel steps
+			_distance += 0.5f * Position::distance(_trajectory[_position], _trajectory[_position - 2]);
 		}
 		else if (_position > 0)
 		{

@@ -52,7 +52,7 @@ namespace OpenXcom
 Soldier::Soldier(RuleSoldier *rules, Armor *armor, int id) :
 	_id(id), _nationality(0),
 	_improvement(0), _psiStrImprovement(0), _rules(rules), _rank(RANK_ROOKIE), _craft(0),
-	_gender(GENDER_MALE), _look(LOOK_BLONDE), _lookVariant(0), _missions(0), _kills(0),
+	_gender(GENDER_MALE), _look(LOOK_BLONDE), _lookVariant(0), _missions(0), _kills(0), _stuns(0),
 	_recentlyPromoted(false), _psiTraining(false), _training(false), _returnToTrainingWhenHealed(false),
 	_armor(armor), _replacedArmor(0), _transformedArmor(0), _personalEquipmentArmor(nullptr), _death(0), _diary(new SoldierDiary()),
 	_corpseRecovered(false)
@@ -161,6 +161,7 @@ void Soldier::load(const YAML::Node& node, const Mod *mod, SavedGame *save, cons
 	_lookVariant = node["lookVariant"].as<int>(_lookVariant);
 	_missions = node["missions"].as<int>(_missions);
 	_kills = node["kills"].as<int>(_kills);
+	_stuns = node["stuns"].as<int>(_stuns);
 	_manaMissing = node["manaMissing"].as<int>(_manaMissing);
 	_healthMissing = node["healthMissing"].as<int>(_healthMissing);
 	_recovery = node["recovery"].as<float>(_recovery);
@@ -171,7 +172,7 @@ void Soldier::load(const YAML::Node& node, const Mod *mod, SavedGame *save, cons
 	}
 	if (armor == 0)
 	{
-		armor = mod->getArmor(mod->getSoldier(mod->getSoldiersList().front())->getArmor());
+		armor = mod->getSoldier(mod->getSoldiersList().front())->getDefaultArmor();
 	}
 	_armor = armor;
 	if (node["replacedArmor"])
@@ -266,6 +267,7 @@ YAML::Node Soldier::save(const ScriptGlobal *shared) const
 	node["lookVariant"] = _lookVariant;
 	node["missions"] = _missions;
 	node["kills"] = _kills;
+	node["stuns"] = _stuns;
 	if (_manaMissing > 0)
 		node["manaMissing"] = _manaMissing;
 	if (_healthMissing > 0)
@@ -434,9 +436,15 @@ Craft *Soldier::getCraft() const
  * Assigns the soldier to a new craft.
  * @param craft Pointer to craft.
  */
-void Soldier::setCraft(Craft *craft)
+void Soldier::setCraft(Craft *craft, bool resetCustomDeployment)
 {
 	_craft = craft;
+
+	if (resetCustomDeployment && _craft)
+	{
+		// adding a soldier into a craft invalidates a custom craft deployment
+		_craft->resetCustomDeployment();
+	}
 }
 
 /**
@@ -620,6 +628,15 @@ int Soldier::getKills() const
 }
 
 /**
+ * Returns the soldier's amount of stuns.
+ * @return Stuns.
+ */
+int Soldier::getStuns() const
+{
+	return _stuns;
+}
+
+/**
  * Returns the soldier's gender.
  * @return Gender.
  */
@@ -709,6 +726,14 @@ void Soldier::addKillCount(int count)
 }
 
 /**
+ * Add a stun to the counter.
+ */
+void Soldier::addStunCount(int count)
+{
+	_stuns += count;
+}
+
+/**
  * Get pointer to initial stats.
  */
 UnitStats *Soldier::getInitStats()
@@ -754,28 +779,28 @@ Armor *Soldier::getArmor() const
  * Changes the unit's current armor.
  * @param armor Pointer to armor data.
  */
-void Soldier::setArmor(Armor *armor)
+void Soldier::setArmor(Armor *armor, bool resetCustomDeployment)
 {
+	if (resetCustomDeployment && _craft && _armor && armor && _armor->getSize() < armor->getSize())
+	{
+		// increasing the size of a soldier's armor invalidates a custom craft deployment
+		_craft->resetCustomDeployment();
+	}
+
 	_armor = armor;
 }
 
 /**
  * Returns a list of armor layers (sprite names).
  */
-const std::vector<std::string> Soldier::getArmorLayers(Armor *customArmor) const
+const std::vector<std::string>& Soldier::getArmorLayers(Armor *customArmor) const
 {
-	std::vector<std::string> ret;
 	std::stringstream ss;
 
 	const Armor *armor = customArmor ? customArmor : _armor;
 
 	const std::string gender = _gender == GENDER_MALE ? "M" : "F";
-	auto defaultPrefix = armor->getLayersDefaultPrefix();
-	auto specificPrefix = armor->getLayersSpecificPrefix();
-	auto layoutDefinition = armor->getLayersDefinition();
-	std::vector<std::string> relevantLayer;
-	int layerIndex = 0;
-	bool isDefined = false;
+	const auto& layoutDefinition = armor->getLayersDefinition();
 
 	// find relevant layer
 	for (int i = 0; i <= RuleSoldier::LookVariantBits; ++i)
@@ -783,48 +808,25 @@ const std::vector<std::string> Soldier::getArmorLayers(Armor *customArmor) const
 		ss.str("");
 		ss << gender;
 		ss << (int)_look + (_lookVariant & (RuleSoldier::LookVariantMask >> i)) * 4;
-		isDefined = (layoutDefinition.find(ss.str()) != layoutDefinition.end());
-		if (isDefined)
+		auto it = layoutDefinition.find(ss.str());
+		if (it != layoutDefinition.end())
 		{
-			relevantLayer = layoutDefinition[ss.str()];
-			break;
+			return it->second;
 		}
 	}
-	if (!isDefined)
+
 	{
 		// try also gender + hardcoded look 0
 		ss.str("");
 		ss << gender << "0";
-		isDefined = (layoutDefinition.find(ss.str()) != layoutDefinition.end());
-		if (isDefined)
+		auto it = layoutDefinition.find(ss.str());
+		if (it != layoutDefinition.end())
 		{
-			relevantLayer = layoutDefinition[ss.str()];
+			return it->second;
 		}
-	}
-	if (!isDefined)
-	{
-		throw Exception("Layered armor sprite definition (" + armor->getType() + ") not found!");
-	}
-	for (auto layerItem : relevantLayer)
-	{
-		if (!layerItem.empty())
-		{
-			ss.str("");
-			if (specificPrefix.find(layerIndex) != specificPrefix.end())
-			{
-				ss << specificPrefix[layerIndex];
-			}
-			else
-			{
-				ss << defaultPrefix;
-			}
-			ss << "__" << layerIndex << "__" << layerItem;
-			ret.push_back(ss.str());
-		}
-		layerIndex++;
 	}
 
-	return ret;
+	throw Exception("Layered armor sprite definition (" + armor->getType() + ") not found!");
 }
 
 /**
@@ -1666,7 +1668,7 @@ void Soldier::transform(const Mod *mod, RuleSoldierTransformation *transformatio
 		if (Mod::isEmptyRuleName(transformationRule->getProducedSoldierArmor()))
 		{
 			// default armor of the soldier's type
-			_armor = mod->getArmor(_rules->getArmor());
+			_armor = _rules->getDefaultArmor();
 		}
 		else
 		{

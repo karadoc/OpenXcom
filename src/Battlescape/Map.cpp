@@ -80,6 +80,17 @@
            /  \
            \  /
          4  \/  2
+
+  Big units parts
+
+            /\
+           /0 \
+          /\  /\
+         /2 \/1 \
+         \  /\  /
+          \/3 \/
+           \  /
+            \/
  */
 
 namespace OpenXcom
@@ -883,7 +894,7 @@ void Map::drawTerrain(Surface *surface)
 					if (isUnitMovingNearby)
 					{
 						// special handling for a moving unit in background of tile.
-						Position backPos[] =
+						constexpr static Position backPos[] =
 						{
 							Position(0, -1, 0),
 							Position(-1, -1, 0),
@@ -1078,7 +1089,7 @@ void Map::drawTerrain(Surface *surface)
 					if (isUnitMovingNearby)
 					{
 						// special handling for a moving unit in foreground of tile.
-						Position frontPos[] =
+						constexpr static Position frontPos[] =
 						{
 							Position(-1, +1, 0),
 							Position(0, +1, 0),
@@ -1402,11 +1413,29 @@ void Map::drawTerrain(Surface *surface)
 							tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(frameNumber);
 							Surface::blitRaw(surface, tmpSurface, screenPosition.x, screenPosition.y, 0);
 						}
-						if (!_isAltPressed && _cursorType > 2 && _camera->getViewLevel() == itZ)
+						if (!_isAltPressed && _cursorType > CT_AIM && _camera->getViewLevel() == itZ)
 						{
-							int frame[6] = {0, 0, 0, 11, 13, 15};
-							tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(frame[_cursorType] + (_animFrame / 4) % 2);
-							Surface::blitRaw(surface, tmpSurface, screenPosition.x, screenPosition.y, 0);
+							bool ignore = false;
+							if (_cursorType == CT_PSI || _cursorType == CT_WAYPOINT)
+							{
+								BattleAction* action = _save->getBattleGame()->getCurrentAction();
+								int distanceSq = action->actor->distance3dToPositionSq(Position(itX, itY, itZ));
+								if (action->weapon->getRules()->isOutOfRange(distanceSq))
+								{
+									// weapon doesn't work at this distance, just draw a normal cursor with a red 0% hint text
+									ignore = true;
+									_txtAccuracy->setColor(Palette::blockOffset(Pathfinding::red - 1) - 1);
+									_txtAccuracy->setText("0%");
+									_txtAccuracy->draw();
+									_txtAccuracy->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
+								}
+							}
+							if (!ignore)
+							{
+								int frame[6] = { 0, 0, 0, 11, 13, 15 };
+								tmpSurface = _game->getMod()->getSurfaceSet("CURSOR.PCK")->getFrame(frame[_cursorType] + (_animFrame / 4) % 2);
+								Surface::blitRaw(surface, tmpSurface, screenPosition.x, screenPosition.y, 0);
+							}
 						}
 					}
 
@@ -1501,11 +1530,42 @@ void Map::drawTerrain(Surface *surface)
 							_numWaypid->draw();
 							if ( !(_previewSetting & PATH_ARROWS) )
 							{
+								// TU only
 								_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (29-adjustment), 0, false, tile->getMarkerColor() );
 							}
 							else
 							{
-								_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (22-adjustment), 0);
+								// Arrows + TUs
+								if (Options::oxceShowEnergyInPathReview)
+								{
+									if (tile->getTUMarker() == 0)
+									{
+										// 3 = red
+										_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (15-adjustment), 0, false, 3);
+									}
+									else
+									{
+										// 5 = lime green
+										_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (15-adjustment), 0, false, 5);
+									}
+
+									_numWaypid->setValue(tile->getEnergyMarker());
+									_numWaypid->draw();
+									if (tile->getEnergyMarker() == 0)
+									{
+										// 3 = red
+										_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (22-adjustment), 0, false, 3);
+									}
+									else
+									{
+										// 10 = yellow
+										_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (22-adjustment), 0, false, 10);
+									}
+								}
+								else
+								{
+									_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (22-adjustment), 0);
+								}
 							}
 						}
 					}
@@ -1540,7 +1600,7 @@ void Map::drawTerrain(Surface *surface)
 	}
 
 	// Draw motion scanner arrows
-	if (_isAltPressed && _save->getSide() == FACTION_PLAYER)
+	if (_isAltPressed && _save->getSide() == FACTION_PLAYER && this->getCursorType() != CT_NONE)
 	{
 		for (auto myUnit : *_save->getUnits())
 		{
@@ -1561,14 +1621,34 @@ void Map::drawTerrain(Surface *surface)
 				{
 					offset.y -= 2;
 				}
-				if (this->getCursorType() != CT_NONE)
-				{
-					_arrow->blitNShade(surface, screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2), screenPosition.y + offset.y - _arrow->getHeight() + getArrowBobForFrame(_animFrame), 0);
-				}
+				_arrow->blitNShade(
+					surface,
+					screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2),
+					screenPosition.y + offset.y - _arrow->getHeight() + getArrowBobForFrame(_animFrame),
+					0);
 			}
 		}
 	}
 	delete _numWaypid;
+
+	// Draw craft deployment preview arrows
+	if (_isAltPressed && _save->isPreview() && this->getCursorType() != CT_NONE)
+	{
+		for (auto& pos : _save->getCraftTiles())
+		{
+			if (pos.z == _camera->getViewLevel())
+			{
+				_camera->convertMapToScreen(pos, &screenPosition);
+				screenPosition += _camera->getMapOffset();
+				screenPosition.y += 2; // based on vanilla soldier standHeight
+				_arrow->blitNShade(
+					surface,
+					screenPosition.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2),
+					screenPosition.y - _arrow->getHeight() + getArrowBobForFrame(_animFrame),
+					0);
+			}
+		}
+	}
 
 	// check if we got big explosions
 	if (_explosionInFOV)

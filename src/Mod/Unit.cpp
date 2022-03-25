@@ -34,7 +34,7 @@ Unit::Unit(const std::string &type) :
 	_moraleLossWhenKilled(100), _moveSound(-1), _intelligence(0), _aggression(0),
 	_spotter(0), _sniper(0), _energyRecovery(30), _specab(SPECAB_NONE), _livingWeapon(false),
 	_psiWeapon("ALIEN_PSI_WEAPON"), _capturable(true), _canSurrender(false), _autoSurrender(false),
-	_isLeeroyJenkins(false), _waitIfOutsideWeaponRange(false), _pickUpWeaponsMoreActively(-1), _vip(false),
+	_isLeeroyJenkins(false), _waitIfOutsideWeaponRange(false), _pickUpWeaponsMoreActively(-1), _vip(false), _cosmetic(false), _ignoredByAI(false),
 	_canPanic(true), _canBeMindControlled(true), _berserkChance(33)
 {
 }
@@ -100,6 +100,8 @@ void Unit::load(const YAML::Node &node, Mod *mod)
 	_psiWeapon = node["psiWeapon"].as<std::string>(_psiWeapon);
 	_capturable = node["capturable"].as<bool>(_capturable);
 	_vip = node["vip"].as<bool>(_vip);
+	_cosmetic = node["cosmetic"].as<bool>(_cosmetic);
+	_ignoredByAI = node["ignoredByAI"].as<bool>(_ignoredByAI);
 	_canPanic = node["canPanic"].as<bool>(_canPanic);
 	_canBeMindControlled = node["canBeMindControlled"].as<bool>(_canBeMindControlled);
 	_berserkChance = node["berserkChance"].as<int>(_berserkChance);
@@ -146,9 +148,9 @@ void Unit::afterLoad(const Mod* mod)
 		if (_capturable && _armor->getCorpseBattlescape().front()->isRecoverable() && _spawnUnit == nullptr)
 		{
 			mod->checkForSoftError(
-				_liveAlien == nullptr && Mod::isEmptyRuleName(_civilianRecoveryType),
+				_liveAlien == nullptr,
 				_type,
-				"This unit can be recovered (in theory), but there is no corresponding item to recover (nor any civilianRecoveryType).",
+				"This unit can be recovered (in theory), but there is no corresponding item to recover.",
 				LOG_INFO
 			);
 		}
@@ -168,9 +170,6 @@ void Unit::afterLoad(const Mod* mod)
 				"This unit has a corresponding item to recover, but still isn't recoverable. Reason: (" + s + "). Consider marking the unit with 'liveAlien: \"\"'.",
 				LOG_INFO
 			);
-
-			// FIXME: this is too restrictive; I will need to review all the cases and probably refactor civilianRecoveryType functionality a bit too
-			//mod->checkForSoftError(!Mod::isEmptyRuleName(_civilianRecoveryType), _type, "There is civilianRecoveryType but unit is not recoverable (" + s + ")");
 		}
 	}
 }

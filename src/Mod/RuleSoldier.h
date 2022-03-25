@@ -32,6 +32,7 @@ class SoldierNamePool;
 class StatString;
 class RuleItem;
 class RuleSkill;
+class Armor;
 
 /**
  * Represents the creation data for an X-COM unit.
@@ -66,7 +67,8 @@ private:
 	std::vector<std::string> _requires;
 	RuleBaseFacilityFunctions _requiresBuyBaseFunc;
 	UnitStats _minStats, _maxStats, _statCaps, _trainingStatCaps, _dogfightExperience;
-	std::string _armor;
+	std::string _armorName;
+	const Armor* _armor;
 	std::string _specWeaponName;
 	const RuleItem* _specWeapon;
 	int _costBuy, _costSalary, _costSalarySquaddie, _costSalarySergeant, _costSalaryCaptain, _costSalaryColonel, _costSalaryCommander;
@@ -141,9 +143,9 @@ public:
 	/// Gets the elevation of the soldier when it's flying.
 	int getFloatHeight() const;
 	/// Gets the default-equipped armor.
-	std::string getArmor() const;
+	Armor* getDefaultArmor() const;
 	/// Gets the armor for avatar display.
-	std::string getArmorForAvatar() const;
+	const std::string& getArmorForAvatar() const;
 	/// Gets the X offset used for avatar.
 	int getAvatarOffsetX() const;
 	/// Gets the Y offset used for avatar.

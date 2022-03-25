@@ -47,6 +47,7 @@
 #include "BriefingState.h"
 #include "Map.h"
 #include "TileEngine.h"
+#include "Pathfinding.h"
 
 namespace OpenXcom
 {
@@ -59,6 +60,12 @@ namespace OpenXcom
  */
 NextTurnState::NextTurnState(SavedBattleGame *battleGame, BattlescapeState *state) : _battleGame(battleGame), _state(state), _timer(0), _currentTurn(0), _showBriefing(false)
 {
+	if (_battleGame->isPreview())
+	{
+		// skip everything, go straight to init()
+		return;
+	}
+
 	_currentTurn = _battleGame->getTurn() < 1 ? 1 : _battleGame->getTurn();
 
 	// Create objects
@@ -288,6 +295,34 @@ NextTurnState::~NextTurnState()
 	delete _timer;
 }
 
+void NextTurnState::init()
+{
+	State::init();
+
+	if (_battleGame->isPreview())
+	{
+		_battleGame->getBattleGame()->cleanupDeleted();
+		_game->popState();
+
+		if (_battleGame->getSide() == FACTION_HOSTILE)
+		{
+			// end preview
+			_state->finishBattle(false, 42);
+		}
+		else
+		{
+			// start preview
+			_state->btnCenterClick(0);
+
+			// Try to reactivate the touch buttons at the start of the player's turn
+			if (_battleGame->getSide() == FACTION_PLAYER)
+			{
+				_state->toggleTouchButtons(false, true);
+			}
+		}
+	}
+}
+
 /**
 * Checks if bug hunt mode should be activated or not.
 */
@@ -358,11 +393,6 @@ bool NextTurnState::applyEnvironmentalConditionToFaction(UnitFaction faction, En
 	// 2. no power range reduction (there is no projectile, range = 0)
 	// 3. no AOE damage from explosions (targets are damaged directly without affecting anyone/anything)
 	// 4. no terrain damage
-	// 5. no self-destruct
-	// 6. no vanilla target morale loss when hurt; vanilla morale loss for fatal wounds still applies though
-	//
-	// 7. no setting target on fire (...could be added if needed)
-	// 8. no fire extinguisher
 
 	bool showMessage = false;
 
@@ -1000,7 +1030,7 @@ BattleUnit* NextTurnState::addReinforcement(const ReinforcementsData &wave, Unit
 					if (unit->getMovementType() != MT_FLY)
 					{
 						Tile* t = _battleGame->getTile(finalPos);
-						if (t == 0 || t->getTUCost(O_FLOOR, unit->getMovementType()) == 255)
+						if (t == 0 || t->getTUCost(O_FLOOR, unit->getMovementType()) == Pathfinding::INVALID_MOVE_COST)
 						{
 							// non-flying units cannot spawn on e.g. a water tile (e.g. in the POLAR terrain)
 							continue;

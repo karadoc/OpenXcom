@@ -141,6 +141,14 @@ void Armor::load(const YAML::Node &node, const ModScript &parsers, Mod *mod)
 
 	_turnBeforeFirstStep = node["turnBeforeFirstStep"].as<bool>(_turnBeforeFirstStep);
 	_turnCost = node["turnCost"].as<int>(_turnCost);
+	if (const YAML::Node &move =  node["moveCost"])
+	{
+		if (const YAML::Node &base =  move["basePercent"])
+		{
+			std::tie(_moveTimeCostPercent, _moveEnergyCostPercent) = base.as<std::pair<int, int>>();
+		}
+		//TODO: add other moddifers for move
+	}
 
 	mod->loadSoundOffset(_type, _moveSound, node["moveSound"], "BATTLE.CAT");
 	mod->loadSoundOffset(_type, _deathSoundMale, node["deathMale"], "BATTLE.CAT");
@@ -315,6 +323,47 @@ void Armor::afterLoad(const Mod* mod)
 	if (!_corpseGeo)
 	{
 		throw Exception("Geo corpse item cannot be empty.");
+	}
+
+	// calcualte final surfaces used by layers
+	if (!_layersDefaultPrefix.empty())
+	{
+		std::stringstream ss;
+		for (auto& version : _layersDefinition)
+		{
+			int layerIndex = 0;
+			for (auto& layerItem : version.second)
+			{
+				if (!layerItem.empty())
+				{
+					ss.str("");
+					auto pre = _layersSpecificPrefix.find(layerIndex);
+					if (pre != _layersSpecificPrefix.end())
+					{
+						ss << pre->second;
+					}
+					else
+					{
+						ss << _layersDefaultPrefix;
+					}
+					ss << "__" << layerIndex << "__" << layerItem;
+
+					//override element in vector
+					layerItem = ss.str();
+
+					//check if surface is valid
+					if (Options::lazyLoadResources == false)
+					{
+						//TODO: remove `const_cast`
+						mod->checkForSoftError(const_cast<Mod*>(mod)->getSurface(layerItem, false) == nullptr, _type, "Missing surface definition for '" + layerItem + "'", LOG_ERROR);
+					}
+				}
+				layerIndex++;
+			}
+			//clean unused layers
+			Collections::removeIf(version.second, [](const std::string& s) { return s.empty(); });
+			version.second.shrink_to_fit();
+		}
 	}
 
 	Collections::sortVector(_units);
@@ -1129,6 +1178,10 @@ void Armor::ScriptRegister(ScriptParserBase* parser)
 	ar.add<&getTypeScript>("getType");
 
 	ar.add<&Armor::getDrawingRoutine>("getDrawingRoutine");
+	ar.add<&Armor::drawBubbles>("getDrawBubbles");
+	ar.add<&Armor::getDeathFrames>("getDeathFrames");
+	ar.add<&Armor::getConstantAnimation>("getConstantAnimation");
+
 	ar.add<&Armor::getVisibilityAtDark>("getVisibilityAtDark");
 	ar.add<&Armor::getVisibilityAtDay>("getVisibilityAtDay");
 	ar.add<&Armor::getPersonalLight>("getPersonalLight");
@@ -1137,6 +1190,10 @@ void Armor::ScriptRegister(ScriptParserBase* parser)
 	UnitStats::addGetStatsScript<&Armor::_stats>(ar, "Stats.");
 
 	ar.add<&getArmorValueScript>("getArmor");
+
+
+	ar.addField<&Armor::_moveTimeCostPercent>("MoveCost.getBaseTimePercent");
+	ar.addField<&Armor::_moveEnergyCostPercent>("MoveCost.getBaseEnergyPercent");
 
 	ar.addScriptValue<BindBase::OnlyGet, &Armor::_scriptValues>();
 	ar.addDebugDisplay<&debugDisplayScript>();

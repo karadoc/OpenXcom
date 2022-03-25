@@ -33,6 +33,7 @@
 #include "../Battlescape/AIModule.h"
 #include "../Battlescape/Inventory.h"
 #include "../Battlescape/TileEngine.h"
+#include "../Battlescape/ExplosionBState.h"
 #include "../Mod/Mod.h"
 #include "../Mod/Armor.h"
 #include "../Mod/Unit.h"
@@ -80,6 +81,7 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
 	_standHeight = _armor->getStandHeight() == -1 ? soldier->getRules()->getStandHeight() : _armor->getStandHeight();
 	_kneelHeight = _armor->getKneelHeight() == -1 ? soldier->getRules()->getKneelHeight() : _armor->getKneelHeight();
 	_floatHeight = _armor->getFloatHeight() == -1 ? soldier->getRules()->getFloatHeight() : _armor->getFloatHeight();
+
 	_intelligence = 2;
 	_aggression = 1;
 	_specab = (SpecialAbility)_armor->getSpecialAbility();
@@ -106,6 +108,9 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
 			_movementType = MT_WALK;
 		}
 	}
+	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
+	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+
 	// armor and soldier bonuses may modify effective stats
 	{
 		soldier->prepareStatsWithBonuses(mod); // refresh all bonuses
@@ -211,7 +216,7 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
  * @param ruleArmor Pointer to the new Armor ruleset.
  * @param depth The depth of the battlefield.
  */
-void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor *ruleArmor, int depth)
+void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor *ruleArmor, int depth, bool inBattlescape)
 {
 	_stats = *soldier->getCurrentStats();
 	_armor = ruleArmor;
@@ -227,6 +232,8 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 	} else if (_movementType == MT_SINK) {
 		if (depth == 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
 	}
+	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
+	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
 
 	// armor and soldier bonuses may modify effective stats
 	{
@@ -247,8 +254,16 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 
 	_tu = _stats.tu;
 	_energy = _stats.stamina;
-	_health = std::max(1, _stats.health - soldier->getHealthMissing());
-	_mana = std::max(0, _stats.mana - soldier->getManaMissing());
+	if (inBattlescape)
+	{
+		_health = std::min(_health, (int)_stats.health);
+		_mana = std::min(_mana, (int)_stats.mana);
+	}
+	else
+	{
+		_health = std::max(1, _stats.health - soldier->getHealthMissing());
+		_mana = std::max(0, _stats.mana - soldier->getManaMissing());
+	}
 	_maxArmor[SIDE_FRONT] = _armor->getFrontArmor();
 	_maxArmor[SIDE_LEFT] = _armor->getLeftSideArmor();
 	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
@@ -499,6 +514,8 @@ BattleUnit::BattleUnit(const Mod *mod, Unit *unit, UnitFaction faction, int id, 
 			_movementType = MT_WALK;
 		}
 	}
+	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
+	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
 
 	_stats += *_armor->getStats();	// armors may modify effective stats
 	_stats = UnitStats::obeyFixedMinimum(_stats); // don't allow to go into minus!
@@ -578,6 +595,65 @@ BattleUnit::BattleUnit(const Mod *mod, Unit *unit, UnitFaction faction, int id, 
 	}
 
 	setRecolor(RNG::seedless(0, 127), RNG::seedless(0, 127), generalRank);
+
+	prepareUnitSounds();
+	prepareUnitResponseSounds(mod);
+}
+
+/**
+ * Updates BattleUnit's armor and related attributes (after a change/transformation of armor).
+ */
+void BattleUnit::updateArmorFromNonSoldier(const Mod* mod, Armor* newArmor, int depth)
+{
+	if (_originalFaction != FACTION_PLAYER)
+	{
+		// armor updates for enemies and civilians is only allowed in the constructor (they don't travel between mission stages)
+		return;
+	}
+	if (newArmor)
+	{
+		_armor = newArmor;
+	}
+	_standHeight = _armor->getStandHeight() == -1 ? _unitRules->getStandHeight() : _armor->getStandHeight();
+	_kneelHeight = _armor->getKneelHeight() == -1 ? _unitRules->getKneelHeight() : _armor->getKneelHeight();
+	_floatHeight = _armor->getFloatHeight() == -1 ? _unitRules->getFloatHeight() : _armor->getFloatHeight();
+	_loftempsSet = _armor->getLoftempsSet();
+
+	_movementType = _armor->getMovementType();
+	if (_movementType == MT_FLOAT) {
+		if (depth > 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
+	} else if (_movementType == MT_SINK) {
+		if (depth == 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
+	}
+	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
+	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+
+	_stats = *_unitRules->getStats();
+	_stats += *_armor->getStats();	// armors may modify effective stats
+	_stats = UnitStats::obeyFixedMinimum(_stats); // don't allow to go into minus!
+
+	_maxViewDistanceAtDark = _armor->getVisibilityAtDark() ? _armor->getVisibilityAtDark() : 9;
+	_maxViewDistanceAtDarkSquared = _maxViewDistanceAtDark * _maxViewDistanceAtDark;
+	_maxViewDistanceAtDay = _armor->getVisibilityAtDay() ? _armor->getVisibilityAtDay() : mod->getMaxViewDistance();
+
+	_maxArmor[SIDE_FRONT] = _armor->getFrontArmor();
+	_maxArmor[SIDE_LEFT] = _armor->getLeftSideArmor();
+	_maxArmor[SIDE_RIGHT] = _armor->getRightSideArmor();
+	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
+	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
+
+	_tu = _stats.tu;
+	_energy = _stats.stamina;
+	_health = std::min(_health, (int)_stats.health);
+	_mana = std::min(_mana, (int)_stats.mana);
+
+	_currentArmor[SIDE_FRONT] = _maxArmor[SIDE_FRONT];
+	_currentArmor[SIDE_LEFT] = _maxArmor[SIDE_LEFT];
+	_currentArmor[SIDE_RIGHT] = _maxArmor[SIDE_RIGHT];
+	_currentArmor[SIDE_REAR] = _maxArmor[SIDE_REAR];
+	_currentArmor[SIDE_UNDER] = _maxArmor[SIDE_UNDER];
+
+	setRecolor(RNG::seedless(0, 127), RNG::seedless(0, 127), 0);
 
 	prepareUnitSounds();
 	prepareUnitResponseSounds(mod);
@@ -682,6 +758,13 @@ void BattleUnit::load(const YAML::Node &node, const Mod *mod, const ScriptGlobal
 	_resummonedFakeCivilian = node["resummonedFakeCivilian"].as<bool>(_resummonedFakeCivilian);
 	_pickUpWeaponsMoreActively = node["pickUpWeaponsMoreActively"].as<bool>(_pickUpWeaponsMoreActively);
 	_disableIndicators = node["disableIndicators"].as<bool>(_disableIndicators);
+	if (const YAML::Node& p = node["moveCost"])
+	{
+		if (const YAML::Node& base = p["basePercent"])
+		{
+			std::tie(_moveTimeCostPercent, _moveEnergyCostPercent) = base.as<std::pair<int, int>>();
+		}
+	}
 	_vip = node["vip"].as<bool>(_vip);
 	_meleeAttackedBy = node["meleeAttackedBy"].as<std::vector<int> >(_meleeAttackedBy);
 
@@ -714,8 +797,8 @@ YAML::Node BattleUnit::save(const ScriptGlobal *shared) const
 	node["morale"] = _morale;
 	node["kneeled"] = _kneeled;
 	node["floating"] = _floating;
-	for (int i=0; i < SIDE_MAX; i++) node["armor"].push_back(_currentArmor[i]);
-	for (int i=0; i < BODYPART_MAX; i++) node["fatalWounds"].push_back(_fatalWounds[i]);
+	node["armor"].SetStyle(YAML::EmitterStyle::Flow); for (int i=0; i < SIDE_MAX; i++) node["armor"].push_back(_currentArmor[i]);
+	node["fatalWounds"].SetStyle(YAML::EmitterStyle::Flow); for (int i=0; i < BODYPART_MAX; i++) node["fatalWounds"].push_back(_fatalWounds[i]);
 	node["fire"] = _fire;
 	node["expBravery"] = _exp.bravery;
 	node["expReactions"] = _exp.reactions;
@@ -767,6 +850,7 @@ YAML::Node BattleUnit::save(const ScriptGlobal *shared) const
 	for (size_t i = 0; i < _recolor.size(); ++i)
 	{
 		YAML::Node p;
+		p.SetStyle(YAML::EmitterStyle::Flow);
 		p.push_back((int)_recolor[i].first);
 		p.push_back((int)_recolor[i].second);
 		node["recolor"].push_back(p);
@@ -779,6 +863,18 @@ YAML::Node BattleUnit::save(const ScriptGlobal *shared) const
 		node["pickUpWeaponsMoreActively"] = _pickUpWeaponsMoreActively;
 	if (_disableIndicators)
 		node["disableIndicators"] = _disableIndicators;
+	{
+		YAML::Node p;
+		if (_moveTimeCostPercent != _armor->getMoveTimeCostPercent() || _moveEnergyCostPercent != _armor->getMoveEnergyCostPercent())
+		{
+			p["basePercent"] = std::pair<int, int>(_moveTimeCostPercent, _moveEnergyCostPercent);
+		}
+		if (!p.IsNull())
+		{
+			p.SetStyle(YAML::EmitterStyle::Flow);
+			node["moveCost"] = p;
+		}
+	}
 	if (_vip)
 		node["vip"] = _vip;
 	if (!_meleeAttackedBy.empty())
@@ -1492,6 +1588,10 @@ static inline void setValueMax(int& value, int diff, int min, int max)
  */
 int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type, SavedBattleGame *save, BattleActionAttack attack, UnitSide sideOverride, UnitBodyPart bodypartOverride)
 {
+	if (save->isPreview())
+	{
+		return 0;
+	}
 	UnitSide side = SIDE_FRONT;
 	UnitBodyPart bodypart = BODYPART_TORSO;
 
@@ -1501,6 +1601,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 		return 0;
 	}
 
+	RNG::RandomState rand = RNG::globalRandomState().subSequence();
 	damage = reduceByResistance(damage, type->ResistType);
 
 	if (!type->IgnoreDirection)
@@ -1567,7 +1668,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 				case SIDE_LEFT: 	bodypart = BODYPART_LEFTLEG; 	break;
 				case SIDE_RIGHT:	bodypart = BODYPART_RIGHTLEG; 	break;
 				default:
-					bodypart = (UnitBodyPart) RNG::generate(BODYPART_RIGHTLEG,BODYPART_LEFTLEG);
+					bodypart = (UnitBodyPart) rand.generate(BODYPART_RIGHTLEG,BODYPART_LEFTLEG);
 				}
 			}
 		}
@@ -1575,6 +1676,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 	const int orgDamage = damage;
 	const int overKillMinimum = type->IgnoreOverKill ? 0 : -UnitStats::OverkillMultipler * _stats.health;
+
 
 	{
 		ModScript::HitUnit::Output args { damage, bodypart, side, };
@@ -1605,6 +1707,23 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 		bodypart = bodypartOverride;
 	}
 
+
+	const RuleItem *specialDamageTransform = attack.damage_item ? attack.damage_item->getRules() : nullptr;
+	int specialDamageTransformChance = 0;
+
+	if (specialDamageTransform
+		&& !specialDamageTransform->getZombieUnit(this).empty()
+		&& getArmor()->getZombiImmune() == false)
+	{
+		specialDamageTransformChance = getOriginalFaction() != FACTION_HOSTILE ? specialDamageTransform->getSpecialChance() : 0;
+	}
+	else
+	{
+		specialDamageTransform = nullptr;
+	}
+
+
+	// update state of unit stats
 	{
 		constexpr int toHealth = 0;
 		constexpr int toArmor = 1;
@@ -1618,16 +1737,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 		ModScript::DamageUnit::Output args { };
 
-		const RuleItem *specialDamegeTransform = attack.damage_item ? attack.damage_item->getRules() : nullptr;
-		if (specialDamegeTransform && !specialDamegeTransform->getZombieUnit(this).empty())
-		{
-			std::get<toTransform>(args.data) = getOriginalFaction() != FACTION_HOSTILE ? specialDamegeTransform->getSpecialChance() : 0;
-		}
-		else
-		{
-			specialDamegeTransform = nullptr;
-		}
-
+		std::get<toTransform>(args.data) += specialDamageTransformChance;
 		std::get<toArmor>(args.data) += type->getArmorPreFinalDamage(damage);
 
 		if (type->ArmorEffectiveness > 0.0f)
@@ -1690,20 +1800,109 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 		setValueMax(_currentArmor[side], - std::get<toArmor>(args.data), 0, _maxArmor[side]);
 
 
+		setFatalShotInfo(side, bodypart);
+
+
+		damage = std::get<toHealth>(args.data);
+		specialDamageTransformChance = std::get<toTransform>(args.data);
+	}
+
+	// special effects
+	if (save->getBattleState())
+	{
+		constexpr int arg_specialDamageTransform = 0;
+		constexpr int arg_specialDamageTransformChance = 1;
+		constexpr int arg_selfDestruct = 2;
+		constexpr int arg_selfDestructChance = 3;
+		constexpr int arg_moraleLoss = 4;
+		constexpr int arg_fire = 5;
+
+		ModScript::DamageSpecialUnit::Output args { };
+
+		// chance to tranform
+		std::get<arg_specialDamageTransform>(args.data) = specialDamageTransform != nullptr;
+		std::get<arg_specialDamageTransformChance>(args.data) = specialDamageTransformChance;
+
+		// morale loss based on final damage to health
+		if (type->IgnoreNormalMoraleLose == false)
+		{
+			const int bravery = reduceByBravery(10);
+			const int modifier = getFaction() == FACTION_PLAYER ? save->getFactionMoraleModifier(true) : 100;
+
+			std::get<arg_moraleLoss>(args.data) = 100 * (damage * bravery / 10) / modifier;
+		}
+
+		// self destruction
+		std::get<arg_selfDestruct>(args.data) = (getSpecialAbility() == SPECAB_EXPLODEONDEATH || getSpecialAbility() == SPECAB_BURN_AND_EXPLODE);
+		if (std::get<arg_selfDestruct>(args.data) && !isOut() && isOutThresholdExceed())
+		{
+			if (type->IgnoreSelfDestruct == false)
+			{
+				std::get<arg_selfDestructChance>(args.data) = 100;
+			}
+		}
+
+		// normal fire
+		std::get<arg_fire>(args.data) = getFire();
+		if (damage >= type->FireThreshold)
+		{
+			float resistance = getArmor()->getDamageModifier(type->ResistType);
+			if (resistance > 0.0)
+			{
+				int burnTime = rand.generate(0, int(5.0f * resistance));
+				if (std::get<arg_fire>(args.data) < burnTime)
+				{
+					std::get<arg_fire>(args.data) = burnTime; // catch fire and burn
+				}
+			}
+		}
+		// fire extinguisher
+		if (std::get<arg_fire>(args.data) > 0)
+		{
+			if (attack.weapon_item && attack.weapon_item->getRules()->isFireExtinguisher())
+			{
+				// firearm, melee weapon, or even a grenade...
+				std::get<arg_fire>(args.data) = 0;
+			}
+			else if (attack.damage_item && attack.damage_item->getRules()->isFireExtinguisher())
+			{
+				// bullet/ammo
+				std::get<arg_fire>(args.data) = 0;
+			}
+		}
+
+
+		// script call
+
+		ModScript::DamageSpecialUnit::Worker work { this, attack.damage_item, attack.weapon_item, attack.attacker, save, attack.skill_rules, damage, orgDamage, bodypart, side, type->ResistType, attack.type, };
+
+		work.execute(this->getArmor()->getScript<ModScript::DamageSpecialUnit>(), args);
+
+
+		// update state
+		moraleChange(-std::get<arg_moraleLoss>(args.data));
+		setFire(std::get<arg_fire>(args.data));
+
 		// check if this unit turns others into zombies
-		if (specialDamegeTransform && RNG::percent(std::get<toTransform>(args.data))
-			&& getArmor()->getZombiImmune() == false
+		if (rand.percent(std::get<arg_specialDamageTransformChance>(args.data)) && specialDamageTransform
 			&& !getSpawnUnit())
 		{
 			// converts the victim to a zombie on death
 			setRespawn(true);
 			setSpawnUnitFaction(FACTION_HOSTILE);
-			setSpawnUnit(save->getMod()->getUnit(specialDamegeTransform->getZombieUnit(this)));
+			setSpawnUnit(save->getMod()->getUnit(specialDamageTransform->getZombieUnit(this)));
 		}
 
-		setFatalShotInfo(side, bodypart);
-		return std::get<toHealth>(args.data);
+		if (rand.percent(std::get<arg_selfDestructChance>(args.data))
+			&& !hasAlreadyExploded())
+		{
+			setAlreadyExploded(true);
+			Position p = getPosition().toVoxel();
+			save->getBattleGame()->statePushNext(new ExplosionBState(save->getBattleGame(), p, BattleActionAttack{ BA_SELF_DESTRUCT, this, }, 0));
+		}
 	}
+
+	return damage;
 }
 
 /**
@@ -2040,6 +2239,15 @@ void BattleUnit::spendCost(const RuleItemUseCost& cost)
 void BattleUnit::clearTimeUnits()
 {
 	_tu = 0;
+}
+
+/**
+ * Reset time units and energy.
+ */
+void BattleUnit::resetTimeUnitsAndEnergy()
+{
+	_tu = _stats.tu;
+	_energy = _stats.stamina;
 }
 
 /**
@@ -4338,6 +4546,15 @@ std::vector<BattleUnit *> &BattleUnit::getUnitsSpottedThisTurn()
 }
 
 /**
+ * Get the list of units spotted this turn.
+ * @return List of units.
+ */
+const std::vector<BattleUnit *> &BattleUnit::getUnitsSpottedThisTurn() const
+{
+	return _unitsSpottedThisTurn;
+}
+
+/**
  * Change the numeric version of the unit's rank.
  * @param rank unit rank, 0 = lowest
  */
@@ -5076,6 +5293,22 @@ void BattleUnit::setSummonedPlayerUnit(bool summonedPlayerUnit)
 bool BattleUnit::isSummonedPlayerUnit() const
 {
 	return _summonedPlayerUnit;
+}
+
+/**
+ * Should this unit (player, alien or civilian) be ignored for various things related to soldier diaries and commendations?
+ */
+bool BattleUnit::isCosmetic() const
+{
+	return _unitRules && _unitRules->isCosmetic();
+}
+
+/**
+ * Should this AI unit (alien or civilian) be ignored by other AI units?
+ */
+bool BattleUnit::isIgnoredByAI() const
+{
+	return _unitRules && _unitRules->isIgnoredByAI();
 }
 
 /**
@@ -5888,6 +6121,9 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 
 	UnitStats::addGetStatsScript<&BattleUnit::_exp>(bu, "Exp.", true);
 
+	bu.addField<&BattleUnit::_moveTimeCostPercent>("MoveCost.getBaseTimePercent", "MoveCost.setBaseTimePercent");
+	bu.addField<&BattleUnit::_moveEnergyCostPercent>("MoveCost.getBaseEnergyPercent", "MoveCost.setBaseEnergyPercent");
+
 	bu.add<&getVisibleUnitsCountScript>("getVisibleUnitsCount");
 	bu.add<&getFactionScript>("getFaction", "get current faction of unit");
 	bu.add<&getOriginalFactionScript>("getOriginalFaction", "get original faction of unit");
@@ -6010,7 +6246,7 @@ void commonImpl(BindBase& b, Mod* mod)
 
 void battleActionImpl(BindBase& b)
 {
-	b.addCustomConst("battle_action_aimshoot", BA_AIMEDSHOT);
+	b.addCustomConst("battle_action_aimshoot", BA_AIMEDSHOT); //TODO: fix name, it require some new logic in script to allow old typo for backward compatiblity
 	b.addCustomConst("battle_action_autoshoot", BA_AUTOSHOT);
 	b.addCustomConst("battle_action_snapshot", BA_SNAPSHOT);
 	b.addCustomConst("battle_action_walk", BA_WALK);
@@ -6159,8 +6395,29 @@ ModScript::DamageUnitParser::DamageUnitParser(ScriptGlobal* shared, const std::s
 	"to_wound",
 	"to_transform",
 	"to_mana",
+
 	"unit", "damaging_item", "weapon_item", "attacker",
 	"battle_game", "skill", "currPower", "orig_power", "part", "side", "damaging_type", "battle_action", }
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+
+	battleActionImpl(b);
+
+	setEmptyReturn();
+}
+
+ModScript::DamageSpecialUnitParser::DamageSpecialUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"transform",
+	"transform_chance",
+	"self_destruct",
+	"self_destruct_chance",
+	"morale_loss",
+	"fire",
+
+	"unit", "damaging_item", "weapon_item", "attacker",
+	"battle_game", "skill", "health_damage", "orig_power", "part", "side", "damaging_type", "battle_action", }
 {
 	BindBase b { this };
 

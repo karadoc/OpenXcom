@@ -184,12 +184,30 @@ BriefingState::BriefingState(Craft *craft, Base *base, bool infoOnly, BriefingDa
 
 	_txtTitle->setText(tr(title));
 
+	bool isPreview = battleSave->isPreview();
+	if (isPreview)
+	{
+		if (battleSave->getCraftForPreview())
+		{
+			if (battleSave->getCraftForPreview()->getId() == RuleCraft::DUMMY_CRAFT_ID)
+			{
+				// we're using the same alienDeployment for the real craft preview and for the dummy craft preview,
+				// but we want to have different briefing texts
+				desc = desc + "_DUMMY";
+			}
+		}
+		else
+		{
+			// base preview
+			desc = desc + "_PREVIEW";
+		}
+	}
 	_txtBriefing->setWordWrap(true);
 	_txtBriefing->setText(tr(desc));
 
 	if (_infoOnly) return;
 
-	if (base && mission == "STR_BASE_DEFENSE")
+	if (!isPreview && base && mission == "STR_BASE_DEFENSE")
 	{
 		// And make sure the base is unmarked.
 		base->setRetaliationTarget(false);
@@ -244,11 +262,18 @@ void BriefingState::btnOkClick(Action *)
 	BattlescapeState *bs = new BattlescapeState;
 	bs->getBattleGame()->spawnFromPrimedItems();
 	auto tally = bs->getBattleGame()->tallyUnits();
-	if (tally.liveAliens > 0)
+	bool isPreview = _game->getSavedGame()->getSavedBattle()->isPreview();
+	if (tally.liveAliens > 0 || isPreview)
 	{
 		_game->pushState(bs);
 		_game->getSavedGame()->getSavedBattle()->setBattleState(bs);
 		_game->pushState(new NextTurnState(_game->getSavedGame()->getSavedBattle(), bs));
+		if (isPreview)
+		{
+			// skip InventoryState
+			_game->getSavedGame()->getSavedBattle()->startFirstTurn();
+			return;
+		}
 		_game->pushState(new InventoryState(false, bs, 0));
 	}
 	else

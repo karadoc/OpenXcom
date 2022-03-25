@@ -98,6 +98,8 @@ private:
 	BattleUnit *addXCOMVehicle(Vehicle *v);
 	/// Adds a soldier to the game.
 	BattleUnit *addXCOMUnit(BattleUnit *unit);
+	/// Tries to set a custom craft inventory tile.
+	void setCustomCraftInventoryTile();
 	/// Adds an alien to the game.
 	BattleUnit *addAlien(Unit *rules, int alienRank, bool outside);
 	/// Adds a civilian to the game.
@@ -188,6 +190,10 @@ public:
 	void setTerrain(RuleTerrain *terrain);
 	/// Runs the generator.
 	void run();
+	/// Gets craft position.
+	SDL_Rect getCraftPos() const { return _craftPos; }
+	/// Gets craft elevation.
+	int getCraftZ() const { return _craftZ; }
 	/// Sets up the next stage (for Cydonia/TFTD missions).
 	void nextStage();
 	/// Generates an inventory battlescape.

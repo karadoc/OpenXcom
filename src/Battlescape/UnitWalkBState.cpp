@@ -129,6 +129,10 @@ void UnitWalkBState::think()
 			bool onScreenBoundary = (_unit->getVisible() && _parent->getMap()->getCamera()->isOnScreen(_unit->getPosition(), true, size, true));
 			_unit->keepWalking(_parent->getSave(), onScreenBoundary); // advances the phase
 			playMovementSound();
+			if (_parent->getSave()->isPreview())
+			{
+				_unit->resetTimeUnitsAndEnergy();
+			}
 		}
 		else if (!_falling)
 		{
@@ -268,32 +272,23 @@ void UnitWalkBState::think()
 				_unit->setFaceDirection(_unit->getDirection());
 			}
 
-			Position destination;
-			int tu = _pf->getTUCost(_unit->getPosition(), dir, &destination, _unit, 0, false); // gets tu cost, but also gets the destination position.
-			if (_unit->getFaction() != FACTION_PLAYER &&
-				_unit->getSpecialAbility() < SPECAB_BURNFLOOR &&
-				_parent->getSave()->getTile(destination) &&
-				_parent->getSave()->getTile(destination)->getFire() > 0)
+			_pf->setUnit(_unit); //TODO: remove as was done by `getTUCost`
+			auto r = _pf->getTUCost(_unit->getPosition(), dir, _unit, 0, _action.getMoveType());
+
+			auto tu = r.cost.time;
+			int energy = r.cost.energy;
+			auto destination = r.pos;
+
+			if (tu == Pathfinding::INVALID_MOVE_COST)
 			{
-				tu -= 32; // we artificially inflate the TU cost by 32 points in getTUCost under these conditions, so we have to deflate it here.
+				_pf->abortPath();
+				_parent->popState();
+				return;
 			}
-			if (_falling)
-			{
-				tu = 0;
-			}
-			int energy = tu / 2;
-			if (dir >= Pathfinding::DIR_UP)
-			{
-				energy = 0;
-			}
-			else if (_action.run)
-			{
-				tu *= 0.75;
-				energy *= 1.5;
-			}
+
 			if (tu > _unit->getTimeUnits())
 			{
-				if (_parent->getPanicHandled() && tu < 255)
+				if (_parent->getPanicHandled())
 				{
 					_action.result = "STR_NOT_ENOUGH_TIME_UNITS";
 				}

@@ -50,6 +50,12 @@ en-US:
   STR_NORMAL: "Normal"
   STR_BOLD: "Bold (+50%)"
   STR_VERY_BOLD: "Very bold (+100%)"
+#CraftSoldiersState.cpp
+  STR_CRAFT_DEPLOYMENT_PREVIEW: "Preview"
+  STR_CRAFT_DEPLOYMENT_PREVIEW_SAVED: "Preview *"
+  STR_CRAFT_DEPLOYMENT_PREVIEW_BRIEFING: "This feature allows you to preview and customize the deployment of your units at the beginning of a battle. You have unlimited movement. Press and hold 'Alt' to highlight valid unit positions. Click on the 'Abort Mission' icon to save a custom deployment. Click on the 'End Turn' icon to exit the preview.{NEWLINE}Note that adding any new soldiers or vehicles to the craft automatically invalidates the saved custom deployment. Presence of a custom deployment is indicated by an asterisk on the 'Preview' button."
+  STR_CRAFT_DEPLOYMENT_PREVIEW_BRIEFING_DUMMY: "This feature allows you to preview and modify the deployment table of this craft type. Any changes will apply to all your current craft and also to any craft you buy or manufacture later in the campaign. You start with the maximum number of soldiers. Each soldier represents one row in the deployment table. Soldier names correspond to row numbers. To provide space for a 2x2 unit, place 4 soldiers in a 2x2 square. If space is not provided, the 2x2 unit will be missing in a real battle."
+  STR_BASE_DEFENSE_BRIEFING_PREVIEW: "This feature allows you to preview your base.{NEWLINE}Have fun!{NEWLINE}{NEWLINE}Click on the 'End Turn' icon to exit the preview."
 #DismantleFacilityState.cpp
   STR_REFUND_VALUE: "Sales value> {ALT}{0}"
 #GlobalManufactureState.cpp
@@ -139,6 +145,7 @@ en-US:
   STR_M_FLAG: " [m]"
   STR_F_FLAG: " [f]"
   STR_I_FLAG: " [i]"
+  STR_C_FLAG: " [c]"
 #TechTreeViewerState.cpp
   STR_THIS_FEATURE_IS_DISABLED_1: "This feature is disabled."
   STR_THIS_FEATURE_IS_DISABLED_2: "This feature is disabled."
@@ -195,6 +202,8 @@ en-US:
   STR_PRISONERS: "Prisoners"
   STR_ARMORS: "Armors"
 #=================== Battlescape ===================
+#AbortMissionState.cpp
+  STR_CRAFT_DEPLOYMENT_QUESTION: "Save Craft Deployment?"
 #ActionMenuState.cpp
   STR_MUST_USE_BOTH_HANDS: "Both hands are required for this!"
 #BattlescapeGame.cpp

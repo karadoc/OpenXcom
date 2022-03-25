@@ -327,6 +327,7 @@ void RuleItem::loadConfAction(RuleItemAction& a, const YAML::Node& node, const s
 		a.spendPerShot = conf["spendPerShot"].as<int>(a.spendPerShot);
 		a.followProjectiles = conf["followProjectiles"].as<bool>(a.followProjectiles);
 		a.name = conf["name"].as<std::string>(a.name);
+		a.shortName = conf["shortName"].as<std::string>(a.shortName);
 		loadAmmoSlotChecked(a.ammoSlot, conf["ammoSlot"], _name);
 		a.arcing = conf["arcing"].as<bool>(a.arcing);
 	}
@@ -729,7 +730,8 @@ void RuleItem::afterLoad(const Mod* mod)
 	mod->verifySpriteOffset(_type, _floorSprite, "FLOOROB.PCK");
 	mod->verifySpriteOffset(_type, _handSprite, "HANDOB.PCK");
 	// Projectiles: this will check only if first one is correct
-	mod->verifySpriteOffset(_type, _bulletSprite, "Projectiles");
+	if (!isWaterOnly()) mod->verifySpriteOffset(_type, _bulletSprite, "Projectiles");
+	if (isWaterOnly()) mod->verifySpriteOffset(_type, _bulletSprite, "UnderwaterProjectiles");
 	mod->verifySpriteOffset(_type, _specialIconSprite, "SPICONS.DAT");
 
 	mod->verifySoundOffset(_type, _reloadSound, "BATTLE.CAT");
@@ -743,8 +745,8 @@ void RuleItem::afterLoad(const Mod* mod)
 	mod->verifySoundOffset(_type, _psiMissSound, "BATTLE.CAT");
 	mod->verifySoundOffset(_type, _explosionHitSound, "BATTLE.CAT");
 
-	mod->verifySpriteOffset(_type, _hitAnimation, "SMOKE.PCK");
-	mod->verifySpriteOffset(_type, _hitMissAnimation, "SMOKE.PCK");
+	mod->verifySpriteOffset(_type, _hitAnimation, _damageType.FixRadius ? "X1.PCK" : "SMOKE.PCK");
+	mod->verifySpriteOffset(_type, _hitMissAnimation, _damageType.FixRadius ? "X1.PCK" : "SMOKE.PCK");
 	mod->verifySpriteOffset(_type, _meleeAnimation, "HIT.PCK");
 	mod->verifySpriteOffset(_type, _meleeMissAnimation, "HIT.PCK");
 	mod->verifySpriteOffset(_type, _psiAnimation, "HIT.PCK");
