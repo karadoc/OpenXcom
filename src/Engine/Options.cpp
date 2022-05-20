@@ -225,7 +225,6 @@ void create()
 	_info.push_back(OptionInfo("oxceRememberDisabledCraftWeapons", &oxceRememberDisabledCraftWeapons, false, "STR_REMEMBER_DISABLED_CRAFT_WEAPONS", "STR_OXCE"));
 	_info.push_back(OptionInfo("showBarOverflowLayers", &showBarOverflowLayers, true, "STR_SHOW_BAR_OVERFLOW", "STR_OXCE")); // Karadoc's overflow bars
 	_info.push_back(OptionInfo("oxceEnableOffCentreShooting", &oxceEnableOffCentreShooting, false, "STR_OFF_CENTRE_SHOOTING", "STR_OXCE"));
-	_info.push_back(OptionInfo("oxceShowEnergyInPathReview", &oxceShowEnergyInPathReview, false, "STR_SHOW_ENERGY_PATH_REVIEW", "STR_OXCE"));
 
 	// OXCE hidden
 #ifdef __MOBILE__
@@ -844,11 +843,18 @@ void updateMods()
 	bool forceQuit = false;
 	for (auto modInf : activeModsList)
 	{
-		if (!modInf->isEnforcedVersionOk())
+		if (!modInf->isEngineOk())
 		{
 			forceQuit = true;
 			Log(LOG_ERROR) << "- " << modInf->getId() << " v" << modInf->getVersion();
-			Log(LOG_ERROR) << "Mod '" << modInf->getName() << "' enforces at least OXCE v" << modInf->getEnforcedExtendedVersion();
+			if (modInf->getRequiredExtendedEngine() != OPENXCOM_VERSION_ENGINE)
+			{
+				Log(LOG_ERROR) << "Mod '" << modInf->getName() << "' require OXC " << modInf->getRequiredExtendedEngine() << " engine to run";
+			}
+			else
+			{
+				Log(LOG_ERROR) << "Mod '" << modInf->getName() << "' enforces at least OXC " << OPENXCOM_VERSION_ENGINE << " v" << modInf->getRequiredExtendedVersion();
+			}
 		}
 	}
 	if (forceQuit)
@@ -864,11 +870,6 @@ void updateMods()
 	for (auto modInf : activeMods)
 	{
 		Log(LOG_INFO) << "- " << modInf->getId() << " v" << modInf->getVersion();
-		if (!modInf->isVersionOk())
-		{
-			// report active mods that don't meet the recommended OXCE requirements
-			Log(LOG_ERROR) << "Mod '" << modInf->getName() << "' requires at least OXCE v" << modInf->getRequiredExtendedVersion();
-		}
 	}
 }
 

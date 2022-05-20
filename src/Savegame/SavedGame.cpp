@@ -805,6 +805,7 @@ void SavedGame::save(const std::string &filename, Mod *mod) const
 	YAML::Node brief;
 	brief["name"] = _name;
 	brief["version"] = OPENXCOM_VERSION_SHORT;
+	brief["engine"] = OPENXCOM_VERSION_ENGINE;
 	std::string git_sha = OPENXCOM_VERSION_GIT;
 	if (!git_sha.empty() && git_sha[0] ==  '.')
 	{
@@ -3371,6 +3372,15 @@ void SavedGame::handlePrimaryResearchSideEffects(const std::vector<const RuleRes
 		// 3l. handle spawned events
 		RuleEvent* spawnedEventRule = mod->getEvent(myResearchRule->getSpawnedEvent());
 		spawnEvent(spawnedEventRule);
+		// 3m. handle counters
+		for (auto& inc : myResearchRule->getIncreaseCounter())
+		{
+			increaseCustomCounter(inc);
+		}
+		for (auto& dec : myResearchRule->getDecreaseCounter())
+		{
+			decreaseCustomCounter(dec);
+		}
 	}
 }
 

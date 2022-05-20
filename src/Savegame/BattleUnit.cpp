@@ -85,31 +85,10 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth) :
 	_intelligence = 2;
 	_aggression = 1;
 	_specab = (SpecialAbility)_armor->getSpecialAbility();
-	_movementType = _armor->getMovementType();
-	if (_movementType == MT_FLOAT)
-	{
-		if (depth > 0)
-		{
-			_movementType = MT_FLY;
-		}
-		else
-		{
-			_movementType = MT_WALK;
-		}
-	}
-	else if (_movementType == MT_SINK)
-	{
-		if (depth == 0)
-		{
-			_movementType = MT_FLY;
-		}
-		else
-		{
-			_movementType = MT_WALK;
-		}
-	}
-	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
-	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+	_originalMovementType = _movementType = _armor->getMovementTypeByDepth(depth);
+	_moveCostBase = _armor->getMoveCostBase();
+	_moveCostBaseFly = _armor->getMoveCostBaseFly();
+	_moveCostBaseNormal = _armor->getMoveCostBaseNormal();
 
 	// armor and soldier bonuses may modify effective stats
 	{
@@ -226,14 +205,10 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 	_floatHeight = _armor->getFloatHeight() == -1 ? soldier->getRules()->getFloatHeight() : _armor->getFloatHeight();
 
 	_specab = (SpecialAbility)_armor->getSpecialAbility();
-	_movementType = _armor->getMovementType();
-	if (_movementType == MT_FLOAT) {
-		if (depth > 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
-	} else if (_movementType == MT_SINK) {
-		if (depth == 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
-	}
-	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
-	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+	_originalMovementType = _movementType = _armor->getMovementTypeByDepth(depth);
+	_moveCostBase = _armor->getMoveCostBase();
+	_moveCostBaseFly = _armor->getMoveCostBaseFly();
+	_moveCostBaseNormal = _armor->getMoveCostBaseNormal();
 
 	// armor and soldier bonuses may modify effective stats
 	{
@@ -491,31 +466,10 @@ BattleUnit::BattleUnit(const Mod *mod, Unit *unit, UnitFaction faction, int id, 
 		_vip = true;
 	}
 
-	_movementType = _armor->getMovementType();
-	if (_movementType == MT_FLOAT)
-	{
-		if (depth > 0)
-		{
-			_movementType = MT_FLY;
-		}
-		else
-		{
-			_movementType = MT_WALK;
-		}
-	}
-	else if (_movementType == MT_SINK)
-	{
-		if (depth == 0)
-		{
-			_movementType = MT_FLY;
-		}
-		else
-		{
-			_movementType = MT_WALK;
-		}
-	}
-	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
-	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+	_originalMovementType = _movementType = _armor->getMovementTypeByDepth(depth);
+	_moveCostBase = _armor->getMoveCostBase();
+	_moveCostBaseFly = _armor->getMoveCostBaseFly();
+	_moveCostBaseNormal = _armor->getMoveCostBaseNormal();
 
 	_stats += *_armor->getStats();	// armors may modify effective stats
 	_stats = UnitStats::obeyFixedMinimum(_stats); // don't allow to go into minus!
@@ -619,14 +573,10 @@ void BattleUnit::updateArmorFromNonSoldier(const Mod* mod, Armor* newArmor, int 
 	_floatHeight = _armor->getFloatHeight() == -1 ? _unitRules->getFloatHeight() : _armor->getFloatHeight();
 	_loftempsSet = _armor->getLoftempsSet();
 
-	_movementType = _armor->getMovementType();
-	if (_movementType == MT_FLOAT) {
-		if (depth > 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
-	} else if (_movementType == MT_SINK) {
-		if (depth == 0) { _movementType = MT_FLY; } else { _movementType = MT_WALK; }
-	}
-	_moveTimeCostPercent = _armor->getMoveTimeCostPercent();
-	_moveEnergyCostPercent = _armor->getMoveEnergyCostPercent();
+	_originalMovementType = _movementType = _armor->getMovementTypeByDepth(depth);
+	_moveCostBase = _armor->getMoveCostBase();
+	_moveCostBaseFly = _armor->getMoveCostBaseFly();
+	_moveCostBaseNormal = _armor->getMoveCostBaseNormal();
 
 	_stats = *_unitRules->getStats();
 	_stats += *_armor->getStats();	// armors may modify effective stats
@@ -758,12 +708,12 @@ void BattleUnit::load(const YAML::Node &node, const Mod *mod, const ScriptGlobal
 	_resummonedFakeCivilian = node["resummonedFakeCivilian"].as<bool>(_resummonedFakeCivilian);
 	_pickUpWeaponsMoreActively = node["pickUpWeaponsMoreActively"].as<bool>(_pickUpWeaponsMoreActively);
 	_disableIndicators = node["disableIndicators"].as<bool>(_disableIndicators);
+	_movementType = (MovementType)node["movementType"].as<int>(_movementType);
 	if (const YAML::Node& p = node["moveCost"])
 	{
-		if (const YAML::Node& base = p["basePercent"])
-		{
-			std::tie(_moveTimeCostPercent, _moveEnergyCostPercent) = base.as<std::pair<int, int>>();
-		}
+		_moveCostBase.load(p["basePercent"]);
+		_moveCostBaseFly.load(p["baseFlyPercent"]);
+		_moveCostBaseNormal.load(p["baseNormalPercent"]);
 	}
 	_vip = node["vip"].as<bool>(_vip);
 	_meleeAttackedBy = node["meleeAttackedBy"].as<std::vector<int> >(_meleeAttackedBy);
@@ -863,11 +813,23 @@ YAML::Node BattleUnit::save(const ScriptGlobal *shared) const
 		node["pickUpWeaponsMoreActively"] = _pickUpWeaponsMoreActively;
 	if (_disableIndicators)
 		node["disableIndicators"] = _disableIndicators;
+
+	if (_originalMovementType != _movementType)
+		node["movementType"] = (int)_movementType;
+
 	{
 		YAML::Node p;
-		if (_moveTimeCostPercent != _armor->getMoveTimeCostPercent() || _moveEnergyCostPercent != _armor->getMoveEnergyCostPercent())
+		if (_moveCostBase != _armor->getMoveCostBase())
 		{
-			p["basePercent"] = std::pair<int, int>(_moveTimeCostPercent, _moveEnergyCostPercent);
+			_moveCostBase.save(p, "basePercent");
+		}
+		if (_moveCostBaseFly != _armor->getMoveCostBaseFly())
+		{
+			_moveCostBaseFly.save(p, "baseFlyPercent");
+		}
+		if (_moveCostBaseNormal != _armor->getMoveCostBaseNormal())
+		{
+			_moveCostBaseNormal.save(p, "baseNormalPercent");
 		}
 		if (!p.IsNull())
 		{
@@ -1596,7 +1558,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 	UnitBodyPart bodypart = BODYPART_TORSO;
 
 	_hitByAnything = true;
-	if (damage <= 0 || _health <= 0)
+	if (_health <= 0)
 	{
 		return 0;
 	}
@@ -1724,6 +1686,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 
 	// update state of unit stats
+	if (damage > 0)
 	{
 		constexpr int toHealth = 0;
 		constexpr int toArmor = 1;
@@ -1785,7 +1748,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 		setValueMax(_tu, - std::get<toTime>(args.data), 0, _stats.tu);
 
-		setValueMax(_health, - std::get<toHealth>(args.data), overKillMinimum, _stats.health);
+		setValueMax(_health, - std::get<toHealth>(args.data), std::min(overKillMinimum, _health), _stats.health); // `std::min` required because of script that could set `_health = -100`, if we do not have "overkill" `-100` become min value allowed by this line, if "overkill" then this line can go lower than this.
 
 		setValueMax(_mana, - std::get<toMana>(args.data), 0, _stats.mana);
 
@@ -1967,7 +1930,7 @@ void BattleUnit::knockOut(BattlescapeGame *battle)
 	}
 	else
 	{
-		_stunlevel = _health;
+		_stunlevel = std::max(_health, 1);
 	}
 }
 
@@ -3534,7 +3497,7 @@ bool BattleUnit::reloadAmmo()
 			int slot = ruleWeapon->getSlotForAmmo(bi->getRules());
 			if (slot != -1 && !weapon->getAmmoForSlot(slot))
 			{
-				int tuTemp = (Mod::EXTENDED_ITEM_RELOAD_COST && bi->getSlot()->getType() != INV_HAND) ? bi->getSlot()->getCost(weapon->getSlot()) : 0;
+				int tuTemp = (Mod::EXTENDED_ITEM_RELOAD_COST && bi->getSlot()->getType() != INV_HAND) ? bi->getMoveToCost(weapon->getSlot()) : 0;
 				tuTemp += ruleWeapon->getTULoad(slot);
 				if (tuTemp < tuCost)
 				{
@@ -4004,7 +3967,7 @@ void BattleUnit::heal(UnitBodyPart part, int woundAmount, int healthAmount)
 	}
 
 	setValueMax(_fatalWounds[part], -woundAmount, 0, 100);
-	setValueMax(_health, healthAmount, 1, getBaseStats()->health); //Hippocratic Oath: First do no harm
+	setValueMax(_health, healthAmount, std::min(_health, 1), getBaseStats()->health); //Hippocratic Oath: First do no harm
 
 }
 
@@ -4875,14 +4838,6 @@ void BattleUnit::calculateEnviDamage(Mod *mod, SavedBattleGame *save)
 }
 
 /**
- * use this instead of checking the rules of the armor.
- */
-MovementType BattleUnit::getMovementType() const
-{
-	return _movementType;
-}
-
-/**
  * Gets the turn cost.
  */
 int BattleUnit::getTurnCost() const
@@ -4912,7 +4867,7 @@ void BattleUnit::goToTimeOut()
 	// so that they don't count as survivors when all player units in the later stage are killed.
 	if (_originalFaction == FACTION_PLAYER)
 	{
-		_stunlevel = _health;
+		_stunlevel = std::max(_health, 1);
 	}
 }
 
@@ -5398,6 +5353,37 @@ void getFatalWoundMaxScript(const BattleUnit *bu, int &ret, int part)
 }
 
 
+
+void getMovmentTypeScript(const BattleUnit *bu, int &ret)
+{
+	if (bu)
+	{
+		ret = (int)bu->getMovementType();
+		return;
+	}
+	ret = 0;
+}
+void getOriginalMovmentTypeScript(const BattleUnit *bu, int &ret)
+{
+	if (bu)
+	{
+		ret = (int)bu->getOriginalMovementType();
+		return;
+	}
+	ret = 0;
+}
+
+void setMovmentTypeScript(BattleUnit *bu, int type)
+{
+	if (bu && 0 <= type && type <= MT_SLIDE)
+	{
+		bu->setMovementType((MovementType)type);
+		return;
+	}
+}
+
+
+
 void getGenderScript(const BattleUnit *bu, int &ret)
 {
 	if (bu)
@@ -5693,22 +5679,22 @@ struct burnShadeScript
 	}
 };
 
-template<int BattleUnit::*StatCurr, UnitStats::Ptr StatMax>
+template<int BattleUnit::*StatCurr, UnitStats::Ptr StatMax, int NegativeLimitMult = 0>
 void setBaseStatScript(BattleUnit *bu, int val)
 {
 	if (bu)
 	{
-		(bu->*StatCurr) = Clamp(val, 0, +(bu->getBaseStats()->*StatMax));
+		(bu->*StatCurr) = Clamp(val, - NegativeLimitMult * (bu->getBaseStats()->*StatMax), +(bu->getBaseStats()->*StatMax));
 	}
 }
-template<int BattleUnit::*StatCurr, UnitStats::Ptr StatMax>
+template<int BattleUnit::*StatCurr, UnitStats::Ptr StatMax, int NegativeLimitMult = 0>
 void addBaseStatScript(BattleUnit *bu, int val)
 {
 	if (bu)
 	{
 		//limit range to prevent overflow
 		val = Clamp(val, -UnitStats::BaseStatLimit, UnitStats::BaseStatLimit);
-		setBaseStatScript<StatCurr, StatMax>(bu, val + (bu->*StatCurr));
+		setBaseStatScript<StatCurr, StatMax, NegativeLimitMult>(bu, val + (bu->*StatCurr));
 	}
 }
 
@@ -6077,8 +6063,10 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 
 	bu.addField<&BattleUnit::_health>("getHealth");
 	bu.add<UnitStats::getMaxStatScript<BattleUnit, &BattleUnit::_stats, &UnitStats::health>>("getHealthMax");
-	bu.add<&setBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("setHealth"); //TODO: allow overkill? now minim is 0.
+	bu.add<&setBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("setHealth");
 	bu.add<&addBaseStatScript<&BattleUnit::_health, &UnitStats::health>>("addHealth");
+	bu.add<&setBaseStatScript<&BattleUnit::_health, &UnitStats::health, UnitStats::OverkillMultipler>>("setHealthWithOverkill", "same as setHealth but allow negative health values like with Overkill");
+	bu.add<&addBaseStatScript<&BattleUnit::_health, &UnitStats::health, UnitStats::OverkillMultipler>>("addHealthWithOverkill", "same as addHealth but allow negative health values like with Overkill");
 
 	bu.addField<&BattleUnit::_mana>("getMana");
 	bu.add<&UnitStats::getMaxStatScript<BattleUnit, &BattleUnit::_stats, &UnitStats::mana>>("getManaMax");
@@ -6121,8 +6109,18 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 
 	UnitStats::addGetStatsScript<&BattleUnit::_exp>(bu, "Exp.", true);
 
-	bu.addField<&BattleUnit::_moveTimeCostPercent>("MoveCost.getBaseTimePercent", "MoveCost.setBaseTimePercent");
-	bu.addField<&BattleUnit::_moveEnergyCostPercent>("MoveCost.getBaseEnergyPercent", "MoveCost.setBaseEnergyPercent");
+
+	bu.add<&getMovmentTypeScript>("getMovmentType", BindBase::functionInvisible); //old bugged name
+	bu.add<&getMovmentTypeScript>("getMovementType", "get move type of unit");
+	bu.add<&getOriginalMovmentTypeScript>("getOriginalMovementType", "get original move type of unit");
+	bu.add<&setMovmentTypeScript>("setMovementType", "set move type of unit");
+
+	bu.addField<&BattleUnit::_moveCostBase, &ArmorMoveCost::TimePercent>("MoveCost.getBaseTimePercent", "MoveCost.setBaseTimePercent");
+	bu.addField<&BattleUnit::_moveCostBase, &ArmorMoveCost::EnergyPercent>("MoveCost.getBaseEnergyPercent", "MoveCost.setBaseEnergyPercent");
+	bu.addField<&BattleUnit::_moveCostBaseFly, &ArmorMoveCost::TimePercent>("MoveCost.getBaseFlyTimePercent", "MoveCost.setBaseFlyTimePercent");
+	bu.addField<&BattleUnit::_moveCostBaseFly, &ArmorMoveCost::EnergyPercent>("MoveCost.getBaseFlyEnergyPercent", "MoveCost.setBaseFlyEnergyPercent");
+	bu.addField<&BattleUnit::_moveCostBaseNormal, &ArmorMoveCost::TimePercent>("MoveCost.getBaseNormalTimePercent", "MoveCost.setBaseNormalTimePercent");
+	bu.addField<&BattleUnit::_moveCostBaseNormal, &ArmorMoveCost::EnergyPercent>("MoveCost.getBaseNormalEnergyPercent", "MoveCost.setBaseNormalEnergyPercent");
 
 	bu.add<&getVisibleUnitsCountScript>("getVisibleUnitsCount");
 	bu.add<&getFactionScript>("getFaction", "get current faction of unit");
@@ -6206,6 +6204,10 @@ void BattleUnit::ScriptRegister(ScriptParserBase* parser)
 
 	bu.addCustomConst("GENDER_MALE", GENDER_MALE);
 	bu.addCustomConst("GENDER_FEMALE", GENDER_FEMALE);
+
+	bu.addCustomConst("movement_type_walk", MT_WALK);
+	bu.addCustomConst("movement_type_fly", MT_FLY);
+	bu.addCustomConst("movement_type_slide", MT_SLIDE);
 }
 
 /**
@@ -6263,6 +6265,7 @@ void moveTypesImpl(BindBase& b)
 	b.addCustomConst("move_normal", BAM_NORMAL);
 	b.addCustomConst("move_run", BAM_RUN);
 	b.addCustomConst("move_strafe", BAM_STRAFE);
+	b.addCustomConst("move_sneak", BAM_SNEAK);
 }
 
 void medikitBattleActionImpl(BindBase& b)

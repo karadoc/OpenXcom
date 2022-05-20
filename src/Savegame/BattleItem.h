@@ -52,7 +52,8 @@ private:
 	BattleUnit *_owner, *_previousOwner;
 	BattleUnit *_unit;
 	Tile *_tile;
-	RuleInventory *_inventorySlot;
+	int _inventoryMoveCostPercent = 0;
+	const RuleInventory *_inventorySlot;
 	int _inventoryX, _inventoryY;
 	BattleItem *_ammoItem[RuleItem::AmmoSlotMax] = { };
 	bool _ammoVisibility[RuleItem::AmmoSlotMax] = { };
@@ -129,9 +130,11 @@ public:
 	/// Checks if the item is a special built-in weapon (outside of the inventory).
 	bool isSpecialWeapon() const { return getOwner() && !getSlot(); }
 	/// Gets the item's inventory slot.
-	RuleInventory *getSlot() const;
+	const RuleInventory *getSlot() const;
+	/// Gets the cost of moving item to given slot.
+	int getMoveToCost(const RuleInventory *slot) const;
 	/// Sets the item's inventory slot.
-	void setSlot(RuleInventory *slot);
+	void setSlot(const RuleInventory *slot);
 	/// Gets the item's inventory X position.
 	int getSlotX() const;
 	/// Sets the item's inventory X position.

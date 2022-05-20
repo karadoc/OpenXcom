@@ -588,7 +588,7 @@ void AIModule::setupPatrol()
 		}
 
 		// in base defense missions, the smaller aliens walk towards target nodes - or if there, shoot objects around them
-		else if (_unit->getArmor()->getSize() == 1)
+		else if (_unit->getArmor()->getSize() == 1 && _unit->getOriginalFaction() == FACTION_HOSTILE)
 		{
 			// can i shoot an object?
 			if (_fromNode->isTarget() &&
@@ -596,6 +596,7 @@ void AIModule::setupPatrol()
 				_attackAction.weapon->getRules()->getAccuracySnap() &&
 				_attackAction.weapon->getAmmoForAction(BA_SNAPSHOT) &&
 				_attackAction.weapon->getAmmoForAction(BA_SNAPSHOT)->getRules()->getDamageType()->isDirect() &&
+				_save->canUseWeapon(_attackAction.weapon, _unit, false, BA_SNAPSHOT) &&
 				_save->getModuleMap()[_fromNode->getPosition().x / 10][_fromNode->getPosition().y / 10].second > 0)
 			{
 				// scan this room for objects to destroy

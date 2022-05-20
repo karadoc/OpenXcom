@@ -17,11 +17,13 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../version.h"
 #include "ModInfo.h"
 #include "CrossPlatform.h"
 #include "Exception.h"
 #include <yaml-cpp/yaml.h>
 #include <sstream>
+#include <assert.h>
 
 namespace OpenXcom
 {
@@ -29,10 +31,43 @@ namespace OpenXcom
 ModInfo::ModInfo(const std::string &path) :
 	 _path(path), _name(CrossPlatform::baseFilename(path)),
 	_desc("No description."), _version("1.0"), _author("unknown author"),
-	_id(_name), _master("xcom1"), _isMaster(false), _reservedSpace(1), _versionOk(true), _enforcedVersionOk(true)
+	_id(_name), _master("xcom1"), _isMaster(false), _reservedSpace(1),
+	_engineOk(false)
 {
 	// empty
 }
+
+namespace
+{
+
+struct EngineData
+{
+	std::string name;
+	int version[4];
+};
+
+/**
+ * List of engines that current version support.
+ */
+const EngineData supportedEngines[] = {
+	{ OPENXCOM_VERSION_ENGINE, { OPENXCOM_VERSION_NUMBER }},
+	{ "", { 0, 0, 0, 0 } }, // assume that every engine support mods from base game, remove if its not true.
+};
+
+template<int I>
+bool findCompatibleEngine(const EngineData (&l)[I], const std::string& e, const std::array<int, 4>& version)
+{
+	for (auto& d : supportedEngines)
+	{
+		if (d.name == e)
+		{
+			return !CrossPlatform::isHigherThanCurrentVersion(version, d.version);
+		}
+	}
+	return false;
+}
+
+} //namespace
 
 void ModInfo::load(const YAML::Node& doc)
 {
@@ -43,21 +78,15 @@ void ModInfo::load(const YAML::Node& doc)
 	_id       = doc["id"].as<std::string>(_id);
 	_isMaster = doc["isMaster"].as<bool>(_isMaster);
 	_reservedSpace = doc["reservedSpace"].as<int>(_reservedSpace);
-	_requiredExtendedVersion = doc["requiredExtendedVersion"].as<std::string>(_requiredExtendedVersion);
-	_enforcedExtendedVersion = doc["enforcedExtendedVersion"].as<std::string>(_enforcedExtendedVersion);
 
-	if (!_requiredExtendedVersion.empty())
+	if (const YAML::Node& req = doc["requiredExtendedVersion"])
 	{
-		_versionOk = !CrossPlatform::isHigherThanCurrentVersion(_requiredExtendedVersion);
+		_requiredExtendedVersion = req.as<std::string>(_requiredExtendedVersion);
+		_requiredExtendedEngine = "Extended"; //for backward compatibility
 	}
-	if (!_enforcedExtendedVersion.empty())
-	{
-		_enforcedVersionOk = !CrossPlatform::isHigherThanCurrentVersion(_enforcedExtendedVersion);
-		if (!_enforcedVersionOk)
-		{
-			_versionOk = false;
-		}
-	}
+	_requiredExtendedEngine = doc["requiredExtendedEngine"].as<std::string>(_requiredExtendedEngine);
+
+	_engineOk = findCompatibleEngine(supportedEngines, _requiredExtendedEngine, CrossPlatform::parseVersion(_requiredExtendedVersion));
 
 	if (_reservedSpace < 1)
 	{
@@ -93,8 +122,9 @@ const std::string &ModInfo::getAuthor()                  const { return _author;
 const std::string &ModInfo::getId()                      const { return _id;                      }
 const std::string &ModInfo::getMaster()                  const { return _master;                  }
 bool               ModInfo::isMaster()                   const { return _isMaster;                }
+bool               ModInfo::isEngineOk()                 const { return _engineOk;                }
+const std::string &ModInfo::getRequiredExtendedEngine()  const { return _requiredExtendedEngine;  }
 const std::string &ModInfo::getRequiredExtendedVersion() const { return _requiredExtendedVersion; }
-const std::string &ModInfo::getEnforcedExtendedVersion() const { return _enforcedExtendedVersion; }
 const std::string &ModInfo::getResourceConfigFile()      const { return _resourceConfigFile;      }
 int                ModInfo::getReservedSpace()           const { return _reservedSpace;           }
 
@@ -115,22 +145,26 @@ bool ModInfo::canActivate(const std::string &curMaster) const
 
 const std::vector<std::string> &ModInfo::getExternalResourceDirs() const { return _externalResourceDirs; }
 
-/**
- * Gets whether the current OXCE version is equal to (or higher than) the required OXCE version.
- * @return True if the version is OK.
-*/
-bool ModInfo::isVersionOk() const
-{
-	return _versionOk;
-}
 
-/**
- * Gets whether the current OXCE version is equal to (or higher than) the enforced OXCE version.
- * @return True if the enforced version is OK.
-*/
-bool ModInfo::isEnforcedVersionOk() const
+
+#ifdef OXCE_AUTO_TEST
+
+static auto dummy = ([]
 {
-	return _enforcedVersionOk;
-}
+	auto create = [](int i, int j, int k, int l)
+	{
+		return std::array<int, 4>{{i, j, k, l}};
+	};
+
+	assert(findCompatibleEngine(supportedEngines, "Extended", create(OPENXCOM_VERSION_NUMBER)));
+	assert(findCompatibleEngine(supportedEngines, "Extended", create(1, 0, 0, 0)));
+	assert(findCompatibleEngine(supportedEngines, "", create(0, 0, 0, 0)));
+	assert(!findCompatibleEngine(supportedEngines, "Extended", create(OPENXCOM_VERSION_NUMBER + 1)));
+	assert(!findCompatibleEngine(supportedEngines, "XYZ", create(OPENXCOM_VERSION_NUMBER)));
+	assert(!findCompatibleEngine(supportedEngines, "XYZ", create(0, 0, 0, 0)));
+
+	return 0;
+})();
+#endif
 
 }

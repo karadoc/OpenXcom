@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_set>
 #include "../Battlescape/Position.h"
+#include "../Mod/Armor.h"
 #include "../Mod/RuleItem.h"
 #include "Soldier.h"
 #include "BattleItem.h"
@@ -163,8 +164,10 @@ private:
 	bool _pickUpWeaponsMoreActively;
 	bool _disableIndicators;
 	MovementType _movementType;
-	int _moveTimeCostPercent = 0;
-	int _moveEnergyCostPercent = 0;
+	MovementType _originalMovementType;
+	ArmorMoveCost _moveCostBase = { 0, 0 };
+	ArmorMoveCost _moveCostBaseFly = { 0, 0 };
+	ArmorMoveCost _moveCostBaseNormal = { 0, 0 };
 	std::vector<std::pair<Uint8, Uint8> > _recolor;
 	bool _capturable;
 	bool _vip;
@@ -677,8 +680,12 @@ public:
 	void setEnviSmoke(int damage);
 	/// Calculate smoke and fire damage from environment.
 	void calculateEnviDamage(Mod *mod, SavedBattleGame *save);
+	/// Gets original unit's movement type.
+	MovementType getOriginalMovementType() const { return _originalMovementType; }
 	/// Use this function to check the unit's movement type.
-	MovementType getMovementType() const;
+	MovementType getMovementType() const { return _movementType; }
+	/// Set unit movement type.
+	void setMovementType(MovementType type) { _movementType = type; }
 	/// Gets the turn cost.
 	int getTurnCost() const;
 	/// Gets cost of standing up from kneeling.
@@ -782,10 +789,12 @@ public:
 	/// Disable showing indicators for this unit.
 	void disableIndicators();
 
-	/// Multiplier of move TU cost.
-	int getMoveTimeCostPercent() const { return _moveTimeCostPercent; }
-	/// Multiplier of move Energy cost.
-	int getMoveEnergyCostPercent() const { return _moveEnergyCostPercent; }
+	/// Multiplier of move cost.
+	ArmorMoveCost getMoveCostBase() const { return _moveCostBase; }
+	/// Multiplier of fly move cost.
+	ArmorMoveCost getMoveCostBaseFly() const { return _moveCostBaseFly; }
+	/// Multiplier of normal move cost.
+	ArmorMoveCost getMoveCostBaseNormal() const { return _moveCostBaseNormal; }
 };
 
 } //namespace OpenXcom
