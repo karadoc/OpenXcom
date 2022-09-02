@@ -117,6 +117,8 @@ private:
 	int _turnLimit, _cheatTurn;
 	ChronoTrigger _chronoTrigger;
 	bool _beforeGame;
+	bool _togglePersonalLight, _toggleNightVision;
+	int _toggleBrightness;
 	std::string _hiddenMovementBackground;
 	HitLog *_hitLog;
 	ScriptValues<SavedBattleGame> _scriptValues;
@@ -205,13 +207,13 @@ public:
 	/// Gets a pointer to the list of units.
 	std::vector<BattleUnit*> *getUnits();
 	/// Gets terrain size x.
-	int getMapSizeX() const;
+	int getMapSizeX() const { return _mapsize_x; }
 	/// Gets terrain size y.
-	int getMapSizeY() const;
+	int getMapSizeY() const { return _mapsize_y; }
 	/// Gets terrain size z.
-	int getMapSizeZ() const;
+	int getMapSizeZ() const { return _mapsize_z; }
 	/// Gets terrain x*y*z
-	int getMapSizeXYZ() const;
+	int getMapSizeXYZ() const { return _mapsize_x * _mapsize_y * _mapsize_z; }
 
 	/// Is this just a craft or base deployment preview?
 	bool isPreview() const { return _isPreview; }
@@ -604,6 +606,20 @@ public:
 	void setCheatTurn(int turn);
 	/// Check whether the battle has actually commenced or not.
 	bool isBeforeGame() const;
+
+	/// gets personal light toggle
+	bool getTogglePersonalLight() const { return _togglePersonalLight; }
+	/// sets personal light toggle
+	void setTogglePersonalLight(bool togglePersonalLight) { _togglePersonalLight = togglePersonalLight; }
+	/// gets night vision toggle
+	bool getToggleNightVision() const { return _toggleNightVision; }
+	/// sets night vision toggle
+	void setToggleNightVision(bool toggleNightVision) { _toggleNightVision = toggleNightVision; }
+	/// gets brightness toggle
+	int getToggleBrightness() const { return _toggleBrightness; }
+	/// sets brightness toggle
+	void setToggleBrightness(int toggleBrightness) { _toggleBrightness = toggleBrightness; }
+
 	/// Randomly chooses hidden movement background.
 	void setRandomHiddenMovementBackground(const Mod *mod);
 	/// Gets the hidden movement background ID.

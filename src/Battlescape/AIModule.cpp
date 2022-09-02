@@ -121,6 +121,7 @@ YAML::Node AIModule::save() const
 		toNodeID = _toNode->getID();
 
 	YAML::Node node;
+	node.SetStyle(YAML::EmitterStyle::Flow);
 	node["fromNode"] = fromNodeID;
 	node["toNode"] = toNodeID;
 	node["AIMode"] = _AIMode;
@@ -921,7 +922,7 @@ void AIModule::setupEscape()
 	while (tries < 150 && !coverFound)
 	{
 		_escapeAction.target = _unit->getPosition(); // start looking in a direction away from the enemy
-		_escapeAction.run = _unit->getArmor()->allowsRunning(false) && (tries & 1); //half trys
+		_escapeAction.run = _unit->getArmor()->allowsRunning(false) && (tries & 1); // every odd try, i.e. roughly 50%
 
 		if (!_save->getTile(_escapeAction.target))
 		{

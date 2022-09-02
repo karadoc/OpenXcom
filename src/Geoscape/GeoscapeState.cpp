@@ -524,19 +524,7 @@ void GeoscapeState::handle(Action *action)
 		// "ctrl-d" - enable debug mode
 		if (Options::debug && action->getDetails()->key.keysym.sym == SDLK_d && _game->isCtrlPressed())
 		{
-			_game->getSavedGame()->setDebugMode();
-			if (_game->getSavedGame()->getDebugMode())
-			{
-				_txtDebug->setText("DEBUG MODE");
-			}
-			else
-			{
-				_txtDebug->setText("");
-			}
-			_cbxRegion->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType >= 1);
-			_cbxZone->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
-			_cbxArea->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
-			_cbxCountry->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 0);
+			btnDebugClick(nullptr);
 		}
 		if (Options::debug && _game->getSavedGame()->getDebugMode() && _game->isCtrlPressed())
 		{
@@ -984,7 +972,7 @@ void GeoscapeState::time5Seconds()
 							int secondaryTargets = 0;
 							for (auto craft : *activeCrafts)
 							{
-								if (!craft->getMissionComplete() && craft != c)
+								if (!craft->isIgnoredByHK() && craft != c)
 								{
 									// craft is close enough and has at least one loaded weapon
 									if (craft->getNumWeapons(true) > 0 && craft->getDistance(c) < Nautical(_game->getMod()->getEscortRange()))
@@ -1271,7 +1259,7 @@ void GeoscapeState::time5Seconds()
 								int secondaryTargets = 0;
 								for (auto craft : *activeCrafts)
 								{
-									if (!craft->getMissionComplete() && craft != (*j))
+									if (!craft->isIgnoredByHK() && craft != (*j))
 									{
 										// craft is close enough and has at least one loaded weapon
 										if (craft->getNumWeapons(true) > 0 && craft->getDistance((*j)) < Nautical(_game->getMod()->getEscortRange()))
@@ -1596,7 +1584,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 			{
 				originalTarget = (*ufo)->getTargetedXcomCraft();
 			}
-			if (originalTarget && !originalTarget->getMissionComplete())
+			if (originalTarget && !originalTarget->isIgnoredByHK())
 			{
 				if ((*ufo)->insideRadarRange(originalTarget))
 				{
@@ -1608,7 +1596,7 @@ void GeoscapeState::ufoHuntingAndEscorting()
 			// look for more attractive target
 			for (auto craft : *activeCrafts)
 			{
-				if (!craft->getMissionComplete() && !craft->getRules()->isUndetectable())
+				if (!craft->isIgnoredByHK() && !craft->getRules()->isUndetectable())
 				{
 					int tmpAttraction = craft->getHunterKillerAttraction((*ufo)->getHuntMode());
 					if (tmpAttraction < newAttraction && (*ufo)->insideRadarRange(craft))
@@ -2927,6 +2915,27 @@ void GeoscapeState::btnDogfightExperienceClick(Action *)
 }
 
 /**
+ * Toggles debug mode.
+ * @param action Pointer to an action.
+ */
+void GeoscapeState::btnDebugClick(Action *)
+{
+	_game->getSavedGame()->setDebugMode();
+	if (_game->getSavedGame()->getDebugMode())
+	{
+		_txtDebug->setText("DEBUG MODE");
+	}
+	else
+	{
+		_txtDebug->setText("");
+	}
+	_cbxRegion->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType >= 1);
+	_cbxZone->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
+	_cbxArea->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 2);
+	_cbxCountry->setVisible(_game->getSavedGame()->getDebugMode() && _game->getSavedGame()->debugType == 0);
+}
+
+/**
  * Goes to the Basescape screen.
  * @param action Pointer to an action.
  */
@@ -3820,6 +3829,16 @@ void GeoscapeState::determineAlienMissions()
 					for (auto &triggerFacility : eventScript->getFacilityTriggers())
 					{
 						triggerHappy = (save->isFacilityBuilt(triggerFacility.first) == triggerFacility.second);
+						if (!triggerHappy)
+							break;
+					}
+				}
+				if (triggerHappy)
+				{
+					// soldier type requirements
+					for (auto& triggerSoldierType : eventScript->getSoldierTypeTriggers())
+					{
+						triggerHappy = (save->isSoldierTypeHired(triggerSoldierType.first) == triggerSoldierType.second);
 						if (!triggerHappy)
 							break;
 					}

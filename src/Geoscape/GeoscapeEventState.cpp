@@ -167,11 +167,15 @@ void GeoscapeEventState::eventLogic()
 				{
 					Transfer* t = new Transfer(24);
 					Soldier* s = mod->genSoldier(save, ruleSoldier->getType());
+					s->load(rule.getSpawnedSoldierTemplate(), mod, save, mod->getScriptGlobal(), true); // load from soldier template
 					if (!rule.getSpawnedPersonName().empty())
 					{
 						s->setName(tr(rule.getSpawnedPersonName()));
 					}
-					s->load(rule.getSpawnedSoldierTemplate(), mod, save, mod->getScriptGlobal(), true); // load from soldier template
+					else
+					{
+						s->genName();
+					}
 					t->setSoldier(s);
 					hq->getTransfers()->push_back(t);
 				}
@@ -207,6 +211,20 @@ void GeoscapeEventState::eventLogic()
 		if (randomItem)
 		{
 			itemsToTransfer[randomItem->getType()] += 1;
+		}
+	}
+
+	if (!rule.getRandomMultiItemList().empty())
+	{
+		size_t pickItem = RNG::generate(0, rule.getRandomMultiItemList().size() - 1);
+		auto& sublist = rule.getRandomMultiItemList().at(pickItem);
+		for (auto& pair : sublist)
+		{
+			const RuleItem* itemRule = mod->getItem(pair.first, true);
+			if (itemRule)
+			{
+				itemsToTransfer[itemRule->getType()] += pair.second;
+			}
 		}
 	}
 

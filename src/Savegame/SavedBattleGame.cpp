@@ -70,7 +70,8 @@ SavedBattleGame::SavedBattleGame(Mod *rule, Language *lang, bool isPreview) :
 	_objectiveType(-1), _objectivesDestroyed(0), _objectivesNeeded(0),
 	_unitsFalling(false), _cheating(false), _tuReserved(BA_NONE), _kneelReserved(false), _depth(0),
 	_ambience(-1), _ambientVolume(0.5), _minAmbienceRandomDelay(20), _maxAmbienceRandomDelay(60), _currentAmbienceDelay(0),
-	_turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE), _beforeGame(true)
+	_turnLimit(0), _cheatTurn(20), _chronoTrigger(FORCE_LOSE), _beforeGame(true),
+	_togglePersonalLight(true), _toggleNightVision(false), _toggleBrightness(0)
 {
 	_tileSearch.resize(11*11);
 	for (int i = 0; i < 121; ++i)
@@ -461,6 +462,9 @@ void SavedBattleGame::load(const YAML::Node &node, Mod *mod, SavedGame* savedGam
 	_turnLimit = node["turnLimit"].as<int>(_turnLimit);
 	_chronoTrigger = ChronoTrigger(node["chronoTrigger"].as<int>(_chronoTrigger));
 	_cheatTurn = node["cheatTurn"].as<int>(_cheatTurn);
+	_togglePersonalLight = node["togglePersonalLight"].as<bool>(_togglePersonalLight);
+	_toggleNightVision = node["toggleNightVision"].as<bool>(_toggleNightVision);
+	_toggleBrightness = node["toggleBrightness"].as<int>(_toggleBrightness);
 	_scriptValues.load(node, _rule->getScriptGlobal());
 }
 
@@ -642,6 +646,9 @@ YAML::Node SavedBattleGame::save() const
 	node["turnLimit"] = _turnLimit;
 	node["chronoTrigger"] = int(_chronoTrigger);
 	node["cheatTurn"] = _cheatTurn;
+	node["togglePersonalLight"] = _togglePersonalLight;
+	node["toggleNightVision"] = _toggleNightVision;
+	node["toggleBrightness"] = _toggleBrightness;
 	_scriptValues.save(node, _rule->getScriptGlobal());
 
 	return node;
@@ -824,42 +831,6 @@ void SavedBattleGame::setGlobalShade(int shade)
 int SavedBattleGame::getGlobalShade() const
 {
 	return _globalShade;
-}
-
-/**
- * Gets the map width.
- * @return The map width (Size X) in tiles.
- */
-int SavedBattleGame::getMapSizeX() const
-{
-	return _mapsize_x;
-}
-
-/**
- * Gets the map length.
- * @return The map length (Size Y) in tiles.
- */
-int SavedBattleGame::getMapSizeY() const
-{
-	return _mapsize_y;
-}
-
-/**
- * Gets the map height.
- * @return The map height (Size Z) in layers.
- */
-int SavedBattleGame::getMapSizeZ() const
-{
-	return _mapsize_z;
-}
-
-/**
- * Gets the map size in tiles.
- * @return The map size.
- */
-int SavedBattleGame::getMapSizeXYZ() const
-{
-	return _mapsize_x * _mapsize_y * _mapsize_z;
 }
 
 /**
@@ -2222,7 +2193,7 @@ Node *SavedBattleGame::getSpawnNode(int nodeRank, BattleUnit *unit)
 		}
 		if ((*i)->getRank() == nodeRank								// ranks must match
 			&& (!((*i)->getType() & Node::TYPE_SMALL)
-				|| unit->getArmor()->getSize() == 1)				// the small unit bit is not set or the unit is small
+				|| unit->isSmallUnit())								// the small unit bit is not set or the unit is small
 			&& (!((*i)->getType() & Node::TYPE_FLYING)
 				|| unit->getMovementType() == MT_FLY)				// the flying unit bit is not set or the unit can fly
 			&& (*i)->getPriority() > 0								// priority 0 is no spawn place
@@ -2279,7 +2250,7 @@ Node *SavedBattleGame::getPatrolNode(bool scout, BattleUnit *unit, Node *fromNod
 		Node *n = getNodes()->at(scout ? i : fromNode->getNodeLinks()->at(i));
 		if ( !n->isDummy()																				// don't consider dummy nodes.
 			&& (n->getFlags() > 0 || n->getRank() > 0 || scout)											// for non-scouts we find a node with a desirability above 0
-			&& (!(n->getType() & Node::TYPE_SMALL) || unit->getArmor()->getSize() == 1)					// the small unit bit is not set or the unit is small
+			&& (!(n->getType() & Node::TYPE_SMALL) || unit->isSmallUnit())								// the small unit bit is not set or the unit is small
 			&& (!(n->getType() & Node::TYPE_FLYING) || unit->getMovementType() == MT_FLY)	// the flying unit bit is not set or the unit can fly
 			&& !n->isAllocated()																		// check if not allocated
 			&& !(n->getType() & Node::TYPE_DANGEROUS)													// don't go there if an alien got shot there; stupid behavior like that
@@ -2304,7 +2275,7 @@ Node *SavedBattleGame::getPatrolNode(bool scout, BattleUnit *unit, Node *fromNod
 	if (compliantNodes.empty())
 	{
 		if (Options::traceAI) { Log(LOG_INFO) << (scout ? "Scout " : "Guard") << " found on patrol node! XXX XXX XXX"; }
-		if (unit->getArmor()->getSize() > 1 && !scout)
+		if (unit->isBigUnit() && !scout)
 		{
 			return getPatrolNode(true, unit, fromNode); // move dammit
 		}
@@ -2496,7 +2467,7 @@ void SavedBattleGame::reviveUnconsciousUnits(bool noTU)
 {
 	for (std::vector<BattleUnit*>::iterator i = getUnits()->begin(); i != getUnits()->end(); ++i)
 	{
-		if ((*i)->getArmor()->getSize() == 1 && !(*i)->isIgnored())
+		if ((*i)->isSmallUnit() && !(*i)->isIgnored())
 		{
 			Position originalPosition = (*i)->getPosition();
 			if (originalPosition == Position(-1, -1, -1))
@@ -2512,7 +2483,7 @@ void SavedBattleGame::reviveUnconsciousUnits(bool noTU)
 			if ((*i)->getStatus() == STATUS_UNCONSCIOUS && !(*i)->isOutThresholdExceed())
 			{
 				Tile *targetTile = getTile(originalPosition);
-				bool largeUnit =  targetTile && targetTile->getUnit() && targetTile->getUnit() != *i && targetTile->getUnit()->getArmor()->getSize() != 1;
+				bool largeUnit =  targetTile && targetTile->getUnit() && targetTile->getUnit() != *i && targetTile->getUnit()->isBigUnit();
 				if (placeUnitNearPosition((*i), originalPosition, largeUnit))
 				{
 					// recover from unconscious

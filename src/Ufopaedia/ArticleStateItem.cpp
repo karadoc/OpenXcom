@@ -64,7 +64,7 @@ namespace OpenXcom
 			bottomOffset = 9;
 		}
 
-		if (!_game->getMod()->getExtraNerdyPediaInfo())
+		if (_game->getMod()->getExtraNerdyPediaInfoType() == 0)
 		{
 			// feature turned off
 			bottomOffset = 0;
@@ -234,7 +234,7 @@ namespace OpenXcom
 				{
 					tu.erase(tu.end() - 1);
 				}
-				std::string label = config->shortName.empty() ? tr(name).arg(config->shots) : tr(config->shortName).arg(config->shots);
+				std::string label = config->shortName.empty() ? tr(name).arg(config->shots).arg(config->range) : tr(config->shortName).arg(config->shots).arg(config->range);
 				_lstInfo->addRow(3,
 					label.c_str(),
 					Unicode::formatPercentage(config->accuracy).c_str(),
@@ -292,24 +292,20 @@ namespace OpenXcom
 		_txtAccuracyModifier = new Text(300, 9, 8, 174);
 		_txtPowerBonus = new Text(300, 17, 8, 183);
 
-		if (bottomOffset > 0)
-		{
-			if (bottomOffset >= 20)
-			{
-				add(_txtAccuracyModifier);
-			}
-			add(_txtPowerBonus);
-		}
+		add(_txtAccuracyModifier);
+		add(_txtPowerBonus);
 
 		_txtAccuracyModifier->setColor(_textColor);
 		_txtAccuracyModifier->setSecondaryColor(_listColor2);
 		_txtAccuracyModifier->setWordWrap(false);
 		_txtAccuracyModifier->setText(tr("STR_ACCURACY_MODIFIER").arg(accuracyModifier));
+		_txtAccuracyModifier->setVisible(bottomOffset >= 20);
 
 		_txtPowerBonus->setColor(_textColor);
 		_txtPowerBonus->setSecondaryColor(_listColor2);
 		_txtPowerBonus->setWordWrap(true);
 		_txtPowerBonus->setText(tr("STR_POWER_BONUS").arg(powerBonus));
+		_txtPowerBonus->setVisible(bottomOffset > 0);
 
 		// AMMO column
 		std::ostringstream ss;
@@ -468,7 +464,14 @@ namespace OpenXcom
 							ss << numberAbs << "*";
 						}
 
-						ss << tr(StatsForNerdsState::translationMap.at(item.first));
+						if (_game->getMod()->getExtraNerdyPediaInfoType() > 1)
+						{
+							ss << tr(StatsForNerdsState::shortTranslationMap.at(item.first));
+						}
+						else
+						{
+							ss << tr(StatsForNerdsState::translationMap.at(item.first));
+						}
 						if (power > 1)
 						{
 							ss << "^" << power;

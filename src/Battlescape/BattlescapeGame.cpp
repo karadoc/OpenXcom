@@ -856,7 +856,7 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 					int winnerMod = _save->getFactionMoraleModifier(victim->getOriginalFaction() == FACTION_HOSTILE);
 					for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
 					{
-						if (!(*i)->isOut() && (*i)->getArmor()->getSize() == 1)
+						if (!(*i)->isOut() && (*i)->isSmallUnit())
 						{
 							// the losing squad all get a morale loss
 							if ((*i)->getOriginalFaction() == victim->getOriginalFaction())
@@ -930,7 +930,7 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 
 						for (auto winner : *_save->getUnits())
 						{
-							if (!winner->isOut() && winner->getArmor()->getSize() == 1 && winner->getOriginalFaction() == murderer->getOriginalFaction())
+							if (!winner->isOut() && winner->isSmallUnit() && winner->getOriginalFaction() == murderer->getOriginalFaction())
 							{
 								// the winning squad gets a morale increase (the losing squad is NOT affected)
 								winner->moraleChange(10);
@@ -1900,7 +1900,7 @@ void BattlescapeGame::primaryAction(Position pos)
 				_save->getPathfinding()->removePreview();
 			}
 			_currentAction.target = pos;
-			_save->getPathfinding()->calculate(_currentAction.actor, _currentAction.target, BAM_NORMAL); // precalucalte move
+			_save->getPathfinding()->calculate(_currentAction.actor, _currentAction.target, BAM_NORMAL); // precalculate move
 
 			_currentAction.strafe = false;
 			_currentAction.run = false;
@@ -1910,19 +1910,19 @@ void BattlescapeGame::primaryAction(Position pos)
 			{
 				if (_save->getPathfinding()->getPath().size() > 1)
 				{
-					_currentAction.run = _save->getSelectedUnit()->getArmor()->allowsRunning(_save->getSelectedUnit()->getArmor()->getSize() == 1);
+					_currentAction.run = _save->getSelectedUnit()->getArmor()->allowsRunning(_save->getSelectedUnit()->isSmallUnit());
 				}
 				else
 				{
-					_currentAction.strafe = _save->getSelectedUnit()->getArmor()->allowsStrafing(_save->getSelectedUnit()->getArmor()->getSize() == 1);
+					_currentAction.strafe = _save->getSelectedUnit()->getArmor()->allowsStrafing(_save->getSelectedUnit()->isSmallUnit());
 				}
 			}
 			else if (isAltPressed)
 			{
-				_currentAction.sneak = _save->getSelectedUnit()->getArmor()->allowsSneaking(_save->getSelectedUnit()->getArmor()->getSize() == 1);
+				_currentAction.sneak = _save->getSelectedUnit()->getArmor()->allowsSneaking(_save->getSelectedUnit()->isSmallUnit());
 			}
 
-			//recalucate path after setting new move types
+			// recalculate path after setting new move types
 			if (BAM_NORMAL != _currentAction.getMoveType())
 			{
 				_save->getPathfinding()->calculate(_currentAction.actor, _currentAction.target, _currentAction.getMoveType());

@@ -246,7 +246,8 @@ private:
 	int _displayCustomCategories;
 	bool _shareAmmoCategories, _showDogfightDistanceInKm, _showFullNameInAlienInventory;
 	int _alienInventoryOffsetX, _alienInventoryOffsetBigUnit;
-	bool _hidePediaInfoButton, _extraNerdyPediaInfo;
+	bool _hidePediaInfoButton;
+	int _extraNerdyPediaInfoType;
 	bool _giveScoreAlsoForResearchedArtifacts, _statisticalBulletConservation, _stunningImprovesMorale;
 	int _tuRecoveryWakeUpNewTurn;
 	int _shortRadarRange;
@@ -330,7 +331,7 @@ private:
 	/// Loads battlescape specific resources.
 	void loadBattlescapeResources();
 	/// Loads a specified music file.
-	Music* loadMusic(MusicFormat fmt, const std::string& file, size_t track, float volume, CatFile* adlibcat, CatFile* aintrocat, GMCatFile* gmcat) const;
+	Music* loadMusic(MusicFormat fmt, RuleMusic* rule, CatFile* adlibcat, CatFile* aintrocat, GMCatFile* gmcat) const;
 	/// Creates a transparency lookup table for a given palette.
 	void createTransparencyLUT(Palette *pal);
 	/// Loads a specified mod content.
@@ -932,7 +933,7 @@ public:
 	/// Show the INFO button (where applicable) or not?
 	bool getShowPediaInfoButton() const { return !_hidePediaInfoButton; }
 	/// Display extra item info (accuracy modifier and power bonus) in the main pedia article?
-	bool getExtraNerdyPediaInfo() const { return _extraNerdyPediaInfo; }
+	int getExtraNerdyPediaInfoType() const { return _extraNerdyPediaInfoType; }
 	/// In debriefing, give score also for already researched alien artifacts?
 	bool getGiveScoreAlsoForResearchedArtifacts() const { return _giveScoreAlsoForResearchedArtifacts; }
 	/// When recovering ammo, should partially spent clip have a chance to recover as full?

@@ -318,6 +318,7 @@ public:
 
 private:
 	std::string _type, _name, _nameAsAmmo; // two types of objects can have the same name
+	std::string _requiresBuyCountry;
 	std::vector<std::string> _requiresName;
 	std::vector<std::string> _requiresBuyName;
 	std::vector<const RuleResearch *> _requires, _requiresBuy;
@@ -329,6 +330,7 @@ private:
 
 	Unit* _vehicleUnit;
 	double _size;
+	int _monthlyBuyLimit;
 	int _costBuy, _costSell, _transferTime, _weight;
 	int _throwRange, _underwaterThrowRange;
 	int _bigSprite;
@@ -459,6 +461,8 @@ public:
 	const std::vector<const RuleResearch*> &getRequirements() const;
 	/// Gets the item's buy requirements.
 	const std::vector<const RuleResearch*> &getBuyRequirements() const;
+	/// Gets the allied country name required to buy this item.
+	const std::string& getRequiresBuyCountry() const { return _requiresBuyCountry; }
 	/// Gets the base functions required to buy craft.
 	RuleBaseFacilityFunctions getRequiresBuyBaseFunc() const { return _requiresBuyBaseFunc; }
 	/// Gets the dividers used for recovery of special items.
@@ -473,6 +477,8 @@ public:
 	Unit* getVehicleUnit() const;
 	/// Gets the item's size.
 	double getSize() const;
+	/// Gets the item's monthly buy limit.
+	int getMonthlyBuyLimit() const { return _monthlyBuyLimit; }
 	/// Gets the item's purchase cost.
 	int getBuyCost() const;
 	/// Gets the item's sale cost.
@@ -496,7 +502,7 @@ public:
 	/// Gets the item's reference in SPICONS.DAT for special weapon button.
 	int getSpecialIconSprite() const;
 
-	/// Gets cost of moving item araund inventory.
+	/// Gets cost of moving item around inventory.
 	int getInventoryMoveCostPercent() const { return _inventoryMoveCostPercent; }
 	/// Gets if the item is two-handed.
 	bool isTwoHanded() const;

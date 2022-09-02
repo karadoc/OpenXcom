@@ -573,7 +573,7 @@ void BattlescapeGenerator::nextStage()
 		unit->clearVisibleUnits();
 	}
 
-	generateMap(script, ruleDeploy->getCustomUfoName());
+	generateMap(script, ruleDeploy->getCustomUfoName(), nullptr);
 
 	setupObjectives(ruleDeploy);
 
@@ -810,20 +810,21 @@ void BattlescapeGenerator::run()
 		}
 	}
 
-	generateMap(script, ruleDeploy->getCustomUfoName());
+	RuleStartingCondition* startingCondition = _game->getMod()->getStartingCondition(ruleDeploy->getStartingCondition());
+	if (!startingCondition && _missionTexture)
+	{
+		startingCondition = _game->getMod()->getStartingCondition(_missionTexture->getStartingCondition());
+	}
 
-	if (isPreview)
+	generateMap(script, ruleDeploy->getCustomUfoName(), startingCondition);
+
+	if (isPreview && ruleDeploy->isHidden())
 	{
 		_save->revealMap();
 	}
 
 	setupObjectives(ruleDeploy);
 
-	RuleStartingCondition *startingCondition = _game->getMod()->getStartingCondition(ruleDeploy->getStartingCondition());
-	if (!startingCondition && _missionTexture)
-	{
-		startingCondition = _game->getMod()->getStartingCondition(_missionTexture->getStartingCondition());
-	}
 	RuleEnviroEffects *enviro = _game->getMod()->getEnviroEffects(ruleDeploy->getEnviroEffects());
 	if (!enviro && _terrain)
 	{
@@ -2384,7 +2385,7 @@ bool BattlescapeGenerator::placeUnitNearFriend(BattleUnit *unit)
 			if (k->getFaction() == unit->getFaction() && k->getPosition() != TileEngine::invalid && k->getArmor()->getSize() >= unit->getArmor()->getSize())
 			{
 				entryPoint = k->getPosition();
-				largeUnit = (k->getArmor()->getSize() != 1);
+				largeUnit = k->isBigUnit();
 			}
 			--tries;
 		}
@@ -2453,7 +2454,7 @@ void BattlescapeGenerator::loadWeapons(const std::vector<BattleItem*> &itemList)
  * @param script the script to use to build the map.
  * @param customUfoName custom UFO name to use for the dummy/blank 'addUFO' mapscript command.
  */
-void BattlescapeGenerator::generateMap(const std::vector<MapScript*> *script, const std::string &customUfoName)
+void BattlescapeGenerator::generateMap(const std::vector<MapScript*> *script, const std::string &customUfoName, const RuleStartingCondition* startingCondition)
 {
 	// reset ambient sound
 	_save->setAmbientSound(Mod::NO_SOUND);
@@ -2678,7 +2679,11 @@ void BattlescapeGenerator::generateMap(const std::vector<MapScript*> *script, co
 				case MSC_ADDCRAFT:
 					if (_craft)
 					{
-						RuleCraft *craftRulesOverride = _save->getMod()->getCraft(command->getCraftName());
+						const RuleCraft *craftRulesOverride = _save->getMod()->getCraft(command->getCraftName());
+						if (startingCondition)
+						{
+							craftRulesOverride = startingCondition->getCraftReplacement(_craftRules, craftRulesOverride);
+						}
 						if (craftRulesOverride != 0)
 						{
 							_craftRules = craftRulesOverride;

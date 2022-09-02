@@ -126,7 +126,7 @@ public:
 	static void ScriptRegister(ScriptParserBase* parser);
 
 
-	static const int MAX_EQUIPMENT_LAYOUT_TEMPLATES = 20;
+	static const int MAX_EQUIPMENT_LAYOUT_TEMPLATES = 50;
 	static const int MAX_CRAFT_LOADOUT_TEMPLATES = 10;
 
 private:
@@ -155,12 +155,15 @@ private:
 	std::map<std::string, int> _ufopediaRuleStatus;
 	std::map<std::string, int> _manufactureRuleStatus;
 	std::map<std::string, int> _researchRuleStatus;
+	std::map<std::string, int> _monthlyPurchaseLimitLog;
 	std::map<std::string, bool> _hiddenPurchaseItemsMap;
 	std::map<std::string, RuleCraftDeployment> _customRuleCraftDeployments;
 	Base* _previewBase;
 	std::vector<AlienMission*> _activeMissions;
 	std::vector<GeoscapeEvent*> _geoscapeEvents;
 	bool _debug, _warned;
+	bool _togglePersonalLight, _toggleNightVision;
+	int _toggleBrightness;
 	int _monthsPassed;
 	std::string _graphRegionToggles;
 	std::string _graphCountryToggles;
@@ -312,6 +315,8 @@ public:
 	void getDependableFacilities(std::vector<RuleBaseFacility*> & dependables, const RuleResearch *research, const Mod *mod) const;
 	/// Gets the status of a ufopedia rule.
 	int getUfopediaRuleStatus(const std::string &ufopediaRule);
+	/// Gets the log of monthly purchase limits
+	std::map<std::string, int>& getMonthlyPurchaseLimitLog() { return _monthlyPurchaseLimitLog; }
 	/// Gets the list of hidden items
 	const std::map<std::string, bool> &getHiddenPurchaseItems();
 	/// Gets the list of player-defined save-specific RuleCraft '_deployment' overrides
@@ -344,6 +349,8 @@ public:
 	bool isItemObtained(const std::string &itemType) const;
 	/// Gets if a certain facility has been built.
 	bool isFacilityBuilt(const std::string &facilityType) const;
+	/// Gets if a certain soldier type has been hired.
+	bool isSoldierTypeHired(const std::string& soldierType) const;
 	/// Gets the soldier matching this ID.
 	Soldier *getSoldier(int id) const;
 	/// Handles the higher promotions.
@@ -374,6 +381,20 @@ public:
 	bool getWarned() const;
 	/// sets whether or not the player has been warned
 	void setWarned(bool warned);
+
+	/// gets personal light toggle
+	bool getTogglePersonalLight() const { return _togglePersonalLight; }
+	/// sets personal light toggle
+	void setTogglePersonalLight(bool togglePersonalLight) { _togglePersonalLight = togglePersonalLight; }
+	/// gets night vision toggle
+	bool getToggleNightVision() const { return _toggleNightVision; }
+	/// sets night vision toggle
+	void setToggleNightVision(bool toggleNightVision) { _toggleNightVision = toggleNightVision; }
+	/// gets brightness toggle
+	int getToggleBrightness() const { return _toggleBrightness; }
+	/// sets brightness toggle
+	void setToggleBrightness(int toggleBrightness) { _toggleBrightness = toggleBrightness; }
+
 	/// Full access to the alien strategy data.
 	AlienStrategy &getAlienStrategy() { return *_alienStrategy; }
 	/// Read-only access to the alien strategy data.

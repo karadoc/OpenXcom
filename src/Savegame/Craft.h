@@ -189,6 +189,8 @@ public:
 	void setShield(int shield);
 	/// Gets the percent shield remaining
 	int getShieldPercentage() const;
+	/// Gets whether the craft is ignored by hunter-killers.
+	bool isIgnoredByHK() const;
 	/// Gets whether the craft is running out of fuel.
 	bool getLowFuel() const;
 	/// Sets whether the craft is running out of fuel.
@@ -243,6 +245,8 @@ public:
 	int getSpaceAvailable() const;
 	/// Gets the amount of space used inside a craft.
 	int getSpaceUsed() const;
+	/// Checks if the commander is onboard.
+	bool isCommanderOnboard();
 	/// Checks if there are only permitted soldier types onboard.
 	bool areOnlyPermittedSoldierTypesOnboard(const RuleStartingCondition* sc);
 	/// Checks if there are enough required items onboard.

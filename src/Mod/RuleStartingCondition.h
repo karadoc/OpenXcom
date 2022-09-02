@@ -27,6 +27,7 @@ namespace OpenXcom
 class Mod;
 class Armor;
 class Craft;
+class RuleCraft;
 
 /**
  * Represents a specific Starting Condition.
@@ -43,7 +44,10 @@ private:
 	std::vector<std::string> _allowedCraft, _forbiddenCraft;
 	std::vector<std::string> _allowedSoldierTypes, _forbiddenSoldierTypes;
 	std::map<std::string, int> _requiredItems;
+	std::map<std::string, std::string> _craftTransformationsName;
+	std::map<const RuleCraft*, const RuleCraft*> _craftTransformations;
 	bool _destroyRequiredItems;
+	bool _requireCommanderOnboard;
 public:
 	/// Creates a blank Starting Conditions ruleset.
 	RuleStartingCondition(const std::string& type);
@@ -51,6 +55,8 @@ public:
 	~RuleStartingCondition();
 	/// Loads Starting Conditions data from YAML.
 	void load(const YAML::Node& node, Mod *mod);
+	/// Cross link with other rules.
+	void afterLoad(const Mod* mod);
 	/// Gets the Starting Conditions's type.
 	const std::string& getType() const { return _type; }
 	/// Gets the allowed armor types.
@@ -69,12 +75,16 @@ public:
 	const std::map<std::string, int>& getRequiredItems() const { return _requiredItems; }
 	/// Should the required items be destroyed when the mission starts?
 	bool getDestroyRequiredItems() const { return _destroyRequiredItems; }
+	/// Does the mission require a commander present onboard?
+	bool requiresCommanderOnboard() const { return _requireCommanderOnboard; }
 	/// Checks if the craft type is permitted.
 	bool isCraftPermitted(const std::string& craftType) const;
 	/// Checks if the soldier type is permitted.
 	bool isSoldierTypePermitted(const std::string& soldierType) const;
 	/// Gets the replacement armor.
 	std::string getArmorReplacement(const std::string& soldierType, const std::string& armorType) const;
+	/// Gets the replacement craft.
+	const RuleCraft* getCraftReplacement(const RuleCraft* sourceCraft, const RuleCraft* mapScriptCraft) const;
 	/// Checks if the vehicle type is permitted.
 	bool isVehiclePermitted(const std::string& vehicleType) const;
 	/// Checks if the item type is permitted.
