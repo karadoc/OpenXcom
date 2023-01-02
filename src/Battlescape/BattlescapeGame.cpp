@@ -716,12 +716,12 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 		}
 		if (attack.damage_item)
 		{
-			// If the secondary melee data is used, represent this by setting the ammo to "BA_HIT".
+			// If the secondary melee data is used, represent this by setting the ammo to "__GUNBUTT".
 			// Note: BT_MELEE items use their normal attack data rather than 'melee' data. So their 'ammo' should be the weapon itself.
 			// (The following condition should match what is used in ExplosionBState::init to choose the damage power and type.)
 			if (attack.type == BA_HIT && attack.damage_item->getRules()->getBattleType() != BT_MELEE)
 			{
-				tempAmmo = "BA_HIT";
+				tempAmmo = "__GUNBUTT";
 			}
 			else
 			{
@@ -948,7 +948,7 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 				// piggyback of cleanup after script that change move type
 				if ((*j)->haveNoFloorBelow() && (*j)->getMovementType() != MT_FLY)
 				{
-					_parentState->getBattleGame()->getSave()->addFallingUnit(*j);
+					_save->addFallingUnit(*j);
 				}
 			}
 		}
@@ -2332,7 +2332,8 @@ void BattlescapeGame::removeSummonedPlayerUnits()
 			_save->getEnviroEffects(),
 			type->getArmor(),
 			nullptr,
-			getDepth());
+			getDepth(),
+			_save->getStartingCondition());
 
 		// just bare minimum, this unit will never be used for anything except recovery (not even for scoring)
 		newUnit->setTile(nullptr, _save);
@@ -2881,7 +2882,15 @@ BattlescapeTally BattlescapeGame::tallyUnits()
 						}
 						else if ((*j)->isInExitArea(END_POINT))
 						{
-							tally.vipInExit++;
+							if ((*j)->isBannedInNextStage())
+							{
+								// this guy would (theoretically) go into timeout
+								tally.vipInField++;
+							}
+							else
+							{
+								tally.vipInExit++;
+							}
 						}
 						else
 						{
@@ -2897,7 +2906,15 @@ BattlescapeTally BattlescapeGame::tallyUnits()
 				}
 				else if ((*j)->isInExitArea(END_POINT))
 				{
-					tally.inExit++;
+					if ((*j)->isBannedInNextStage())
+					{
+						// this guy will go into timeout
+						tally.inField++;
+					}
+					else
+					{
+						tally.inExit++;
+					}
 				}
 				else
 				{

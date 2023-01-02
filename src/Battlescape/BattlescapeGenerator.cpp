@@ -51,7 +51,6 @@
 #include "../Mod/RuleInventory.h"
 #include "../Mod/Mod.h"
 #include "../Mod/MapData.h"
-#include "../Mod/MCDPatch.h"
 #include "../Mod/Armor.h"
 #include "../Mod/Unit.h"
 #include "../Mod/AlienRace.h"
@@ -61,7 +60,6 @@
 #include "../Mod/AlienDeployment.h"
 #include "../Mod/RuleBaseFacility.h"
 #include "../Mod/Texture.h"
-#include "BattlescapeState.h"
 #include "Pathfinding.h"
 
 namespace OpenXcom
@@ -325,6 +323,52 @@ void BattlescapeGenerator::nextStage()
 		(*i)->setPosition(TileEngine::invalid, false);
 	}
 
+	// send banned units to timeout
+	if (_save->getStartingCondition() && !_save->getStartingCondition()->getForbiddenArmorsInNextStage().empty())
+	{
+		BattleUnit* firstUnitToTimeout = nullptr;
+		bool everybodyInTimeout = true;
+		for (auto* i : *_save->getUnits())
+		{
+			if (i->getOriginalFaction() == FACTION_PLAYER && i->getStatus() != STATUS_DEAD && i->getStatus() != STATUS_IGNORE_ME)
+			{
+				if (i->isBannedInNextStage())
+				{
+					if (firstUnitToTimeout)
+					{
+						i->goToTimeOut();
+						i->setAIModule(0);
+					}
+					else
+					{
+						firstUnitToTimeout = i;
+					}
+				}
+				else
+				{
+					everybodyInTimeout = false;
+				}
+			}
+		}
+		// should all remaining xcom units go to timeout, make one of them unconscious instead (to prevent a crash)
+		if (firstUnitToTimeout)
+		{
+			if (everybodyInTimeout)
+			{
+				firstUnitToTimeout->healStun(-firstUnitToTimeout->getHealth() * 3);
+				//firstUnitToTimeout->instaFalling(); // don't "resolve" the unit status yet (to prevent a crash)
+				// drop inventory
+				// spawn corpse
+				// FIXME: this is basically just an ugly hack, maybe it can be done better? e.g. fail the mission already before calling nextStage() ?
+			}
+			else
+			{
+				firstUnitToTimeout->goToTimeOut();
+				firstUnitToTimeout->setAIModule(0);
+			}
+		}
+	}
+
 	// remove all items not belonging to our soldiers from the map.
 	// sort items into two categories:
 	// the ones that we are guaranteed to be able to take home, barring complete failure (ie: stuff on the ship)
@@ -527,7 +571,7 @@ void BattlescapeGenerator::nextStage()
 					// change soldier's armor (needed for inventory view!)
 					(*j)->getGeoscapeSoldier()->setArmor(transformedArmor);
 					// change battleunit's armor
-					(*j)->updateArmorFromSoldier(_game->getMod(), (*j)->getGeoscapeSoldier(), transformedArmor, _save->getDepth(), true);
+					(*j)->updateArmorFromSoldier(_game->getMod(), (*j)->getGeoscapeSoldier(), transformedArmor, _save->getDepth(), true, _save->getStartingCondition());
 					// remove old special built-in weapons and replace them with new fresh special built-in weapons
 					// TODO? if this was a limited-use weapon, it will have full ammo again!
 					(*j)->removeSpecialWeapons(_save);
@@ -541,7 +585,7 @@ void BattlescapeGenerator::nextStage()
 				if (transformedArmor)
 				{
 					// change battleunit's armor
-					(*j)->updateArmorFromNonSoldier(_game->getMod(), transformedArmor, _save->getDepth());
+					(*j)->updateArmorFromNonSoldier(_game->getMod(), transformedArmor, _save->getDepth(), _save->getStartingCondition());
 				}
 			}
 		}
@@ -815,6 +859,7 @@ void BattlescapeGenerator::run()
 	{
 		startingCondition = _game->getMod()->getStartingCondition(_missionTexture->getStartingCondition());
 	}
+	_save->setStartingCondition(startingCondition);
 
 	generateMap(script, ruleDeploy->getCustomUfoName(), startingCondition);
 
@@ -1024,7 +1069,7 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 				{
 					(*i)->clearEquipmentLayout();
 				}
-				BattleUnit *unit = addXCOMUnit(new BattleUnit(_game->getMod() , *i, _save->getDepth()));
+				BattleUnit *unit = addXCOMUnit(new BattleUnit(_game->getMod() , *i, _save->getDepth(), _save->getStartingCondition()));
 				if (unit && !_save->getSelectedUnit())
 					_save->setSelectedUnit(unit);
 			}
@@ -1070,7 +1115,7 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 				{
 					(*i)->clearEquipmentLayout();
 				}
-				BattleUnit *unit = addXCOMUnit(new BattleUnit(_game->getMod(), *i, _save->getDepth()));
+				BattleUnit *unit = addXCOMUnit(new BattleUnit(_game->getMod(), *i, _save->getDepth(), _save->getStartingCondition()));
 				if (unit && !_save->getSelectedUnit())
 					_save->setSelectedUnit(unit);
 			}
@@ -1079,6 +1124,24 @@ void BattlescapeGenerator::deployXCOM(const RuleStartingCondition* startingCondi
 
 	// job's done
 	_game->getSavedGame()->setDisableSoldierEquipment(false);
+
+	// Corner case: the base has some soldiers, but nowhere to spawn them (e.g. after a previous base defense destroyed everything but access lift)
+	if (_save->getUnits()->empty() && _save->getMissionType() == "STR_BASE_DEFENSE")
+	{
+		// let's force-spawn a dummy unit and auto-fail the battle
+		std::string firstRace = _game->getMod()->getAlienRacesList().front();
+		AlienRace* raceRule = _game->getMod()->getAlienRace(firstRace);
+		std::string firstUnit = raceRule->getMember(0);
+		Unit* unitRule = _game->getMod()->getUnit(firstUnit);
+		BattleUnit* unit = _save->createTempUnit(unitRule, FACTION_PLAYER, _unitSequence++);
+		unit->setSummonedPlayerUnit(true); // auto-fail battle
+		_save->setSelectedUnit(unit);
+
+		Tile* firstTile = _save->getTile(0);
+		_save->setUnitPosition(unit, firstTile->getPosition());
+		_save->getUnits()->push_back(unit);
+		_craftInventoryTile = firstTile;
+	}
 
 	if (_save->getUnits()->empty())
 	{
@@ -4017,7 +4080,14 @@ bool BattlescapeGenerator::addLine(MapDirection direction, const std::vector<SDL
 	{
 		if (_blocks[roadX][roadY] == 0)
 		{
-			addBlock(roadX, roadY, terrain->getRandomMapBlock(10, 10, typeToAdd), terrain);
+			MapBlock* randomMapBlock1 = terrain->getRandomMapBlock(10, 10, typeToAdd);
+			if (!randomMapBlock1)
+			{
+				std::ostringstream ss1;
+				ss1 << "Map script command `addLine` failed (1). Terrain " + terrain->getName() + ", block group " << typeToAdd << ", script " << _save->getLastUsedMapScript();
+				throw Exception(ss1.str());
+			}
+			addBlock(roadX, roadY, randomMapBlock1, terrain);
 
 			SDL_Rect blockRect;
 			blockRect.x = roadX;
@@ -4034,7 +4104,14 @@ bool BattlescapeGenerator::addLine(MapDirection direction, const std::vector<SDL
 		}
 		else if (_blocks[roadX][roadY]->isInGroup(comparator))
 		{
-			_blocks[roadX][roadY] = terrain->getRandomMapBlock(10, 10, crossingGroup);
+			MapBlock* randomMapBlock2 = terrain->getRandomMapBlock(10, 10, crossingGroup);
+			if (!randomMapBlock2)
+			{
+				std::ostringstream ss2;
+				ss2 << "Map script command `addLine` failed (2). Terrain " + terrain->getName() + ", block group " << crossingGroup << ", script " << _save->getLastUsedMapScript();
+				throw Exception(ss2.str());
+			}
+			_blocks[roadX][roadY] = randomMapBlock2;
 			clearModule(roadX * 10, roadY * 10, 10, 10);
 			int terrainMapDataSetIDOffset = loadExtraTerrain(terrain);
 			loadMAP(_blocks[roadX][roadY], roadX * 10, roadY * 10, 0, terrain, terrainMapDataSetIDOffset);

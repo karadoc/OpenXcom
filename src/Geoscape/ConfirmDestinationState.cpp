@@ -40,7 +40,6 @@
 #include "../Savegame/Ufo.h"
 #include "../Savegame/MissionSite.h"
 #include "../Savegame/AlienBase.h"
-#include "../Savegame/ItemContainer.h"
 #include "../Savegame/Soldier.h"
 #include "../Engine/Options.h"
 #include "../Engine/Sound.h"
@@ -250,7 +249,7 @@ std::string ConfirmDestinationState::checkStartingCondition()
 	for (std::vector<std::string>::const_iterator it = list.begin(); it != list.end(); ++it)
 	{
 		ArticleDefinition *article = _game->getMod()->getUfopaediaArticle((*it), false);
-		if (article && _game->getSavedGame()->isResearched(article->requires))
+		if (article && _game->getSavedGame()->isResearched(article->_requires))
 		{
 			if (i > 0)
 				ss << ", ";
