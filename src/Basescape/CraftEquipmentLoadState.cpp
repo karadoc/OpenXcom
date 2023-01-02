@@ -117,7 +117,7 @@ void CraftEquipmentLoadState::btnCancelClick(Action *)
 void CraftEquipmentLoadState::lstLoadoutClick(Action *)
 {
 	_game->popState();
-	_parent->loadGlobalLoadout(_lstLoadout->getSelectedRow());
+	_parent->loadGlobalLoadout(_lstLoadout->getSelectedRow(), !_game->isCtrlPressed());
 }
 
 }

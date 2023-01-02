@@ -977,7 +977,7 @@ void CraftEquipmentState::saveGlobalLoadout(int index)
 	}
 }
 
-void CraftEquipmentState::loadGlobalLoadout(int index)
+void CraftEquipmentState::loadGlobalLoadout(int index, bool remove_current)
 {
 	// temporarily turn off alternate craft equipment management to allow removing all items from the craft
 	bool backup = Options::oxceAlternateCraftEquipmentManagement;
@@ -989,9 +989,12 @@ void CraftEquipmentState::loadGlobalLoadout(int index)
 	initList();
 
 	// first move everything visible back to base
-	for (_sel = 0; _sel != _items.size(); ++_sel)
+	if (remove_current)
 	{
-		moveLeftByValue(INT_MAX);
+		for (_sel = 0; _sel != _items.size(); ++_sel)
+		{
+			moveLeftByValue(INT_MAX);
+		}
 	}
 
 	// now start applying the template (consider ONLY items visible on the GUI)
