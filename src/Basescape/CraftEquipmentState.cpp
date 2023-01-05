@@ -67,7 +67,7 @@ namespace OpenXcom
  */
 CraftEquipmentState::CraftEquipmentState(Base *base, size_t craft) :
 	_lstScroll(0), _sel(0), _craft(craft), _base(base), _totalItems(0), _totalItemStorageSize(0.0), _ammoColor(0),
-	_reload(true), _returningFromGlobalTemplates(false), _firstInit(true), _isNewBattle(false)
+	_reload(true), _returningFromGlobalTemplates(false), _returningFromInventory(false), _firstInit(true), _isNewBattle(false)
 {
 	Craft *c = _base->getCrafts()->at(_craft);
 	bool craftHasACrew = c->getNumTotalSoldiers() > 0;
@@ -247,8 +247,22 @@ void CraftEquipmentState::init()
 	Craft *c = _base->getCrafts()->at(_craft);
 	c->setInBattlescape(false);
 
-	// don't reload after closing error popups
-	if (_reload)
+	if (Options::oxceAlternateCraftEquipmentManagement && _returningFromInventory)
+	{
+		// While in the inventory screen, the `soldierItems` list is used as a temporary way to remember extra equipment.
+		// Now that we're back, we need to remove all the excess base gear, and restore the items list to their usual meaning.
+
+		ItemContainer extras_list = *c->getSoldierItems();
+		c->calculateTotalSoldierEquipment();
+
+		for (_sel = 0; _sel != _items.size(); ++_sel)
+		{
+			int excessQty = c->getItems()->getItem(_items[_sel]) - (extras_list.getItem(_items[_sel]) + c->getSoldierItems()->getItem(_items[_sel]));
+			moveLeftByValue(excessQty);
+		}
+		initList();
+	}
+	else if (_reload) // don't reload after closing error popups
 	{
 		if (Options::oxceAlternateCraftEquipmentManagement && !_isNewBattle)
 		{
@@ -260,8 +274,10 @@ void CraftEquipmentState::init()
 		}
 		initList();
 	}
+
 	_reload = true;
 	_returningFromGlobalTemplates = false;
+	_returningFromInventory = false;
 	_firstInit = false;
 }
 
@@ -935,6 +951,36 @@ void CraftEquipmentState::btnInventoryClick(Action *)
 	Craft *craft = _base->getCrafts()->at(_craft);
 	if (craft->getNumTotalSoldiers() > 0)
 	{
+		_returningFromInventory = true;
+		if (Options::oxceAlternateCraftEquipmentManagement && !_isNewBattle)
+		{
+			// This is a bit tricky... here's what we're doing:
+			// * Temporarily use the `soldierItems` list to remember extra craft items (i.e. items that are not equipped)
+			// * Move all equipment from the base into the craft.
+			// * Run the inventory screen.
+			// * Remove excess items from the craft when CraftEquipmentState::init() is called after leaving the inventory screen.
+			// (After this, the craft should have all the updated soldier equipment, and the same extra items as before.)
+
+			// Note: the current implementation assumes not limit to the number or size of items a craft an hold.
+			//       If the craft has limited space, then we just won't have all the base items available on the inventory screen.
+
+			for (_sel = 0; _sel != _items.size(); ++_sel)
+			{
+				const auto& item_name = _items[_sel];
+				RuleItem *rule = _game->getMod()->getItem(item_name);
+
+				if (craft->getItems()->getItem(item_name) > 0)
+				{
+					(*craft->getSoldierItems()->getContents())[item_name] = craft->getItems()->getItem(item_name) - craft->getSoldierItems()->getItem(item_name);
+				}
+
+				if (!rule->getVehicleUnit())
+				{
+					moveRightByValue(INT_MAX, true);
+				}
+			}
+		}
+
 		SavedBattleGame *bgame = new SavedBattleGame(_game->getMod(), _game->getLanguage());
 		_game->getSavedGame()->setBattleGame(bgame);
 
@@ -1045,7 +1091,6 @@ void CraftEquipmentState::loadGlobalLoadout(int index, bool remove_current)
 			}
 		);
 		_game->pushState(new CannotReequipState(_missingItems, _base));
-		_reload = false;
 	}
 
 	// turn back the original setting
