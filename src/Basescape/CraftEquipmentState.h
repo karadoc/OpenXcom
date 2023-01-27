@@ -110,7 +110,7 @@ public:
 	void btnInventoryClick(Action *action);
 	/// Methods for handling the global craft loadout save/load hotkeys.
 	void saveGlobalLoadout(int index);
-	void loadGlobalLoadout(int index, bool remove_current = true);
+	void loadGlobalLoadout(int index, bool onlyAddItems = false);
 	/// Handler for clicking the Load button.
 	void btnLoadClick(Action *action);
 	/// Handler for clicking the Save button.
