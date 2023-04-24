@@ -128,9 +128,9 @@ Soldier::Soldier(RuleSoldier *rules, Armor *armor, int nationality, int id) :
  */
 Soldier::~Soldier()
 {
-	for (std::vector<EquipmentLayoutItem*>::iterator i = _equipmentLayout.begin(); i != _equipmentLayout.end(); ++i)
+	for (auto* entry : _equipmentLayout)
 	{
-		delete *i;
+		delete entry;
 	}
 	Collections::deleteAll(_personalEquipmentLayout);
 	delete _death;
@@ -314,13 +314,13 @@ YAML::Node Soldier::save(const ScriptGlobal *shared) const
 	node["psiStrImprovement"] = _psiStrImprovement;
 	if (!_equipmentLayout.empty())
 	{
-		for (std::vector<EquipmentLayoutItem*>::const_iterator i = _equipmentLayout.begin(); i != _equipmentLayout.end(); ++i)
-			node["equipmentLayout"].push_back((*i)->save());
+		for (const auto* entry : _equipmentLayout)
+			node["equipmentLayout"].push_back(entry->save());
 	}
 	if (!_personalEquipmentLayout.empty())
 	{
-		for (std::vector<EquipmentLayoutItem*>::const_iterator i = _personalEquipmentLayout.begin(); i != _personalEquipmentLayout.end(); ++i)
-			node["personalEquipmentLayout"].push_back((*i)->save());
+		for (const auto* entry : _personalEquipmentLayout)
+			node["personalEquipmentLayout"].push_back(entry->save());
 	}
 	if (_personalEquipmentArmor)
 	{
@@ -747,6 +747,29 @@ void Soldier::promoteRank()
 }
 
 /**
+ * Promotes/demotes a soldier to a specific rank.
+ */
+void Soldier::setRank(const SoldierRank newRank)
+{
+	if (!_rules->getAllowPromotion())
+		return;
+
+	const std::vector<std::string> &rankStrings = _rules->getRankStrings();
+	if (!rankStrings.empty())
+	{
+		// abort if the desired rank is not indexed in the rank strings
+		if ((size_t)newRank >= rankStrings.size())
+		{
+			return;
+		}
+	}
+
+	_rank = newRank;
+
+	// Note: we don't need to show a notification for this style of promotion
+}
+
+/**
  * Returns the soldier's amount of missions.
  * @return Missions.
  */
@@ -873,7 +896,7 @@ void Soldier::addStunCount(int count)
 /**
  * Get pointer to initial stats.
  */
-UnitStats *Soldier::getInitStats()
+const UnitStats* Soldier::getInitStats() const
 {
 	return &_initialStats;
 }
@@ -881,7 +904,11 @@ UnitStats *Soldier::getInitStats()
 /**
  * Get pointer to current stats.
  */
-UnitStats *Soldier::getCurrentStats()
+UnitStats *Soldier::getCurrentStatsEditable()
+{
+	return &_currentStats;
+}
+const UnitStats* Soldier::getCurrentStats() const
 {
 	return &_currentStats;
 }
@@ -1476,9 +1503,9 @@ void Soldier::die(SoldierDeath *death)
  */
 void Soldier::clearEquipmentLayout()
 {
-	for (std::vector<EquipmentLayoutItem*>::iterator i = _equipmentLayout.begin(); i != _equipmentLayout.end(); ++i)
+	for (auto* entry : _equipmentLayout)
 	{
-		delete *i;
+		delete entry;
 	}
 	_equipmentLayout.clear();
 }
@@ -1488,6 +1515,10 @@ void Soldier::clearEquipmentLayout()
  * @return Diary.
  */
 SoldierDiary *Soldier::getDiary()
+{
+	return _diary;
+}
+const SoldierDiary* Soldier::getDiary() const
 {
 	return _diary;
 }
@@ -1550,7 +1581,7 @@ void Soldier::trainPhys(int customTrainingFactor)
  * Is the soldier already fully trained?
  * @return True, if the soldier cannot gain any more stats in the training facility.
  */
-bool Soldier::isFullyTrained()
+bool Soldier::isFullyTrained() const
 {
 	UnitStats trainingCaps = _rules->getTrainingStatCaps();
 
@@ -1570,7 +1601,7 @@ bool Soldier::isFullyTrained()
 /**
  * returns whether or not the unit is in physical training
  */
-bool Soldier::isInTraining()
+bool Soldier::isInTraining() const
 {
 	return _training;
 }
@@ -1619,7 +1650,7 @@ std::map<std::string, int> &Soldier::getPreviousTransformations()
 /**
  * Checks whether or not the soldier is eligible for a certain transformation
  */
-bool Soldier::isEligibleForTransformation(RuleSoldierTransformation *transformationRule)
+bool Soldier::isEligibleForTransformation(const RuleSoldierTransformation *transformationRule) const
 {
 	// rank check
 	if ((int)_rank < transformationRule->getMinRank())
@@ -1642,22 +1673,19 @@ bool Soldier::isEligibleForTransformation(RuleSoldierTransformation *transformat
 		return false;
 
 	// Is the soldier of the correct type?
-	const std::vector<std::string> &allowedTypes = transformationRule->getAllowedSoldierTypes();
-	std::vector<std::string >::const_iterator it;
-	it = std::find(allowedTypes.begin(), allowedTypes.end(), _rules->getType());
+	const auto& allowedTypes = transformationRule->getAllowedSoldierTypes();
+	auto it = std::find(allowedTypes.begin(), allowedTypes.end(), _rules->getType());
 	if (it == allowedTypes.end())
 		return false;
 
 	// Does this soldier's transformation history preclude this new project?
-	const std::vector<std::string> &requiredTransformations = transformationRule->getRequiredPreviousTransformations();
-	const std::vector<std::string> &forbiddenTransformations = transformationRule->getForbiddenPreviousTransformations();
-	for (auto& reqd_trans : requiredTransformations)
+	for (const auto& reqd_trans : transformationRule->getRequiredPreviousTransformations())
 	{
 		if (_previousTransformations.find(reqd_trans) == _previousTransformations.end())
 			return false;
 	}
 
-	for (auto& forb_trans : forbiddenTransformations)
+	for (const auto& forb_trans : transformationRule->getForbiddenPreviousTransformations())
 	{
 		if (_previousTransformations.find(forb_trans) != _previousTransformations.end())
 			return false;
@@ -1681,10 +1709,10 @@ bool Soldier::isEligibleForTransformation(RuleSoldierTransformation *transformat
 		return false;
 
 	// Does the soldier have the required commendations?
-	for (auto& reqd_comm : transformationRule->getRequiredCommendations())
+	for (const auto& reqd_comm : transformationRule->getRequiredCommendations())
 	{
 		bool found = false;
-		for (auto* comm : *_diary->getSoldierCommendations())
+		for (const auto* comm : *_diary->getSoldierCommendations())
 		{
 			if (comm->getDecorationLevelInt() >= reqd_comm.second && comm->getType() == reqd_comm.first)
 			{
@@ -1974,7 +2002,7 @@ const std::vector<const RuleSoldierBonus*> *Soldier::getBonuses(const Mod *mod)
 			}
 		};
 
-		for (auto& bonusName : _transformationBonuses)
+		for (const auto& bonusName : _transformationBonuses)
 		{
 			auto* bonusRule = mod->getSoldierBonus(bonusName.first, false);
 
@@ -1994,7 +2022,7 @@ const std::vector<const RuleSoldierBonus*> *Soldier::getBonuses(const Mod *mod)
 /**
  * Get pointer to current stats with soldier bonuses, but without armor bonuses.
  */
-UnitStats *Soldier::getStatsWithSoldierBonusesOnly()
+const UnitStats *Soldier::getStatsWithSoldierBonusesOnly() const
 {
 	return &_tmpStatsWithSoldierBonuses;
 }
@@ -2002,7 +2030,7 @@ UnitStats *Soldier::getStatsWithSoldierBonusesOnly()
 /**
  * Get pointer to current stats with armor and soldier bonuses.
  */
-UnitStats *Soldier::getStatsWithAllBonuses()
+const UnitStats *Soldier::getStatsWithAllBonuses() const
 {
 	return &_tmpStatsWithAllBonuses;
 }
@@ -2022,7 +2050,7 @@ bool Soldier::prepareStatsWithBonuses(const Mod *mod)
 	auto* bonuses = getBonuses(mod); // this is the only place where bonus cache is rebuilt
 
 	// 3. apply soldier bonuses
-	for (auto* bonusRule : *bonuses)
+	for (const auto* bonusRule : *bonuses)
 	{
 		hasSoldierBonus = true;
 		tmp += *(bonusRule->getStats());

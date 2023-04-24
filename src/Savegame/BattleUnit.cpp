@@ -96,7 +96,7 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth, const RuleSt
 		_stats = *soldier->getStatsWithAllBonuses();
 	}
 	int visibilityBonus = 0;
-	for (auto bonusRule : *soldier->getBonuses(nullptr))
+	for (const auto* bonusRule : *soldier->getBonuses(nullptr))
 	{
 		visibilityBonus += bonusRule->getVisibilityAtDark();
 	}
@@ -149,7 +149,7 @@ BattleUnit::BattleUnit(const Mod *mod, Soldier *soldier, int depth, const RuleSt
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
 	{
-		for (auto bonusRule : *soldier->getBonuses(nullptr))
+		for (const auto* bonusRule : *soldier->getBonuses(nullptr))
 		{
 			_maxArmor[SIDE_FRONT] += bonusRule->getFrontArmor();
 			_maxArmor[SIDE_LEFT]  += bonusRule->getLeftSideArmor();
@@ -217,7 +217,7 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 		_stats = *soldier->getStatsWithAllBonuses();
 	}
 	int visibilityBonus = 0;
-	for (auto bonusRule : *soldier->getBonuses(nullptr))
+	for (const auto* bonusRule : *soldier->getBonuses(nullptr))
 	{
 		visibilityBonus += bonusRule->getVisibilityAtDark();
 	}
@@ -246,7 +246,7 @@ void BattleUnit::updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor 
 	_maxArmor[SIDE_REAR] = _armor->getRearArmor();
 	_maxArmor[SIDE_UNDER] = _armor->getUnderArmor();
 	{
-		for (auto bonusRule : *soldier->getBonuses(nullptr))
+		for (const auto* bonusRule : *soldier->getBonuses(nullptr))
 		{
 			_maxArmor[SIDE_FRONT] += bonusRule->getFrontArmor();
 			_maxArmor[SIDE_LEFT]  += bonusRule->getLeftSideArmor();
@@ -636,9 +636,9 @@ void BattleUnit::updateArmorFromNonSoldier(const Mod* mod, Armor* newArmor, int 
  */
 BattleUnit::~BattleUnit()
 {
-	for (std::vector<BattleUnitKills*>::const_iterator i = _statistics->kills.begin(); i != _statistics->kills.end(); ++i)
+	for (auto* buk : _statistics->kills)
 	{
-		delete *i;
+		delete buk;
 	}
 	delete _statistics;
 	delete _currentAIState;
@@ -1720,7 +1720,7 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 		&& !specialDamageTransform->getZombieUnit(this).empty()
 		&& getArmor()->getZombiImmune() == false)
 	{
-		specialDamageTransformChance = getOriginalFaction() != FACTION_HOSTILE ? specialDamageTransform->getSpecialChance() : 0;
+		specialDamageTransformChance = getOriginalFaction() != FACTION_HOSTILE ? specialDamageTransform->getZombieUnitChance() : 0;
 	}
 	else
 	{
@@ -1887,6 +1887,11 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 
 		ModScript::DamageSpecialUnit::Worker work { this, attack.damage_item, attack.weapon_item, attack.attacker, save, attack.skill_rules, damage, orgDamage, bodypart, side, type->ResistType, attack.type, };
 
+		if (attack.damage_item)
+		{
+			work.execute(attack.damage_item->getRules()->getScript<ModScript::DamageSpecialUnitAmmo>(), args);
+		}
+
 		work.execute(this->getArmor()->getScript<ModScript::DamageSpecialUnit>(), args);
 
 
@@ -1898,13 +1903,26 @@ int BattleUnit::damage(Position relative, int damage, const RuleDamageType *type
 		if (rand.percent(std::get<arg_specialDamageTransformChance>(args.data)) && specialDamageTransform
 			&& !getSpawnUnit())
 		{
-			auto typeName = specialDamageTransform->getZombieUnit(this);
-			auto type = save->getMod()->getUnit(typeName);
+			auto& typeName = specialDamageTransform->getZombieUnit(this);
+			auto* type = save->getMod()->getUnit(typeName);
 			if (type->getArmor()->getSize() <= getArmor()->getSize())
 			{
+				UnitFaction faction = specialDamageTransform->getZombieUnitFaction();
+				if (faction == FACTION_NONE)
+				{
+					if (attack.attacker)
+					{
+						faction = attack.attacker->getFaction();
+					}
+					else
+					{
+						faction = FACTION_HOSTILE;
+					}
+				}
+
 				// converts the victim to a zombie on death
 				setRespawn(true);
-				setSpawnUnitFaction(FACTION_HOSTILE);
+				setSpawnUnitFaction(faction);
 				setSpawnUnit(type);
 			}
 			else
@@ -1949,7 +1967,7 @@ bool BattleUnit::hasNegativeHealthRegen() const
 		// apply soldier bonuses
 		if (_geoscapeSoldier)
 		{
-			for (auto bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
+			for (const auto* bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
 			{
 				HPRecovery += bonusRule->getHealthRecovery(this);
 			}
@@ -2278,9 +2296,9 @@ void BattleUnit::resetTimeUnitsAndEnergy()
 bool BattleUnit::addToVisibleUnits(BattleUnit *unit)
 {
 	bool add = true;
-	for (std::vector<BattleUnit*>::iterator i = _unitsSpottedThisTurn.begin(); i != _unitsSpottedThisTurn.end();++i)
+	for (auto* bu : _unitsSpottedThisTurn)
 	{
-		if ((BattleUnit*)(*i) == unit)
+		if (bu == unit)
 		{
 			add = false;
 			break;
@@ -2290,9 +2308,9 @@ bool BattleUnit::addToVisibleUnits(BattleUnit *unit)
 	{
 		_unitsSpottedThisTurn.push_back(unit);
 	}
-	for (std::vector<BattleUnit*>::iterator i = _visibleUnits.begin(); i != _visibleUnits.end(); ++i)
+	for (auto* bu : _visibleUnits)
 	{
-		if ((BattleUnit*)(*i) == unit)
+		if (bu == unit)
 		{
 			return false;
 		}
@@ -2311,7 +2329,7 @@ bool BattleUnit::removeFromVisibleUnits(BattleUnit *unit)
 	if (!_visibleUnits.size()) {
 		return false;
 	}
-	std::vector<BattleUnit*>::iterator i = std::find(_visibleUnits.begin(), _visibleUnits.end(), unit);
+	auto i = std::find(_visibleUnits.begin(), _visibleUnits.end(), unit);
 	if (i == _visibleUnits.end())
 	{
 		return false;
@@ -2327,7 +2345,7 @@ bool BattleUnit::removeFromVisibleUnits(BattleUnit *unit)
 * @param unit The unit to check whether we have in our visibility cache.
 * @return true if on the visible list or of the same faction
 */
-bool BattleUnit::hasVisibleUnit(BattleUnit *unit)
+bool BattleUnit::hasVisibleUnit(const BattleUnit *unit) const
 {
 	if (getFaction() == unit->getFaction())
 	{
@@ -2385,9 +2403,9 @@ const std::vector<Tile*> *BattleUnit::getVisibleTiles()
  */
 void BattleUnit::clearVisibleTiles()
 {
-	for (std::vector<Tile*>::iterator j = _visibleTiles.begin(); j != _visibleTiles.end(); ++j)
+	for (auto* tile : _visibleTiles)
 	{
-		(*j)->setVisible(-1);
+		tile->setVisible(-1);
 	}
 	_visibleTilesLookup.clear();
 	_visibleTiles.clear();
@@ -2772,7 +2790,7 @@ void BattleUnit::updateUnitStats(bool tuAndEnergy, bool rest)
 		// apply soldier bonuses
 		if (_geoscapeSoldier)
 		{
-			for (auto bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
+			for (const auto* bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
 			{
 				TURecovery += bonusRule->getTimeRecovery(this);
 				ENRecovery += bonusRule->getEnergyRecovery(this);
@@ -2793,7 +2811,7 @@ void BattleUnit::updateUnitStats(bool tuAndEnergy, bool rest)
 		// apply soldier bonuses
 		if (_geoscapeSoldier)
 		{
-			for (auto bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
+			for (const auto* bonusRule : *_geoscapeSoldier->getBonuses(nullptr))
 			{
 				HPRecovery += bonusRule->getHealthRecovery(this);
 				MNRecovery += bonusRule->getManaRecovery(this);
@@ -2970,9 +2988,9 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 		if (rule->getBattleType() != BT_FIREARM && rule->getBattleType() != BT_MELEE)
 		{
 			int tally = 0;
-			for (BattleItem *i : *getInventory())
+			for (auto* bi : *getInventory())
 			{
-				if (rule->getType() == i->getRules()->getType())
+				if (rule->getType() == bi->getRules()->getType())
 				{
 					if (allowSecondClip && rule->getBattleType() == BT_AMMO)
 					{
@@ -3118,7 +3136,7 @@ bool BattleUnit::addItem(BattleItem *item, const Mod *mod, bool allowSecondClip,
 			if (getBaseStats()->strength >= weight) // weight is always considered 0 for aliens
 			{
 				// this is `n*(log(n) + log(n))` code, it could be `n` but we would lose predefined order, as `RuleItem` have them in effective in random order (depending on global memory allocations)
-				for (const std::string &s : mod->getInvsList())
+				for (const auto& s : mod->getInvsList())
 				{
 					RuleInventory *slot = mod->getInventory(s);
 					if (slot->getType() == INV_SLOT)
@@ -3206,23 +3224,31 @@ void BattleUnit::updateTileFloorState(SavedBattleGame *saveBattleGame)
 {
 	if (_tile)
 	{
-		auto armorSize = _armor->getSize() - 1;
-		auto newPos = _tile->getPosition();
 		_haveNoFloorBelow = true;
-		for (int x = armorSize; x >= 0; --x)
+
+		if (isBigUnit())
 		{
-			for (int y = armorSize; y >= 0; --y)
+			auto armorSize = _armor->getSize() - 1;
+			auto newPos = _tile->getPosition();
+			for (int x = armorSize; x >= 0; --x)
 			{
-				auto t = saveBattleGame->getTile(newPos + Position(x, y, 0));
-				if (t)
+				for (int y = armorSize; y >= 0; --y)
 				{
-					if (!t->hasNoFloor(saveBattleGame))
+					auto t = saveBattleGame->getTile(newPos + Position(x, y, 0));
+					if (t)
 					{
-						_haveNoFloorBelow = false;
-						return;
+						if (!t->hasNoFloor(saveBattleGame))
+						{
+							_haveNoFloorBelow = false;
+							return;
+						}
 					}
 				}
 			}
+		}
+		else
+		{
+			_haveNoFloorBelow &= _tile->hasNoFloor(saveBattleGame) && !_tile->hasLadder();
 		}
 	}
 	else
@@ -3261,16 +3287,17 @@ void BattleUnit::setTile(Tile *tile, SavedBattleGame *saveBattleGame)
 	}
 
 	_tile = tile;
+
+	updateTileFloorState(saveBattleGame);
+
 	if (!_tile)
 	{
 		_floating = false;
-		_haveNoFloorBelow = false;
 		return;
 	}
 
 	// Update tiles moved to.
 	auto newPos = _tile->getPosition();
-	_haveNoFloorBelow = true;
 	for (int x = armorSize; x >= 0; --x)
 	{
 		for (int y = armorSize; y >= 0; --y)
@@ -3278,7 +3305,6 @@ void BattleUnit::setTile(Tile *tile, SavedBattleGame *saveBattleGame)
 			auto t = saveBattleGame->getTile(newPos + Position(x, y, 0));
 			if (t)
 			{
-				_haveNoFloorBelow &= t->hasNoFloor(saveBattleGame);
 				t->setUnit(this);
 			}
 		}
@@ -3334,22 +3360,22 @@ BattleItem *BattleUnit::getItem(RuleInventory *slot, int x, int y) const
 	// Soldier items
 	if (slot->getType() != INV_GROUND)
 	{
-		for (std::vector<BattleItem*>::const_iterator i = _inventory.begin(); i != _inventory.end(); ++i)
+		for (auto* bi : _inventory)
 		{
-			if ((*i)->getSlot() == slot && (*i)->occupiesSlot(x, y))
+			if (bi->getSlot() == slot && bi->occupiesSlot(x, y))
 			{
-				return *i;
+				return bi;
 			}
 		}
 	}
 	// Ground items
 	else if (_tile != 0)
 	{
-		for (std::vector<BattleItem*>::const_iterator i = _tile->getInventory()->begin(); i != _tile->getInventory()->end(); ++i)
+		for (auto* bi : *_tile->getInventory())
 		{
-			if ((*i)->occupiesSlot(x, y))
+			if (bi->occupiesSlot(x, y))
 			{
-				return *i;
+				return bi;
 			}
 		}
 	}
@@ -3453,11 +3479,11 @@ BattleItem *BattleUnit::getMainHandWeapon(bool quickest) const
  */
 BattleItem *BattleUnit::getGrenadeFromBelt() const
 {
-	for (std::vector<BattleItem*>::const_iterator i = _inventory.begin(); i != _inventory.end(); ++i)
+	for (auto* bi : _inventory)
 	{
-		if ((*i)->getRules()->getBattleType() == BT_GRENADE)
+		if (bi->getRules()->getBattleType() == BT_GRENADE)
 		{
-			return *i;
+			return bi;
 		}
 	}
 	return 0;
@@ -3469,12 +3495,12 @@ BattleItem *BattleUnit::getGrenadeFromBelt() const
  */
 BattleItem *BattleUnit::getRightHandWeapon() const
 {
-	for (auto i : _inventory)
+	for (auto* bi : _inventory)
 	{
-		auto slot = i->getSlot();
+		auto* slot = bi->getSlot();
 		if (slot && slot->isRightHand())
 		{
-			return i;
+			return bi;
 		}
 	}
 	return nullptr;
@@ -3486,12 +3512,12 @@ BattleItem *BattleUnit::getRightHandWeapon() const
  */
 BattleItem *BattleUnit::getLeftHandWeapon() const
 {
-	for (auto i : _inventory)
+	for (auto* bi : _inventory)
 	{
-		auto slot = i->getSlot();
+		auto* slot = bi->getSlot();
 		if (slot && slot->isLeftHand())
 		{
-			return i;
+			return bi;
 		}
 	}
 	return nullptr;
@@ -3549,7 +3575,7 @@ bool BattleUnit::reloadAmmo()
 		auto tuCost = getTimeUnits() + 1;
 		auto slotAmmo = 0;
 
-		for (BattleItem* bi : *getInventory())
+		for (auto* bi : *getInventory())
 		{
 			int slot = ruleWeapon->getSlotForAmmo(bi->getRules());
 			if (slot != -1 && !weapon->getAmmoForSlot(slot))
@@ -3777,6 +3803,11 @@ void BattleUnit::addMeleeExp()
  */
 bool BattleUnit::hasGainedAnyExperience()
 {
+	if (!Mod::EXTENDED_EXPERIENCE_AWARD_SYSTEM)
+	{
+		// vanilla compatibility (throwing doesn't count)
+		return _exp.bravery || _exp.reactions || _exp.firing || _exp.psiSkill || _exp.psiStrength || _exp.melee || _exp.mana;
+	}
 	return _exp.bravery || _exp.reactions || _exp.firing || _exp.psiSkill || _exp.psiStrength || _exp.melee || _exp.throwing || _exp.mana;
 }
 
@@ -3803,7 +3834,7 @@ bool BattleUnit::postMissionProcedures(const Mod *mod, SavedGame *geoscape, Save
 
 	updateGeoscapeStats(s);
 
-	UnitStats *stats = s->getCurrentStats();
+	UnitStats *stats = s->getCurrentStatsEditable();
 	StatAdjustment statsOld = { };
 	statsOld.statGrowth = (*stats);
 	statsDiff.statGrowth = -(*stats);        // subtract old stat
@@ -4532,10 +4563,10 @@ BattleUnit *BattleUnit::getCharging()
 int BattleUnit::getCarriedWeight(BattleItem *draggingItem) const
 {
 	int weight = _armor->getWeight();
-	for (std::vector<BattleItem*>::const_iterator i = _inventory.begin(); i != _inventory.end(); ++i)
+	for (const auto* bi : _inventory)
 	{
-		if ((*i) == draggingItem) continue;
-		weight += (*i)->getTotalWeight();
+		if (bi == draggingItem) continue;
+		weight += bi->getTotalWeight();
 	}
 	return std::max(0,weight);
 }
@@ -5340,6 +5371,19 @@ bool BattleUnit::isIgnoredByAI() const
 }
 
 /**
+ * Is the unit afraid to pathfind through fire?
+ * @return True if this unit has a penalty when pathfinding through fire.
+ */
+bool BattleUnit::avoidsFire() const
+{
+	if (_unitRules)
+	{
+		return _unitRules->avoidsFire();
+	}
+	return _specab < SPECAB_BURNFLOOR;
+}
+
+/**
  * Disable showing indicators for this unit.
  */
 void BattleUnit::disableIndicators()
@@ -5563,7 +5607,7 @@ void getRecolorScript(const BattleUnit *bu, int &pixel)
 		const auto& vec = bu->getRecolor();
 		const int g = pixel & helper::ColorGroup;
 		const int s = pixel & helper::ColorShade;
-		for(auto& p : vec)
+		for (auto& p : vec)
 		{
 			if (g == p.first)
 			{
@@ -6061,6 +6105,7 @@ std::string debugDisplayScript(const BattleUnit* bu)
 		case FACTION_HOSTILE: s += "Hostile"; break;
 		case FACTION_NEUTRAL: s += "Neutral"; break;
 		case FACTION_PLAYER: s += "Player"; break;
+		default: s += "???"; break;
 		}
 		s += " hp: ";
 		s += std::to_string(bu->getHealth());

@@ -232,7 +232,7 @@ void ProjectileFlyBState::init()
 				1,   // Fire right 45 degrees
 				2 }; // Fire right 90 degrees
 
-			for (std::vector<BattleUnit*>::iterator bu = closeQuartersTargetList.begin(); bu != closeQuartersTargetList.end(); ++bu)
+			for (auto* bu : closeQuartersTargetList)
 			{
 				BattleActionAttack attack;
 				attack.type = BA_CQB;
@@ -241,7 +241,7 @@ void ProjectileFlyBState::init()
 				attack.damage_item = _action.weapon;
 
 				// Roll for the check
-				if (!_parent->getTileEngine()->meleeAttack(attack, (*bu)))
+				if (!_parent->getTileEngine()->meleeAttack(attack, bu))
 				{
 					// Failed the check, roll again to see result
 					if (_parent->getSave()->getSide() == FACTION_PLAYER) // Only show message during player's turn
@@ -277,8 +277,8 @@ void ProjectileFlyBState::init()
 					}
 
 					// We're done, spend TUs and Energy; and don't check remaining CQB candidates anymore
-					(*bu)->spendTimeUnits(_parent->getMod()->getCloseQuartersTuCostGlobal());
-					(*bu)->spendEnergy(_parent->getMod()->getCloseQuartersEnergyCostGlobal());
+					bu->spendTimeUnits(_parent->getMod()->getCloseQuartersTuCostGlobal());
+					bu->spendEnergy(_parent->getMod()->getCloseQuartersEnergyCostGlobal());
 					break;
 				}
 			}
@@ -484,6 +484,11 @@ bool ProjectileFlyBState::createNewProjectile()
 				_parent->getTileEngine()->calculateFOV(_unit->getPosition(), _action.weapon->getGlowRange(), false);
 			}
 			_parent->getMod()->getSoundByDepth(_parent->getDepth(), Mod::ITEM_THROW)->play(-1, _parent->getMap()->getSoundAngle(_unit->getPosition()));
+			if (!Mod::EXTENDED_EXPERIENCE_AWARD_SYSTEM)
+			{
+				// vanilla compatibility (throwing anything anywhere gives throwing exp)
+				_unit->addThrowingExp();
+			}
 		}
 		else
 		{
@@ -593,6 +598,9 @@ bool ProjectileFlyBState::createNewProjectile()
  */
 void ProjectileFlyBState::think()
 {
+	/// checks if a weapon has any more shots to fire.
+	auto noMoreShotsToShoot = [this]() { return !_action.weapon->haveNextShotsForAction(_action.type, _action.autoShotCounter) || !_action.weapon->getAmmoForAction(_action.type); };
+
 	_parent->getSave()->getBattleState()->clearMouseScrollingState();
 	/* TODO refactoring : store the projectile in this state, instead of getting it from the map each time? */
 	if (_parent->getMap()->getProjectile() == 0)
@@ -671,7 +679,7 @@ void ProjectileFlyBState::think()
 					if (ruleItem->getBattleType() == BT_GRENADE || ruleItem->getBattleType() == BT_PROXIMITYGRENADE)
 					{
 						// it's a hot grenade to explode immediately
-						_parent->statePushFront(new ExplosionBState(_parent, _parent->getMap()->getProjectile()->getPosition(Projectile::ItemDropVoxelOffset), attack));
+						_parent->statePushFront(new ExplosionBState(_parent, _parent->getMap()->getProjectile()->getLastPositions(Projectile::ItemDropVoxelOffset), attack));
 					}
 					else
 					{
@@ -726,9 +734,9 @@ void ProjectileFlyBState::think()
 					}
 
 					_parent->statePushFront(new ExplosionBState(
-						_parent, _parent->getMap()->getProjectile()->getPosition(offset),
+						_parent, _parent->getMap()->getProjectile()->getLastPositions(offset),
 						attack, 0,
-						_action.weapon->haveNextShotsForAction(_action.type, _action.autoShotCounter) || !_action.weapon->getAmmoForAction(_action.type),
+						noMoreShotsToShoot(),
 						shotgun ? 0 : _range + _parent->getMap()->getProjectile()->getDistance()
 					));
 
@@ -817,7 +825,7 @@ void ProjectileFlyBState::think()
 					// nerf unit's XP values (gained via extra shotgun bullets)
 					_unit->nerfXP();
 				}
-				else if (!_action.weapon->haveNextShotsForAction(_action.type, _action.autoShotCounter) || !_action.weapon->getAmmoForAction(_action.type))
+				else if (noMoreShotsToShoot())
 				{
 					_unit->aim(false);
 				}

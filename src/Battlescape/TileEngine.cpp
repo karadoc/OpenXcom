@@ -367,7 +367,7 @@ void addBigWallDir(T& td, int dir, bool p)
 /**
  * Index to component of Pos
  */
-enum Axis : char
+enum Axis : signed char
 {
 	X = 0,
 	Y = 1,
@@ -380,7 +380,7 @@ enum Axis : char
 /**
  * Index to component of Box
  */
-enum BoxAxis : char
+enum BoxAxis : signed char
 {
 	B_X = X,
 	B_Y = Y,
@@ -490,18 +490,20 @@ constexpr std::array diffToAxis =
 	AxisInvalid,
 };
 
+
 struct ConfigSide
 {
-	constexpr ConfigSide() = default;
-
-	constexpr ConfigSide(BoxVertex start, BoxVertex ii, BoxVertex jj)
+	constexpr static ConfigSide fill(BoxVertex start, BoxVertex ii, BoxVertex jj)
 	{
 		// `kk` is determined as vertex that lie on orthogonal line to surface defined by vertexes `start`, `ii` and `jj`.
 		const auto kk = BoxVertex(start ^ (V_111 - (start ^ jj) - (start ^ ii)));
 
-		i.fill(start, ii);
-		j.fill(start, jj);
-		k.fill(start, kk);
+		return ConfigSide
+		{
+			Direction::fill(start, ii),
+			Direction::fill(start, jj),
+			Direction::fill(start, kk),
+		};
 	}
 
 	struct Direction
@@ -511,15 +513,21 @@ struct ConfigSide
 		BoxAxis first = {};
 		BoxAxis last = {};
 
-		constexpr Direction() = default;
+		constexpr static Sint8 Plus = +1;
+		constexpr static Sint8 Minus = -1;
 
-		constexpr void fill(BoxVertex from, BoxVertex to)
+		constexpr static Direction fill(BoxVertex from, BoxVertex to)
 		{
 			const bool asc = from < to;
-			axis = diffToAxis[from ^ to];
-			dir = asc ? +1 : -1;
-			first = BoxAxis(axis + (asc ? 0 : AxisMax));
-			last = BoxAxis(axis + (asc ? AxisMax : 0));
+			const Axis axis = diffToAxis[from ^ to];
+
+			return Direction
+			{
+				axis,
+				asc ? Plus : Minus,
+				BoxAxis(axis + (asc ? 0 : AxisMax)),
+				BoxAxis(axis + (asc ? AxisMax : 0)),
+			};
 		}
 	};
 
@@ -564,21 +572,19 @@ constexpr std::array propagationSequence = ([]
 	};
 	for (int j = 0; j < SquareLoopSize; ++j, ++total)
 	{
-		s[total] = ConfigSide
-		{
+		s[total] = ConfigSide::fill(
 			curr(floor_loop, j),
 			next(floor_loop, j),
-			prev(floor_loop, j),
-		};
+			prev(floor_loop, j)
+		);
 	}
 	for (int j = 0; j < SquareLoopSize; ++j, ++total)
 	{
-		s[total] = ConfigSide
-		{
+		s[total] = ConfigSide::fill(
 			up(curr(floor_loop, j)),
 			up(next(floor_loop, j)),
-			up(prev(floor_loop, j)),
-		};
+			up(prev(floor_loop, j))
+		);
 	}
 	for (int i = 0; i < SquareLoopSize; ++i)
 	{
@@ -591,12 +597,11 @@ constexpr std::array propagationSequence = ([]
 		};
 		for (int j = 0; j < SquareLoopSize; ++j, ++total)
 		{
-			s[total] = ConfigSide
-			{
+			s[total] = ConfigSide::fill(
 				curr(side, j),
 				next(side, j),
-				prev(side, j),
-			};
+				prev(side, j)
+			);
 		}
 	}
 
@@ -1028,15 +1033,15 @@ void TileEngine::calculateTerrainItems(MapSubset gs)
 		{
 			int currLight = 0;
 
-			for (const BattleItem *it : *tile->getInventory())
+			for (const auto* bi : *tile->getInventory())
 			{
-				if (it->getGlow())
+				if (bi->getGlow())
 				{
-					currLight = std::max(currLight, it->getGlowRange());
+					currLight = std::max(currLight, bi->getGlowRange());
 				}
 
-				auto* u = it->getUnit();
-				if (u && u->getFire())
+				auto* bu = bi->getUnit();
+				if (bu && bu->getFire())
 				{
 					currLight = std::max(currLight, unitFireLightPowerStunned);
 				}
@@ -1452,12 +1457,12 @@ bool TileEngine::calculateUnitsInFOV(BattleUnit* unit, const Position eventPos, 
 	}
 
 	//Loop through all units specified and figure out which ones we can actually see.
-	for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+	for (auto* bu : *_save->getUnits())
 	{
-		Position posOther = (*i)->getPosition();
-		if (!(*i)->isOut() && (unit->getId() != (*i)->getId()))
+		Position posOther = bu->getPosition();
+		if (!bu->isOut() && (unit->getId() != bu->getId()))
 		{
-			int sizeOther = (*i)->getArmor()->getSize();
+			int sizeOther = bu->getArmor()->getSize();
 			for (int x = 0; x < sizeOther; ++x)
 			{
 				for (int y = 0; y < sizeOther; ++y)
@@ -1469,27 +1474,27 @@ bool TileEngine::calculateUnitsInFOV(BattleUnit* unit, const Position eventPos, 
 						if (!unit->checkViewSector(posToCheck, useTurretDirection))
 						{
 							//Unit within arc, but not in view sector. If it just walked out we need to remove it.
-							unit->removeFromVisibleUnits((*i));
+							unit->removeFromVisibleUnits(bu);
 						}
 						else if (visible(unit, _save->getTile(posToCheck))) // (distance is checked here)
 						{
 							//Unit (or part thereof) visible to one or more eyes of this unit.
 							if (unit->getFaction() == FACTION_PLAYER)
 							{
-								(*i)->setVisible(true);
+								bu->setVisible(true);
 							}
-							if ((( (*i)->getFaction() == FACTION_HOSTILE && unit->getFaction() == FACTION_PLAYER )
-								|| ( (*i)->getFaction() != FACTION_HOSTILE && unit->getFaction() == FACTION_HOSTILE ))
-								&& !unit->hasVisibleUnit((*i)))
+							if ((( bu->getFaction() == FACTION_HOSTILE && unit->getFaction() == FACTION_PLAYER )
+								|| ( bu->getFaction() != FACTION_HOSTILE && unit->getFaction() == FACTION_HOSTILE ))
+								&& !unit->hasVisibleUnit(bu))
 							{
-								unit->addToVisibleUnits((*i));
-								unit->addToVisibleTiles((*i)->getTile());
+								unit->addToVisibleUnits(bu);
+								unit->addToVisibleTiles(bu->getTile());
 
-								if (unit->getFaction() == FACTION_HOSTILE && (*i)->getFaction() != FACTION_HOSTILE)
+								if (unit->getFaction() == FACTION_HOSTILE && bu->getFaction() != FACTION_HOSTILE)
 								{
-									(*i)->setTurnsSinceSpotted(0);
+									bu->setTurnsSinceSpotted(0);
 
-									(*i)->setTurnsLeftSpottedForSnipers(std::max(unit->getSpotterDuration(), (*i)->getTurnsLeftSpottedForSnipers())); // defaults to 0 = no information given to snipers
+									bu->setTurnsLeftSpottedForSnipers(std::max(unit->getSpotterDuration(), bu->getTurnsLeftSpottedForSnipers())); // defaults to 0 = no information given to snipers
 								}
 							}
 
@@ -1498,7 +1503,7 @@ bool TileEngine::calculateUnitsInFOV(BattleUnit* unit, const Position eventPos, 
 						else
 						{
 							//Within arc, but not visible. Need to check to see if whatever happened at eventPos blocked a previously seen unit.
-							unit->removeFromVisibleUnits((*i));
+							unit->removeFromVisibleUnits(bu);
 						}
 					}
 				}
@@ -1618,9 +1623,8 @@ void TileEngine::calculateTilesInFOV(BattleUnit *unit, const Position eventPos, 
 										_trajectory.pop_back();
 									}
 									//Reveal all tiles along line of vision. Note: needed due to width of bresenham stroke.
-									for (std::vector<Position>::iterator i = _trajectory.begin(); i != _trajectory.end(); ++i)
+									for (const auto& posVisited : _trajectory)
 									{
-										Position posVisited = (*i);
 										//Add tiles to the visible list only once. BUT we still need to calculate the whole trajectory as
 										// this bresenham line's period might be different from the one that originally revealed the tile.
 										if (!unit->hasVisibleTile(_save->getTile(posVisited)))
@@ -2397,22 +2401,20 @@ void TileEngine::calculateFOV(Position position, int eventRadius, const bool upd
 		updateRadius = getMaxViewDistance() + (eventRadius > 0 ? eventRadius : 0);
 		updateRadius *= updateRadius;
 	}
-	for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+	for (auto* bu : *_save->getUnits())
 	{
-		const Position posUnit = (*i)->getPosition();
-
-		if (Position::distance2dSq(position, posUnit) <= updateRadius) //could this unit have observed the event?
+		if (Position::distance2dSq(position, bu->getPosition()) <= updateRadius) //could this unit have observed the event?
 		{
 			if (updateTiles)
 			{
 				if (!appendToTileVisibility)
 				{
-					(*i)->clearVisibleTiles();
+					bu->clearVisibleTiles();
 				}
-				calculateTilesInFOV((*i), position, eventRadius);
+				calculateTilesInFOV(bu, position, eventRadius);
 			}
 
-			calculateUnitsInFOV((*i), position, eventRadius);
+			calculateUnitsInFOV(bu, position, eventRadius);
 		}
 	}
 }
@@ -2487,28 +2489,28 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 	// no reaction on civilian turn.
 	if (_save->getSide() != FACTION_NEUTRAL)
 	{
-		for (std::vector<BattleUnit*>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+		for (auto* bu : *_save->getUnits())
 		{
 				// not dead/unconscious
-			if (!(*i)->isOut() &&
+			if (!bu->isOut() &&
 				// not dying or not about to pass out
-				!(*i)->isOutThresholdExceed() &&
+				!bu->isOutThresholdExceed() &&
 				// have any chances for reacting
-				(*i)->getReactionScore() >= threshold &&
+				bu->getReactionScore() >= threshold &&
 				// not a friend
-				(*i)->getFaction() != _save->getSide() &&
+				bu->getFaction() != _save->getSide() &&
 				// not a civilian, or a civilian shooting at bad non-ignored guys
-				((*i)->getFaction() != FACTION_NEUTRAL || (unit->getFaction() == FACTION_HOSTILE && !unit->isIgnoredByAI())) &&
+				(bu->getFaction() != FACTION_NEUTRAL || (unit->getFaction() == FACTION_HOSTILE && !unit->isIgnoredByAI())) &&
 				// closer than 20 tiles
-				Position::distance2dSq(unit->getPosition(), (*i)->getPosition()) <= getMaxViewDistanceSq())
+				Position::distance2dSq(unit->getPosition(), bu->getPosition()) <= getMaxViewDistanceSq())
 			{
 				BattleAction falseAction;
 				falseAction.type = BA_SNAPSHOT;
-				falseAction.actor = *i;
+				falseAction.actor = bu;
 				falseAction.target = unit->getPosition();
 				Position originVoxel = getOriginVoxel(falseAction, 0);
 				Position targetVoxel;
-				AIModule *ai = (*i)->getAIModule();
+				AIModule *ai = bu->getAIModule();
 
 				// Inquisitor's note regarding 'gotHit' variable
 				// in vanilla, the 'hitState' flag is the only part of this equation that comes into play.
@@ -2525,34 +2527,34 @@ std::vector<TileEngine::ReactionScore> TileEngine::getSpottingUnits(BattleUnit* 
 				// we don't extend the same "enhanced aggressor memory" courtesy to players, because in the original, they could only turn and react to damage immediately after it happened.
 				// this is because as much as we want the player's soldiers dead, we don't want them to feel like we're being unfair about it.
 
-				bool gotHit = (ai != 0 && ai->getWasHitBy(unit->getId())) || (ai == 0 && (*i)->getHitState());
+				bool gotHit = (ai != 0 && ai->getWasHitBy(unit->getId())) || (ai == 0 && bu->getHitState());
 
 				if (!gotHit && Mod::EXTENDED_MELEE_REACTIONS == 2)
 				{
 					// to allow melee reactions when attacked from any side, not just from the front
-					gotHit = (*i)->wasMeleeAttackedBy(unit->getId());
+					gotHit = bu->wasMeleeAttackedBy(unit->getId());
 				}
 
 					// can actually see the target Tile, or we got hit
-				if (((*i)->checkViewSector(unit->getPosition()) || gotHit) &&
+				if ((bu->checkViewSector(unit->getPosition()) || gotHit) &&
 					// can actually target the unit
-					canTargetUnit(&originVoxel, tile, &targetVoxel, *i, false) &&
+					canTargetUnit(&originVoxel, tile, &targetVoxel, bu, false) &&
 					// can actually see the unit
-					visible(*i, tile))
+					visible(bu, tile))
 				{
-					if ((*i)->getFaction() == FACTION_PLAYER)
+					if (bu->getFaction() == FACTION_PLAYER)
 					{
 						unit->setVisible(true);
 					}
-					(*i)->addToVisibleUnits(unit);
-					ReactionScore rs = determineReactionType(*i, unit);
+					bu->addToVisibleUnits(unit);
+					ReactionScore rs = determineReactionType(bu, unit);
 					if (rs.attackType != BA_NONE)
 					{
 						if (rs.attackType == BA_SNAPSHOT && Options::battleUFOExtenderAccuracy)
 						{
 							BattleItem *weapon = rs.weapon;
 							int accuracy = BattleUnit::getFiringAccuracy(BattleActionAttack::GetBeforeShoot(rs.attackType, rs.unit, weapon), _save->getBattleGame()->getMod());
-							int distanceSq = unit->distance3dToUnitSq((*i));
+							int distanceSq = unit->distance3dToUnitSq(bu);
 							int distance = (int)std::ceil(sqrt(float(distanceSq)));
 
 							int upperLimit = weapon->getRules()->getSnapRange();
@@ -2918,8 +2920,16 @@ bool TileEngine::awardExperience(BattleActionAttack attack, BattleUnit *target, 
 		// GRENADES AND PROXIES
 		if (weapon->getRules()->getBattleType() == BT_GRENADE || weapon->getRules()->getBattleType() == BT_PROXIMITYGRENADE)
 		{
-			expType = ETM_THROWING_100;
-			expFuncA = &BattleUnit::addThrowingExp; // e.g. acid grenade, stun grenade, HE grenade, smoke grenade, proxy grenade, ...
+			if (Mod::EXTENDED_EXPERIENCE_AWARD_SYSTEM)
+			{
+				expType = ETM_THROWING_100;
+				expFuncA = &BattleUnit::addThrowingExp; // e.g. acid grenade, stun grenade, HE grenade, smoke grenade, proxy grenade, ...
+			}
+			else
+			{
+				expType = ETM_FIRING_100;
+				expFuncA = &BattleUnit::addFiringExp; // vanilla compatibility
+			}
 		}
 		// MELEE
 		else if (weapon->getRules()->getBattleType() == BT_MELEE)
@@ -2940,6 +2950,11 @@ bool TileEngine::awardExperience(BattleActionAttack attack, BattleUnit *target, 
 			{
 				expType = ETM_MELEE_100;
 				expFuncA = &BattleUnit::addMeleeExp; // e.g. rifle/shotgun gun butt, ...
+			}
+			else if (!Mod::EXTENDED_EXPERIENCE_AWARD_SYSTEM)
+			{
+				expType = ETM_FIRING_100;
+				expFuncA = &BattleUnit::addFiringExp; // vanilla compatibility
 			}
 			else if (weapon->getArcingShot(attack.type))
 			{
@@ -2977,8 +2992,11 @@ bool TileEngine::awardExperience(BattleActionAttack attack, BattleUnit *target, 
 		// only enemies count, not friends or neutrals
 		if (target->getOriginalFaction() != FACTION_HOSTILE) expMultiply = 0;
 
-		// mind-controlled enemies don't count though!
-		if (target->getFaction() != FACTION_HOSTILE) expMultiply = 0;
+		if (Mod::EXTENDED_EXPERIENCE_AWARD_SYSTEM)
+		{
+			// mind-controlled enemies don't count though!
+			if (target->getFaction() != FACTION_HOSTILE) expMultiply = 0;
+		}
 	}
 
 	expMultiply = ModScript::scriptFunc2<ModScript::AwardExperience>(
@@ -3117,11 +3135,11 @@ void TileEngine::hit(BattleActionAttack attack, Position center, int power, cons
 		bool nothing = true;
 		if (terrainMeleeTilePart == 0 && (part == V_FLOOR || part == V_OBJECT))
 		{
-			for (std::vector<BattleItem*>::iterator i = tile->getInventory()->begin(); i != tile->getInventory()->end(); ++i)
+			for (auto* bi : *tile->getInventory())
 			{
-				if (hitUnit(attack, (*i)->getUnit(), Position(0,0,0), damage, type, rangeAtack))
+				if (hitUnit(attack, bi->getUnit(), Position(0,0,0), damage, type, rangeAtack))
 				{
-					if ((*i)->getGlow()) effectGenerated = 2; //Any glowing corpses?
+					if (bi->getGlow()) effectGenerated = 2; //Any glowing corpses?
 					nothing = false;
 					break;
 				}
@@ -3304,26 +3322,26 @@ void TileEngine::explode(BattleActionAttack attack, Position center, int power, 
 							const int itemDamage = bu->getOverKillDamage();
 							if (itemDamage > 0)
 							{
-								for (std::vector<BattleItem*>::iterator it = bu->getInventory()->begin(); it != bu->getInventory()->end(); ++it)
+								for (auto* bi : *bu->getInventory())
 								{
-									if (!hitUnit(attack, (*it)->getUnit(), Position(0, 0, 0), itemDamage, type, rangeAtack) && type->getItemFinalDamage(itemDamage) > (*it)->getRules()->getArmor())
+									if (!hitUnit(attack, bi->getUnit(), Position(0, 0, 0), itemDamage, type, rangeAtack) && type->getItemFinalDamage(itemDamage) > bi->getRules()->getArmor())
 									{
-										toRemove.push_back(*it);
+										toRemove.push_back(bi);
 									}
 								}
 							}
 						}
 						// Affect all items and units on ground
-						for (std::vector<BattleItem*>::iterator it = dest->getInventory()->begin(); it != dest->getInventory()->end(); ++it)
+						for (auto* bi : *dest->getInventory())
 						{
-							if (!hitUnit(attack, (*it)->getUnit(), Position(0, 0, 0), damage, type) && type->getItemFinalDamage(damage) > (*it)->getRules()->getArmor())
+							if (!hitUnit(attack, bi->getUnit(), Position(0, 0, 0), damage, type) && type->getItemFinalDamage(damage) > bi->getRules()->getArmor())
 							{
-								toRemove.push_back(*it);
+								toRemove.push_back(bi);
 							}
 						}
-						for (std::vector<BattleItem*>::iterator it = toRemove.begin(); it != toRemove.end(); ++it)
+						for (auto* bi : toRemove)
 						{
-							_save->removeItem((*it));
+							_save->removeItem(bi);
 						}
 
 						hitTile(dest, damage, type);
@@ -3387,14 +3405,14 @@ void TileEngine::explode(BattleActionAttack attack, Position center, int power, 
 	// now detonate the tiles affected by explosion
 	if (type->ToTile > 0.0f)
 	{
-		for (std::map<Tile*, int>::iterator i = tilesAffected.begin(); i != tilesAffected.end(); ++i)
+		for (auto& pair : tilesAffected)
 		{
-			if (detonate(i->first, i->second))
+			if (detonate(pair.first, pair.second))
 			{
 				_save->addDestroyedObjective();
 			}
-			applyGravity(i->first);
-			Tile *j = _save->getTile(i->first->getPosition() + Position(0,0,1));
+			applyGravity(pair.first);
+			Tile *j = _save->getTile(pair.first->getPosition() + Position(0,0,1));
 			if (j)
 				applyGravity(j);
 		}
@@ -4035,23 +4053,27 @@ int TileEngine::unitOpensDoor(BattleUnit *unit, bool rClick, int dir)
 			}
 
 			TilePart part = O_FLOOR;
-			for (std::vector<std::pair<Position, TilePart> >::const_iterator i = checkPositions.begin(); i != checkPositions.end() && door == -1; ++i)
+			for (const auto& pair : checkPositions)
 			{
-				tile = _save->getTile(unit->getPosition() + Position(x,y,z) + i->first);
+				if (door != -1)
+				{
+					break; // loop finished
+				}
+				tile = _save->getTile(unit->getPosition() + Position(x,y,z) + pair.first);
 				if (tile)
 				{
-					door = tile->openDoor(i->second, unit, _save->getBattleGame()->getReservedAction(), rClick);
+					door = tile->openDoor(pair.second, unit, _save->getBattleGame()->getReservedAction(), rClick);
 					if (door != -1)
 					{
-						part = i->second;
+						part = pair.second;
 						if (door == 0)
 						{
 							++doorsOpened;
-							doorCentre = unit->getPosition() + Position(x, y, z) + i->first;
+							doorCentre = unit->getPosition() + Position(x, y, z) + pair.first;
 						}
 						else if (door == 1)
 						{
-							std::pair<int, Position> adjacentDoors = checkAdjacentDoors(unit->getPosition() + Position(x,y,z) + i->first, i->second);
+							std::pair<int, Position> adjacentDoors = checkAdjacentDoors(unit->getPosition() + Position(x,y,z) + pair.first, pair.second);
 							doorsOpened += adjacentDoors.first + 1;
 							doorCentre = adjacentDoors.second;
 						}
@@ -4181,7 +4203,6 @@ int TileEngine::closeUfoDoors()
 int TileEngine::calculateLineTile(Position origin, Position target, std::vector<Position> &trajectory)
 {
 	Position lastPoint = origin;
-	bool bigWall = false;
 	int steps = 0;
 
 	bool hit = calculateLineHelper(origin, target,
@@ -4196,13 +4217,9 @@ int TileEngine::calculateLineTile(Position origin, Position target, std::vector<
 			bool result = getBlockDir(cache, dir, difference.z);
 			if (result && difference.z == 0 && getBigWallDir(cache, dir))
 			{
-				if (steps<2)
+				if (point == target)
 				{
 					result = false;
-				}
-				else
-				{
-					bigWall = true;
 				}
 			}
 
@@ -4217,7 +4234,7 @@ int TileEngine::calculateLineTile(Position origin, Position target, std::vector<
 	);
 	if (hit)
 	{
-		return bigWall ? 0 : 256;
+		return 256;
 	}
 	return 0;
 }
@@ -4433,9 +4450,9 @@ VoxelType TileEngine::voxelCheck(Position voxel, BattleUnit *excludeUnit, bool e
 		return V_EMPTY;
 	}
 
-	if (tile->getMapData(O_FLOOR) && tile->getMapData(O_FLOOR)->isGravLift() && (voxel.z % 24 == 0 || voxel.z % 24 == 1))
+	if (tile->hasGravLiftFloor() && (voxel.z % 24 == 0 || voxel.z % 24 == 1))
 	{
-		if ((tile->getPosition().z == 0) || (tileBelow && tileBelow->getMapData(O_FLOOR) && !tileBelow->getMapData(O_FLOOR)->isGravLift()))
+		if (!(tileBelow && tileBelow->hasGravLiftFloor()))
 		{
 			return V_FLOOR;
 		}
@@ -4942,9 +4959,9 @@ bool TileEngine::skillUse(BattleAction *action, const RuleSkill *skill)
  */
 bool TileEngine::tryConcealUnit(BattleUnit* unit)
 {
-	for (std::vector<BattleUnit*>::const_iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
+	for (const auto* bu : *_save->getUnits())
 	{
-		if ((*i)->getFaction() != unit->getFaction() && (*i)->hasVisibleUnit(unit))
+		if (bu->getFaction() != unit->getFaction() && bu->hasVisibleUnit(unit))
 		{
 			return false;
 		}
@@ -4996,15 +5013,15 @@ Tile *TileEngine::applyGravity(Tile *t)
 		rt = _save->getBelowTile(rt);
 	}
 
-	for (std::vector<BattleItem*>::iterator it = t->getInventory()->begin(); it != t->getInventory()->end(); ++it)
+	for (auto* bi : *t->getInventory())
 	{
-		if ((*it)->getUnit() && t->getPosition() == (*it)->getUnit()->getPosition())
+		if (bi->getUnit() && t->getPosition() == bi->getUnit()->getPosition())
 		{
-			(*it)->getUnit()->setPosition(rt->getPosition());
+			bi->getUnit()->setPosition(rt->getPosition());
 		}
 		if (t != rt)
 		{
-			rt->addItem(*it, (*it)->getSlot());
+			rt->addItem(bi, bi->getSlot());
 		}
 	}
 
@@ -5261,20 +5278,20 @@ bool TileEngine::validMeleeRange(Position pos, int direction, BattleUnit *attack
 		}
 	}
 
-	for (std::vector<BattleUnit*>::const_iterator i = potentialTargets.begin(); i != potentialTargets.end(); ++i)
+	for (auto* bu : potentialTargets)
 	{
 		// if there's actually something THERE, we'll chalk this up as a success.
 		if (!chosenTarget)
 		{
-			chosenTarget = *i;
+			chosenTarget = bu;
 		}
 		// but if there's a target of a different faction, we'll prioritize them.
-		else if ((preferEnemy && (*i)->getFaction() != attacker->getFaction())
+		else if ((preferEnemy && bu->getFaction() != attacker->getFaction())
 		// or, if we're using a medikit, prioritize whichever friend is wounded the most.
-		|| (!preferEnemy && (*i)->getFaction() == attacker->getFaction() &&
-		(*i)->getFatalWounds() > chosenTarget->getFatalWounds()))
+		|| (!preferEnemy && bu->getFaction() == attacker->getFaction() &&
+		bu->getFatalWounds() > chosenTarget->getFatalWounds()))
 		{
-			chosenTarget = *i;
+			chosenTarget = bu;
 		}
 	}
 
@@ -5604,11 +5621,11 @@ bool TileEngine::validateThrow(BattleAction &action, Position originVoxel, Posit
  */
 void TileEngine::recalculateFOV()
 {
-	for (std::vector<BattleUnit*>::iterator bu = _save->getUnits()->begin(); bu != _save->getUnits()->end(); ++bu)
+	for (auto* bu : *_save->getUnits())
 	{
-		if ((*bu)->getTile() != 0)
+		if (bu->getTile() != 0)
 		{
-			calculateFOV(*bu);
+			calculateFOV(bu);
 		}
 	}
 }
@@ -5842,7 +5859,7 @@ bool TileEngine::isPositionValidForUnit(Position &position, BattleUnit *unit, bo
 		}
 	}
 
-	for (std::vector<Position >::iterator i = positionsToCheck.begin(); i != positionsToCheck.end(); ++i)
+	for (const auto& pos : positionsToCheck)
 	{
 		bool passedCheck = true;
 
@@ -5851,7 +5868,7 @@ bool TileEngine::isPositionValidForUnit(Position &position, BattleUnit *unit, bo
 			for (int y = unitSize - 1; y >= 0; y--)
 			{
 				// Make sure the location is in bounds and nothing blocks being there
-				Position positionToCheck = (*i) + Position(x, y, 0);
+				Position positionToCheck = pos + Position(x, y, 0);
 				Tile* tileToCheck = _save->getTile(positionToCheck);
 				if (!tileToCheck || (tileToCheck->getUnit() && tileToCheck->getUnit() != unit) ||
 					tileToCheck->getTUCost(O_OBJECT, unit->getMovementType()) == Pathfinding::INVALID_MOVE_COST ||
@@ -5868,7 +5885,7 @@ bool TileEngine::isPositionValidForUnit(Position &position, BattleUnit *unit, bo
 			_save->getPathfinding()->setUnit(unit); //TODO: remove as was required by `isBlockedDirection`
 			for (int dir = 2; dir <= 4; ++dir)
 			{
-				if (_save->getPathfinding()->isBlockedDirection(unit, _save->getTile(*i), dir))
+				if (_save->getPathfinding()->isBlockedDirection(unit, _save->getTile(pos), dir))
 				{
 					passedCheck = false;
 				}
@@ -5877,7 +5894,7 @@ bool TileEngine::isPositionValidForUnit(Position &position, BattleUnit *unit, bo
 
 		if (passedCheck)
 		{
-			position = (*i);
+			position = pos;
 			return true;
 		}
 	}
