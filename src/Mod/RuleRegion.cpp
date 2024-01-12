@@ -18,6 +18,7 @@
  */
 #include <assert.h>
 #include "RuleRegion.h"
+#include "Mod.h"
 #include "City.h"
 #include "../Engine/Logger.h"
 #include "../Engine/RNG.h"
@@ -48,11 +49,11 @@ RuleRegion::~RuleRegion()
  * Loads the region type from a YAML file.
  * @param node YAML node.
  */
-void RuleRegion::load(const YAML::Node &node)
+void RuleRegion::load(const YAML::Node &node, Mod* mod)
 {
 	if (const YAML::Node &parent = node["refNode"])
 	{
-		load(parent);
+		load(parent, mod);
 	}
 
 	_cost = node["cost"].as<int>(_cost);
@@ -113,6 +114,9 @@ void RuleRegion::load(const YAML::Node &node)
 	}
 	_regionWeight = node["regionWeight"].as<size_t>(_regionWeight);
 	_missionRegion = node["missionRegion"].as<std::string>(_missionRegion);
+
+	mod->loadBaseFunction(_type, _provideBaseFunc, node["provideBaseFunc"]);
+	mod->loadBaseFunction(_type, _forbiddenBaseFunc, node["forbiddenBaseFunc"]);
 }
 
 /**
@@ -156,7 +160,10 @@ bool RuleRegion::insideRegion(double lon, double lat, bool ignoreTechnicalRegion
 		else
 			inLon = ((lon >= _lonMin[i] && lon < M_PI*2.0) || (lon >= 0 && lon < _lonMax[i]));
 
-		inLat = (lat >= _latMin[i] && lat < _latMax[i]);
+		if (lat > 0) // make that both poles could be in some regions, this means `M_PI == _latMax[i]` or `-M_PI == _latMin[i]`
+			inLat = (lat > _latMin[i] && lat <= _latMax[i]);
+		else
+			inLat = (lat >= _latMin[i] && lat < _latMax[i]);
 
 		if (inLon && inLat)
 			return true;

@@ -216,6 +216,20 @@ public:
 	/// Gets the craft's minimum fuel limit to go to a base.
 	int getFuelLimit(Base *base) const;
 
+	/// Gets the craft's maximum unit capacity (soldiers and vehicles, small and large).
+	int getMaxUnitsClamped() const;
+	int getMaxUnitsRaw() const { return _stats.soldiers; }
+	/// Gets the craft's maximum vehicle capacity (incl. 2x2 soldiers).
+	int getMaxVehiclesAndLargeSoldiersClamped() const;
+	int getMaxVehiclesAndLargeSoldiersRaw() const { return _stats.vehicles; }
+
+	/// Gets the item limit for this craft.
+	int getMaxItemsClamped() const { return std::max(0, _stats.maxItems); }
+	int getMaxItemsRaw() const { return _stats.maxItems; }
+	/// Gets the item storage space limit for this craft.
+	double getMaxStorageSpaceClamped() const { return std::max(0.0, _stats.maxStorageSpace); }
+	double getMaxStorageSpaceRaw() const { return _stats.maxStorageSpace; }
+
 	double getBaseRange() const;
 	/// Returns the craft to its base.
 	void returnToBase();

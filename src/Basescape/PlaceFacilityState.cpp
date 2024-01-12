@@ -85,9 +85,14 @@ PlaceFacilityState::PlaceFacilityState(Base *base, const RuleBaseFacility *rule,
 	// Set up objects
 	setWindowBackground(_window, "placeFacility");
 
+	auto* itf = _game->getMod()->getInterface("basescape")->getElement("trafficLights");
+	if (itf)
+	{
+		_view->setOtherColors(itf->color, itf->color2, itf->border, !itf->TFTDMode);
+	}
 	_view->setTexture(_game->getMod()->getSurfaceSet("BASEBITS.PCK"));
 	_view->setBase(_base);
-	_view->setSelectable(rule->getSize());
+	_view->setSelectable(rule->getSizeX(), rule->getSizeY());
 	_view->onMouseClick((ActionHandler)&PlaceFacilityState::viewClick);
 
 	_btnCancel->setText(tr("STR_CANCEL"));
@@ -245,7 +250,7 @@ void PlaceFacilityState::viewClick(Action *)
 			// Remove any facilities we're building over
 			double reducedBuildTime = 0.0;
 			bool buildingOver = false;
-			const BaseAreaSubset areaToBuildOver = BaseAreaSubset(_rule->getSize(), _rule->getSize()).offset(_view->getGridX(), _view->getGridY());
+			const BaseAreaSubset areaToBuildOver = BaseAreaSubset(_rule->getSizeX(), _rule->getSizeY()).offset(_view->getGridX(), _view->getGridY());
 			for (int i = _base->getFacilities()->size() - 1; i >= 0; --i)
 			{
 				BaseFacility *checkFacility = _base->getFacilities()->at(i);
@@ -273,8 +278,8 @@ void PlaceFacilityState::viewClick(Action *)
 						}
 
 						// Reduce the build time of the new facility
-						double oldSizeSquared = (checkFacility->getRules()->getSize() * checkFacility->getRules()->getSize());
-						double newSizeSquared = (_rule->getSize() * _rule->getSize());
+						double oldSizeSquared = (checkFacility->getRules()->getSizeX() * checkFacility->getRules()->getSizeY());
+						double newSizeSquared = (_rule->getSizeX() * _rule->getSizeY());
 						reducedBuildTime += (checkFacility->getRules()->getBuildTime() - checkFacility->getBuildTime()) * oldSizeSquared / newSizeSquared;
 
 						// This only counts as building over something if it wasn't in construction

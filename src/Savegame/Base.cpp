@@ -20,6 +20,7 @@
 #include "../fmath.h"
 #include <stack>
 #include <algorithm>
+#include <functional>
 #include "BaseFacility.h"
 #include "../Mod/RuleBaseFacility.h"
 #include "Craft.h"
@@ -46,6 +47,10 @@
 #include "../Engine/Collections.h"
 #include "WeightedOptions.h"
 #include "AlienMission.h"
+#include "Country.h"
+#include "../Mod/RuleCountry.h"
+#include "Region.h"
+#include "../Mod/RuleRegion.h"
 
 namespace OpenXcom
 {
@@ -276,6 +281,32 @@ void Base::finishLoading(const YAML::Node &node, SavedGame *save)
 			Log(LOG_ERROR) << "Failed to load craft " << type;
 		}
 	}
+	calculateServices(save);
+}
+
+/**
+ * Pre-calculates base services provided by region and country.
+ */
+void Base::calculateServices(SavedGame* save)
+{
+	for (const auto* country : *save->getCountries())
+	{
+		if (country->getRules()->insideCountry(_lon, _lat))
+		{
+			_provideBaseFunc |= country->getRules()->getProvidedBaseFunc();
+			_forbiddenBaseFunc |= country->getRules()->getForbiddenBaseFunc();
+			break;
+		}
+	}
+	for (const auto* region : *save->getRegions())
+	{
+		if (region->getRules()->insideRegion(_lon, _lat))
+		{
+			_provideBaseFunc |= region->getRules()->getProvidedBaseFunc();
+			_forbiddenBaseFunc |= region->getRules()->getForbiddenBaseFunc();
+			break;
+		}
+	}
 }
 
 /**
@@ -301,23 +332,32 @@ bool Base::isOverlappingOrOverflowing()
 		const RuleBaseFacility *rules = fac->getRules();
 		int facilityX = fac->getX();
 		int facilityY = fac->getY();
-		int facilitySize = rules->getSize();
+		int facilitySizeX = rules->getSizeX();
+		int facilitySizeY = rules->getSizeY();
 
-		if (facilityX < 0 || facilityY < 0 || facilityX + (facilitySize - 1) >= BASE_SIZE || facilityY + (facilitySize - 1) >= BASE_SIZE)
+		if (facilityX < 0 || facilityY < 0 || facilityX + (facilitySizeX - 1) >= BASE_SIZE || facilityY + (facilitySizeY - 1) >= BASE_SIZE)
 		{
-			Log(LOG_ERROR) << "Facility " << rules->getType() << " at [" << facilityX << ", " << facilityY << "] (size " << facilitySize << ") is outside of base boundaries.";
+			Log(LOG_ERROR) << "Facility " << rules->getType()
+				<< " at [" << facilityX << ", " << facilityY
+				<< "] (size [" << facilitySizeX << ", " << facilitySizeY
+				<< "]) is outside of base boundaries.";
 			result = true;
 			continue;
 		}
 
-		for (int x = facilityX; x < facilityX + facilitySize; ++x)
+		for (int x = facilityX; x < facilityX + facilitySizeX; ++x)
 		{
-			for (int y = facilityY; y < facilityY + facilitySize; ++y)
+			for (int y = facilityY; y < facilityY + facilitySizeY; ++y)
 			{
 				if (grid[x][y] != 0)
 				{
-					Log(LOG_ERROR) << "Facility " << rules->getType() << " at [" << facilityX << ", " << facilityY << "] (size " << facilitySize
-						<< ") overlaps with " << grid[x][y]->getRules()->getType() << " at [" << x << ", " << y << "] (size " << grid[x][y]->getRules()->getSize() << ")";
+					Log(LOG_ERROR) << "Facility " << rules->getType()
+						<< " at [" << facilityX << ", " << facilityY
+						<< "] (size [" << facilitySizeX << ", " << facilitySizeY
+						<< "]) overlaps with " << grid[x][y]->getRules()->getType()
+						<< " at [" << x << ", " << y
+						<< "] (size [" << grid[x][y]->getRules()->getSizeX() << ", " << grid[x][y]->getRules()->getSizeY()
+						<< ")";
 					result = true;
 				}
 				grid[x][y] = fac;
@@ -918,7 +958,13 @@ int Base::getUsedWorkshops() const
 	int usedWorkShop = 0;
 	for (const auto* prod : _productions)
 	{
-		usedWorkShop += (prod->getAssignedEngineers() + prod->getRules()->getRequiredSpace());
+		usedWorkShop += prod->getAssignedEngineers();
+
+		// don't count the workshop space yet if the production is only queued (for future)
+		if (!prod->isQueuedOnly())
+		{
+			usedWorkShop += prod->getRules()->getRequiredSpace();
+		}
 	}
 	return usedWorkShop;
 }
@@ -1294,7 +1340,7 @@ void Base::removeResearch(ResearchProject * project)
 	{
 		if (ruleResearch->needItem() && ruleResearch->destroyItem())
 		{
-			getStorageItems()->addItem(ruleResearch->getName(), 1);
+			getStorageItems()->addItem(ruleResearch->getNeededItem(), 1);
 		}
 	}
 
@@ -1448,7 +1494,7 @@ int Base::getUsedContainment(int prisonType, bool onlyExternal) const
 		const RuleResearch *projRules = proj->getRules();
 		if (projRules->needItem() && projRules->destroyItem())
 		{
-			rule = _mod->getItem(projRules->getName());
+			rule = _mod->getItem(projRules->getName()); // don't use getNeededItem()
 			if (rule->isAlien() && rule->getPrisonType() == prisonType)
 			{
 				++total;
@@ -1539,7 +1585,7 @@ size_t Base::getDetectionChance() const
 	{
 		if (fac->getBuildTime() == 0)
 		{
-			completedFacilities += fac->getRules()->getSize() * fac->getRules()->getSize();
+			completedFacilities += fac->getRules()->getSizeX() * fac->getRules()->getSizeY();
 			if (fac->getRules()->isMindShield() && !fac->getDisabled())
 			{
 				mindShields += fac->getRules()->getMindShieldPower();
@@ -1723,9 +1769,9 @@ int Base::damageFacility(BaseFacility *toBeDamaged)
 	}
 	else if (_mod->getDestroyedFacility())
 	{
-		for (int x = 0; x < toBeDamaged->getRules()->getSize(); ++x)
+		for (int x = 0; x < toBeDamaged->getRules()->getSizeX(); ++x)
 		{
-			for (int y = 0; y < toBeDamaged->getRules()->getSize(); ++y)
+			for (int y = 0; y < toBeDamaged->getRules()->getSizeY(); ++y)
 			{
 				BaseFacility *fac = new BaseFacility(_mod->getDestroyedFacility(), this);
 				fac->setX(toBeDamaged->getX() + x);
@@ -1742,7 +1788,7 @@ int Base::damageFacility(BaseFacility *toBeDamaged)
 		if ((*iter) == toBeDamaged)
 		{
 			// bigger facilities spend more missile power
-			result = toBeDamaged->getRules()->getSize() * toBeDamaged->getRules()->getSize();
+			result = toBeDamaged->getRules()->getSizeX() * toBeDamaged->getRules()->getSizeY();
 			destroyFacility(iter);
 			break;
 		}
@@ -1800,9 +1846,9 @@ std::list<BASEFACILITIESITERATOR> Base::getDisconnectedFacilities(BaseFacility *
 		if (fac != remove)
 		{
 			if (fac->getRules()->isLift()) lift = fac;
-			for (int x = 0; x != fac->getRules()->getSize(); ++x)
+			for (int x = 0; x != fac->getRules()->getSizeX(); ++x)
 			{
-				for (int y = 0; y != fac->getRules()->getSize(); ++y)
+				for (int y = 0; y != fac->getRules()->getSizeY(); ++y)
 				{
 					std::pair<BASEFACILITIESITERATOR, bool> *p = new std::pair<BASEFACILITIESITERATOR, bool>(iter,false);
 					facilitiesConnStates.push_back(p);
@@ -2053,12 +2099,12 @@ void Base::cleanupPrisons(int prisonType)
 			const RuleResearch* projRules = project->getRules();
 			if (projRules->needItem() && projRules->destroyItem())
 			{
-				RuleItem* rule = _mod->getItem(projRules->getName());
+				RuleItem* rule = _mod->getItem(projRules->getName()); // don't use getNeededItem()
 				if (rule->isAlien() && rule->getPrisonType() == prisonType)
 				{
 					_scientists += project->getAssigned();
 					project->setAssigned(0);
-					getStorageItems()->addItem(projRules->getName(), 1);
+					getStorageItems()->addItem(projRules->getNeededItem(), 1);
 					return true;
 				}
 			}
@@ -2342,6 +2388,8 @@ RuleBaseFacilityFunctions Base::getProvidedBaseFunc(BaseAreaSubset skip) const
 		ret |= bf->getRules()->getProvidedBaseFunc();
 	}
 
+	ret |= _provideBaseFunc;
+
 	return ret;
 }
 
@@ -2393,6 +2441,8 @@ RuleBaseFacilityFunctions Base::getForbiddenBaseFunc(BaseAreaSubset skip) const
 		ret |= bf->getRules()->getForbiddenBaseFunc();
 	}
 
+	ret |= _forbiddenBaseFunc;
+
 	return ret;
 }
 
@@ -2412,6 +2462,8 @@ RuleBaseFacilityFunctions Base::getFutureBaseFunc(BaseAreaSubset skip) const
 		}
 		ret |= bf->getRules()->getProvidedBaseFunc();
 	}
+
+	ret |= _provideBaseFunc;
 
 	return ret;
 }

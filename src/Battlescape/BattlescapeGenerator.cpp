@@ -281,8 +281,7 @@ void BattlescapeGenerator::nextStage()
 			//spawn corpse/body for unit to recover
 			for (int i = bu->getArmor()->getTotalSize() - 1; i >= 0; --i)
 			{
-				auto* corpse = _save->createItemForTile(bu->getArmor()->getCorpseBattlescape()[i], nullptr);
-				corpse->setUnit(bu);
+				auto* corpse = _save->createItemForTile(bu->getArmor()->getCorpseBattlescape()[i], nullptr, bu);
 				_save->getTileEngine()->itemDrop(bu->getTile(), corpse, false);
 			}
 		}
@@ -303,7 +302,7 @@ void BattlescapeGenerator::nextStage()
 		{
 			if (bu->getOriginalFaction() == FACTION_HOSTILE && !bu->isOut())
 			{
-				if (bu->getOriginalFaction() == bu->getFaction())
+				if (bu->getOriginalFaction() == bu->getFaction() && !bu->isSurrendering())
 				{
 					aliensAlive++;
 				}
@@ -3126,8 +3125,8 @@ void BattlescapeGenerator::generateBaseMap()
 		if (fac->isBuiltOrHadPreviousFacility())
 		{
 			int num = 0;
-			int xLimit = fac->getX() + fac->getRules()->getSize() -1;
-			int yLimit = fac->getY() + fac->getRules()->getSize() -1;
+			int xLimit = fac->getX() + fac->getRules()->getSizeX() -1;
+			int yLimit = fac->getY() + fac->getRules()->getSizeY() -1;
 
 			// Do we use the normal method for placing items on the ground or an explicit definition?
 			bool storageCheckerboard = (fac->getRules()->getStorageTiles().size() == 0);
@@ -3141,7 +3140,7 @@ void BattlescapeGenerator::generateBaseMap()
 				// Get the vertical levels from the facility ruleset and create a list according to map size
 				_verticalLevels.clear();
 				_verticalLevels = fac->getRules()->getVerticalLevels();
-				command.setVerticalLevels(_verticalLevels, fac->getRules()->getSize());
+				command.setVerticalLevels(_verticalLevels, fac->getRules()->getSizeX(), fac->getRules()->getSizeY());
 				populateVerticalLevels(&command);
 
 				auto currentLevel = _verticalLevels.begin();
@@ -3255,8 +3254,8 @@ void BattlescapeGenerator::generateBaseMap()
 						break;
 					}
 
-					if (pos.x < 0 || pos.x / 10 > fac->getRules()->getSize()
-						|| pos.y < 0 || pos.y / 10 > fac->getRules()->getSize()
+					if (pos.x < 0 || pos.x / 10 > fac->getRules()->getSizeX()
+						|| pos.y < 0 || pos.y / 10 > fac->getRules()->getSizeY()
 						|| pos.z < 0 || pos.z > _mapsize_z)
 					{
 						Log(LOG_ERROR) << "Tile position " << pos << " is outside the facility " << fac->getRules()->getType() << ", skipping placing items there.";
@@ -3620,6 +3619,14 @@ void BattlescapeGenerator::loadVerticalLevels(MapScript *command, bool repopulat
 					if(block)
 					{
 						z = currentLevel->levelSizeZ == -1 ? block->getSizeZ() : currentLevel->levelSizeZ;
+					}
+					else
+					{
+						++tries; // we failed to find an appropriate block for a command that must explicitly load one, so don't try too hard to keep finding one
+						if(tries > maxTries)
+						{
+							Log(LOG_WARNING) << "Battlescape Generator has encountered an error: a mapscript command or base facility with vertical levels cannot find a map block with the right size/terrain/groups. The modder may want to check that the specified terrain or vertical level size/groups is correct.";
+						}
 					}
 
 					break;

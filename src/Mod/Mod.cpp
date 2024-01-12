@@ -19,9 +19,11 @@
 #include "Mod.h"
 #include "ModScript.h"
 #include <algorithm>
+#include <functional>
 #include <sstream>
 #include <climits>
 #include <cassert>
+#include "../version.h"
 #include "../Engine/CrossPlatform.h"
 #include "../Engine/FileMap.h"
 #include "../Engine/Palette.h"
@@ -90,6 +92,8 @@
 #include "../Savegame/Soldier.h"
 #include "../Savegame/BattleUnit.h"
 #include "../Savegame/Craft.h"
+#include "../Savegame/CraftWeapon.h"
+#include "../Savegame/ItemContainer.h"
 #include "../Savegame/Transfer.h"
 #include "../Ufopaedia/Ufopaedia.h"
 #include "../Savegame/AlienStrategy.h"
@@ -109,6 +113,43 @@
 
 namespace OpenXcom
 {
+
+namespace
+{
+
+struct OxceVersionDate
+{
+	int year = 0;
+	int month = 0;
+	int day = 0;
+
+	OxceVersionDate(const std::string& data)
+	{
+		auto correct = false;
+		// check if look like format " (v2023-10-21)"
+		size_t offset = data.find(" (v");
+		if (offset != std::string::npos && data.size() >= offset + 14 && data[offset + 2] == 'v' && data[offset + 7] == '-' && data[offset + 10] == '-' && data[offset + 13] == ')')
+		{
+			correct = (std::sscanf(data.data() + offset, " (v%4d-%2d-%2d)", &year, &month, &day) == 3);
+		}
+
+		if (!correct)
+		{
+			year = 0;
+			month = 0;
+			day = 0;
+		}
+	}
+
+	explicit operator bool() const
+	{
+		return year && month && day;
+	}
+};
+
+
+} //namespace
+
 
 int Mod::DOOR_OPEN;
 int Mod::SLIDING_DOOR_OPEN;
@@ -317,6 +358,9 @@ public:
 		addTagValueType<ModScriptGlobal, &ModScriptGlobal::loadRuleList, &ModScriptGlobal::saveRuleList>("RuleList");
 		addConst("RuleList." + ModNameMaster, (int)0);
 		addConst("RuleList." + ModNameCurrent, (int)0);
+
+		auto v = OxceVersionDate(OPENXCOM_VERSION_GIT);
+		addConst("SCRIPT_VERSION_DATE", (int)(v.year * 10000 + v.month * 100 + v.day));
 	}
 	/// Finishing loading data.
 	void endLoad() override
@@ -497,11 +541,13 @@ Mod::Mod() :
 	_statAdjustment.resize(MaxDifficultyLevels);
 	_statAdjustment[0].aimMultiplier = 0.5;
 	_statAdjustment[0].armorMultiplier = 0.5;
+	_statAdjustment[0].armorMultiplierAbs = 0;
 	_statAdjustment[0].growthMultiplier = 0;
 	for (size_t i = 1; i != MaxDifficultyLevels; ++i)
 	{
 		_statAdjustment[i].aimMultiplier = 1.0;
 		_statAdjustment[i].armorMultiplier = 1.0;
+		_statAdjustment[i].armorMultiplierAbs = 0;
 		_statAdjustment[i].growthMultiplier = (int)i;
 	}
 
@@ -1009,6 +1055,38 @@ const std::vector<std::vector<Uint8> > *Mod::getLUTs() const
 	return &_transparencyLUTs;
 }
 
+
+/**
+ * Check for obsolete error based on year.
+ * @param year Year when given function stop be available.
+ * @return True if code still should run.
+ */
+bool Mod::checkForObsoleteErrorByYear(const std::string &parent, const YAML::Node &node, const std::string &error, int year) const
+{
+	SeverityLevel level = LOG_INFO;
+	bool r = true;
+
+	const static OxceVersionDate currYear = { OPENXCOM_VERSION_GIT };
+	if (currYear)
+	{
+		if (currYear.year < year)
+		{
+			level = LOG_INFO;
+		}
+		else if (currYear.year == year)
+		{
+			level = LOG_WARNING;
+		}
+		else // after obsolete year functionality is disabled
+		{
+			level = LOG_ERROR;
+			r = false;
+		}
+	}
+	checkForSoftError(true, parent, node, "Obsolete (to removed after year " + std::to_string(year) + ") operation " + error, level);
+
+	return r;
+}
 
 /**
  * Verify if value have defined surface in given set.
@@ -2165,6 +2243,7 @@ void Mod::loadAll()
 	afterLoadHelper("skills", this, _skills, &RuleSkill::afterLoad);
 	afterLoadHelper("craftWeapons", this, _craftWeapons, &RuleCraftWeapon::afterLoad);
 	afterLoadHelper("countries", this, _countries, &RuleCountry::afterLoad);
+	afterLoadHelper("crafts", this, _crafts, &RuleCraft::afterLoad);
 
 	for (auto& a : _armors)
 	{
@@ -2220,7 +2299,6 @@ void Mod::loadAll()
 			_finalResearch = r.second;
 		}
 	}
-	checkForSoftError(_finalResearch == nullptr, "mod", "Missing final research with 'unlockFinalMission: true'", LOG_INFO);
 
 
 	// check unique listOrder
@@ -2621,7 +2699,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		RuleCountry *rule = loadRule(*i, &_countries, &_countriesIndex);
 		if (rule != 0)
 		{
-			rule->load(*i, parsers);
+			rule->load(*i, parsers, this);
 		}
 	}
 	for (YAML::const_iterator i : iterateRules("extraGlobeLabels", "type"))
@@ -2629,7 +2707,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		RuleCountry *rule = loadRule(*i, &_extraGlobeLabels, &_extraGlobeLabelsIndex);
 		if (rule != 0)
 		{
-			rule->load(*i, parsers);
+			rule->load(*i, parsers, this);
 		}
 	}
 	for (YAML::const_iterator i : iterateRules("regions", "type"))
@@ -2637,7 +2715,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		RuleRegion *rule = loadRule(*i, &_regions, &_regionsIndex);
 		if (rule != 0)
 		{
-			rule->load(*i);
+			rule->load(*i, this);
 		}
 	}
 	for (YAML::const_iterator i : iterateRules("facilities", "type"))
@@ -2742,7 +2820,7 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		AlienRace *rule = loadRule(*i, &_alienRaces, &_aliensIndex, "id");
 		if (rule != 0)
 		{
-			rule->load(*i);
+			rule->load(*i, this);
 		}
 	}
 	for (YAML::const_iterator i : iterateRules("enviroEffects", "type"))
@@ -3384,6 +3462,18 @@ void Mod::loadFile(const FileMap::FileRecord &filerec, ModScript &parsers)
 		_statAdjustment[count].armorMultiplier = (*i).as<double>(_statAdjustment[count].armorMultiplier);
 		++count;
 	}
+	count = 0;
+	for (YAML::const_iterator i = doc["armorMultipliersAbs"].begin(); i != doc["armorMultipliersAbs"].end() && count < MaxDifficultyLevels; ++i)
+	{
+		_statAdjustment[count].armorMultiplierAbs = (*i).as<double>(_statAdjustment[count].armorMultiplierAbs);
+		++count;
+	}
+	count = 0;
+	for (YAML::const_iterator i = doc["statGrowthMultipliersAbs"].begin(); i != doc["statGrowthMultipliersAbs"].end() && count < MaxDifficultyLevels; ++i)
+	{
+		_statAdjustment[count].statGrowthAbs = (*i).as<UnitStats>(_statAdjustment[count].statGrowthAbs);
+		++count;
+	}
 	if (doc["statGrowthMultipliers"])
 	{
 		_statAdjustment[0].statGrowth = doc["statGrowthMultipliers"].as<UnitStats>(_statAdjustment[0].statGrowth);
@@ -3659,6 +3749,25 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 		save->getId(craft->getRules()->getType());
 	}
 
+	// Remove craft weapons if needed
+	for (auto* craft : *base->getCrafts())
+	{
+		if (craft->getMaxUnitsRaw() < 0 || craft->getMaxVehiclesAndLargeSoldiersRaw() < 0)
+		{
+			size_t weaponIndex = 0;
+			for (auto* current : *craft->getWeapons())
+			{
+				base->getStorageItems()->addItem(current->getRules()->getLauncherItem());
+				base->getStorageItems()->addItem(current->getRules()->getClipItem(), current->getClipsLoaded());
+				craft->addCraftStats(-current->getRules()->getBonusStats());
+				craft->setShield(craft->getShield());
+				delete current;
+				craft->getWeapons()->at(weaponIndex) = 0;
+				weaponIndex++;
+			}
+		}
+	}
+
 	// Determine starting soldier types
 	std::vector<std::string> soldierTypes = _soldiersIndex; // copy!
 	for (auto iter = soldierTypes.begin(); iter != soldierTypes.end();)
@@ -3735,7 +3844,7 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 				Craft *found = 0;
 				for (auto* craft : *base->getCrafts())
 				{
-					if (!found && craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getMaxUnits())
+					if (!found && craft->getRules()->getAllowLanding() && craft->getSpaceAvailable() > 0)
 					{
 						// Remember transporter as fall-back, but search further for interceptors
 						found = craft;
@@ -3753,7 +3862,7 @@ SavedGame *Mod::newSave(GameDifficulty diff) const
 				Craft *found = 0;
 				for (auto* craft : *base->getCrafts())
 				{
-					if (craft->getRules()->getAllowLanding() && craft->getSpaceUsed() < craft->getRules()->getMaxUnits())
+					if (craft->getRules()->getAllowLanding() && craft->getSpaceAvailable() > 0)
 					{
 						// First available transporter will do
 						found = craft;
@@ -4623,10 +4732,6 @@ const std::vector<StatString *> &Mod::getStatStrings() const
 template <typename T>
 struct compareRule
 {
-	typedef const std::string& first_argument_type;
-	typedef const std::string& second_argument_type;
-	typedef bool result_type;
-
 	Mod *_mod;
 	typedef T*(Mod::*RuleLookup)(const std::string &id, bool error) const;
 	RuleLookup _lookup;
@@ -4649,10 +4754,6 @@ struct compareRule
 template <>
 struct compareRule<RuleCraftWeapon>
 {
-	typedef const std::string& first_argument_type;
-	typedef const std::string& second_argument_type;
-	typedef bool result_type;
-
 	Mod *_mod;
 
 	compareRule(Mod *mod) : _mod(mod)
@@ -4674,10 +4775,6 @@ struct compareRule<RuleCraftWeapon>
 template <>
 struct compareRule<Armor>
 {
-	typedef const std::string& first_argument_type;
-	typedef const std::string& second_argument_type;
-	typedef bool result_type;
-
 	Mod *_mod;
 
 	compareRule(Mod *mod) : _mod(mod)
@@ -4712,10 +4809,6 @@ struct compareRule<Armor>
 template <>
 struct compareRule<ArticleDefinition>
 {
-	typedef const std::string& first_argument_type;
-	typedef const std::string& second_argument_type;
-	typedef bool result_type;
-
 	Mod *_mod;
 	const std::map<std::string, int> &_sections;
 
@@ -4739,10 +4832,6 @@ struct compareRule<ArticleDefinition>
  */
 struct compareSection
 {
-	typedef const std::string& first_argument_type;
-	typedef const std::string& second_argument_type;
-	typedef bool result_type;
-
 	Mod *_mod;
 	const std::map<std::string, int> &_sections;
 
@@ -4810,7 +4899,7 @@ const std::vector<std::string> &Mod::getPsiRequirements() const
  * @param type The soldier type to generate.
  * @return Newly generated soldier.
  */
-Soldier *Mod::genSoldier(SavedGame *save, RuleSoldier* ruleSoldier, int nationality) const
+Soldier *Mod::genSoldier(SavedGame *save, const RuleSoldier* ruleSoldier, int nationality) const
 {
 	Soldier *soldier = 0;
 	int newId = save->getId("STR_SOLDIER");
@@ -4821,7 +4910,7 @@ Soldier *Mod::genSoldier(SavedGame *save, RuleSoldier* ruleSoldier, int national
 	for (int tries = 0; tries < 10 && duplicate; ++tries)
 	{
 		delete soldier;
-		soldier = new Soldier(ruleSoldier, ruleSoldier->getDefaultArmor(), nationality, newId);
+		soldier = new Soldier(const_cast<RuleSoldier*>(ruleSoldier), ruleSoldier->getDefaultArmor(), nationality, newId);
 		duplicate = false;
 		for (auto* xbase : *save->getBases())
 		{
@@ -5033,7 +5122,7 @@ RuleBaseFacility *Mod::getDestroyedFacility() const
 		return 0;
 
 	auto* temp = getBaseFacility(_destroyedFacility, true);
-	if (temp->getSize() != 1)
+	if (!temp->isSmall())
 	{
 		throw Exception("Destroyed base facility definition must have size: 1");
 	}
@@ -6410,5 +6499,51 @@ void Mod::ScriptRegister(ScriptParserBase *parser)
 
 	mod.addScriptValue<&Mod::_scriptGlobal, &ModScriptGlobal::getScriptValues>();
 }
+
+
+#ifdef OXCE_AUTO_TEST
+
+static auto dummyParseDate = ([]
+{
+	assert(OxceVersionDate(OPENXCOM_VERSION_GIT));
+	assert(OxceVersionDate(" (v1976-04-23)"));
+	assert(OxceVersionDate(" (v9999-99-99)")); //accept impossible dates
+	assert(OxceVersionDate(" (v   6-04-23)"));
+	assert(OxceVersionDate(" (v   1- 1- 1)"));
+
+	assert(!OxceVersionDate(" (v21976-04-23)"));
+	assert(!OxceVersionDate(" (v1976-034-22)"));
+	assert(!OxceVersionDate(" (v1976-04-232)"));
+	assert(!OxceVersionDate(" (v1976-b4-23)"));
+
+	assert(!OxceVersionDate(""));
+	assert(!OxceVersionDate(" (v"));
+	assert(!OxceVersionDate(" (v)"));
+	assert(!OxceVersionDate(" (v 1976-04-23)"));
+	assert(!OxceVersionDate(" (v1976- 04-23)"));
+	assert(!OxceVersionDate(" (v1976-04- 23)"));
+	assert(!OxceVersionDate(" (v1976-04-23 )"));
+	assert(!OxceVersionDate(" (v    -  -  )"));
+	assert(!OxceVersionDate(" (v   0- 0- 0)"));
+	assert(!OxceVersionDate(" (v 1 1- 1- 1)"));
+
+	{
+		OxceVersionDate d("   (v1976-04-23)");
+		assert(d && d.year == 1976 && d.month == 04 && d.day == 23);
+	}
+
+	{
+		OxceVersionDate d("   (v1976-04-22)    ");
+		assert(d && d.year == 1976 && d.month == 04 && d.day == 22);
+	}
+
+	{
+		OxceVersionDate d(" aaads  (v1976-04-22)  sdafdfsfsd  ");
+		assert(d && d.year == 1976 && d.month == 04 && d.day == 22);
+	}
+
+	return 0;
+})();
+#endif
 
 }
