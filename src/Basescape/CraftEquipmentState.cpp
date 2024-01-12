@@ -954,8 +954,9 @@ void CraftEquipmentState::btnInventoryClick(Action *)
 			// * Remove excess items from the craft when CraftEquipmentState::init() is called after leaving the inventory screen.
 			// (After this, the craft should have all the updated soldier equipment, and the same extra items as before.)
 
-			// Note: the current implementation assumes no limit to the number or size of items a craft can hold.
-			//       If the craft has limited space, then we just won't have all the base items available on the inventory screen.
+			// Note: To ensure that all items from the base are available, we move the items directly, bypassing the checks and extra work done by `moveRightByValue`.
+			// It is possible that the newly equipped soldier items are enough to put us in excess of the craft limit; but in the current implementation we just ignore that.
+			// So if you're making a mod where the craft inventory limit is deliberately extremely tight - sorry for creating this exploit.
 
 			auto& extras = *craft->getExtraItems()->getContents();
 			extras.clear();
@@ -969,7 +970,19 @@ void CraftEquipmentState::btnInventoryClick(Action *)
 				RuleItem* rule = _game->getMod()->getItem(itemType);
 				if (!rule->getVehicleUnit() && rule->canBeEquippedBeforeBaseDefense())
 				{
-					moveRightByValue(INT_MAX, true);
+					// moveRightByValue(INT_MAX, true);
+					/// Direct transfer of items, without storage checks or updating UI:
+					Craft *c = _base->getCrafts()->at(_craft);
+					int bqty = _base->getStorageItems()->getItem(_items[_sel]);
+
+					if (bqty <= 0) continue; // nothing to transfer
+
+					c->getItems()->addItem(_items[_sel],bqty);
+					_totalItems += bqty;
+					_totalItemStorageSize += bqty * rule->getSize();
+
+					_base->getStorageItems()->removeItem(_items[_sel],bqty);
+					///
 				}
 			}
 		}
