@@ -203,7 +203,7 @@ void Screen::flip()
 
 	if (getWidth() != _baseWidth || getHeight() != _baseHeight || useOpenGL())
 	{
-		Zoom::flipWithZoom(_surface.get(), _screen, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand, &glOutput);
+		Zoom::blitWithZoom(_surface.get(), _screen, _topBlackBand, _bottomBlackBand, _leftBlackBand, _rightBlackBand, &glOutput);
 	}
 	else
 	{
@@ -221,9 +221,11 @@ void Screen::flip()
 		_pushPalette = false;
 	}
 
-
-
-	if (SDL_Flip(_screen) == -1)
+	if (useOpenGL())
+	{
+		SDL_GL_SwapBuffers();
+	}
+	else if (SDL_Flip(_screen) == -1)
 	{
 		throw Exception(SDL_GetError());
 	}
