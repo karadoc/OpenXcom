@@ -378,6 +378,11 @@ void createOptionsOXCE()
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceGeoSlowdownFactor", &oxceGeoSlowdownFactor, 1, "", "HIDDEN"));
 
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceBaseInfoDefenseScaleMultiplier", &oxceBaseInfoDefenseScaleMultiplier, 100, "", "HIDDEN"));
+#ifdef __MOBILE__
+	_info.push_back(OptionInfo(OPTION_OXCE, "oxceBaseManufactureInfinityButton", &oxceBaseManufactureInfinityButton, true, "", "HIDDEN"));
+#else
+	_info.push_back(OptionInfo(OPTION_OXCE, "oxceBaseManufactureInfinityButton", &oxceBaseManufactureInfinityButton, false, "", "HIDDEN"));
+#endif
 
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceDisableAlienInventory", &oxceDisableAlienInventory, false, "", "HIDDEN"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceDisableHitLog", &oxceDisableHitLog, false, "", "HIDDEN"));
@@ -414,6 +419,7 @@ void createAdvancedOptionsOXCE()
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceFatFingerLinks", &oxceFatFingerLinks, false, "", "HIDDEN"));
 #endif
 
+	_info.push_back(OptionInfo(OPTION_OXCE, "oxceHighlightNewTopics", &oxceHighlightNewTopics, true, "STR_HIGHLIGHT_NEW", "STR_GENERAL"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxcePediaShowClipSize", &oxcePediaShowClipSize, false, "STR_PEDIA_SHOW_CLIP_SIZE", "STR_GENERAL"));
 
 	// OXCE options geoscape
@@ -428,7 +434,6 @@ void createAdvancedOptionsOXCE()
 	// OXCE options basescape
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceAlternateCraftEquipmentManagement", &oxceAlternateCraftEquipmentManagement, false, "STR_ALTERNATE_CRAFT_EQUIPMENT_MANAGEMENT", "STR_BASESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceBaseInfoScaleEnabled", &oxceBaseInfoScaleEnabled, false, "STR_BASE_INFO_SCALE", "STR_BASESCAPE"));
-	_info.push_back(OptionInfo(OPTION_OXCE, "oxceHighlightNewTopics", &oxceHighlightNewTopics, true, "STR_HIGHLIGHT_NEW", "STR_BASESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceResearchScrollSpeed", &oxceResearchScrollSpeed, 1, "STR_RESEARCH_SCROLL_SPEED", "STR_BASESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceResearchScrollSpeedWithCtrl", &oxceResearchScrollSpeedWithCtrl, 10, "STR_RESEARCH_SCROLL_SPEED_CTRL", "STR_BASESCAPE"));
 	_info.push_back(OptionInfo(OPTION_OXCE, "oxceManufactureFilterSuppliesOK", &oxceManufactureFilterSuppliesOK, false, "STR_MANUFACTURE_FILTER_SUPPLIES_OK", "STR_BASESCAPE"));
@@ -603,8 +608,13 @@ static void loadArgs()
 	for (size_t i = 1; i < argv.size(); ++i)
 	{
 		auto& arg = argv[i];
-		if (arg.size() > 1 && arg[0] == '-')
+		if ((arg[0] == '-' || arg[0] == '/') && arg.length() > 1)
 		{
+			if (arg == "--")
+			{
+				break;
+			}
+
 			std::string argname;
 			if (arg[1] == '-' && arg.length() > 2)
 				argname = arg.substr(2, arg.length()-1);
@@ -667,7 +677,7 @@ static void loadArgs()
 static bool showHelp()
 {
 	std::ostringstream help;
-	help << "OpenXcom v" << OPENXCOM_VERSION_SHORT << std::endl;
+	help << "OpenXcom " << OPENXCOM_VERSION_SHORT << std::endl;
 	help << "Usage: openxcom [OPTION]..." << std::endl << std::endl;
 	help << "-data PATH" << std::endl;
 	help << "        use PATH as the default Data Folder instead of auto-detecting" << std::endl << std::endl;
@@ -679,13 +689,24 @@ static bool showHelp()
 	help << "        set MOD to the current master mod (eg. -master xcom2)" << std::endl << std::endl;
 	help << "-KEY VALUE" << std::endl;
 	help << "        override option KEY with VALUE (eg. -displayWidth 640)" << std::endl << std::endl;
+	help << "-continue" << std::endl;
+	help << "        load last save" << std::endl << std::endl;
+	help << "-version" << std::endl;
+	help << "        show version number" << std::endl << std::endl;
 	help << "-help" << std::endl;
 	help << "-?" << std::endl;
 	help << "        show command-line help" << std::endl;
-	for (auto& arg: CrossPlatform::getArgs())
+	auto& argv = CrossPlatform::getArgs();
+	for (size_t i = 1; i < argv.size(); ++i)
 	{
+		auto& arg = argv[i];
 		if ((arg[0] == '-' || arg[0] == '/') && arg.length() > 1)
 		{
+			if (arg == "--")
+			{
+				break;
+			}
+
 			std::string argname;
 			if (arg[1] == '-' && arg.length() > 2)
 				argname = arg.substr(2, arg.length()-1);
@@ -697,6 +718,23 @@ static bool showHelp()
 				std::cout << help.str();
 				return true;
 			}
+			if (argname == "version")
+			{
+				std::cout << OPENXCOM_VERSION_SHORT << OPENXCOM_VERSION_GIT << std::endl;
+				return true;
+			}
+			if (argname == "cont" || argname == "continue")
+			{
+				continue;
+			}
+
+			// skip next option argument, only couple options do not have it.
+			++i;
+		}
+		else
+		{
+			std::cerr << "Unknown parameter '" << arg << "'" << std::endl;
+			return true;
 		}
 	}
 	return false;
@@ -953,6 +991,8 @@ void refreshMods()
 
 void updateMods()
 {
+	setDataFolder(CrossPlatform::dirFilename(CrossPlatform::searchDataFolder("common")));
+
 	// pick up stuff in common before-hand
 	FileMap::clear(false, Options::oxceEmbeddedOnly);
 

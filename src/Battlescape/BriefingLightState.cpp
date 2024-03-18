@@ -27,12 +27,14 @@
 #include "../Interface/Window.h"
 #include "../Mod/Mod.h"
 #include "../Mod/AlienDeployment.h"
+#include "../Mod/Armor.h"
 #include "../Mod/ArticleDefinition.h"
 #include "../Mod/RuleStartingCondition.h"
 #include "../Savegame/SavedGame.h"
 #include "../Engine/Options.h"
 #include "../Engine/Screen.h"
 #include "../Engine/Unicode.h"
+#include "../Ufopaedia/Ufopaedia.h"
 
 namespace OpenXcom
 {
@@ -91,14 +93,13 @@ BriefingLightState::BriefingLightState(AlienDeployment *deployment)
 	_txtArmors->setWordWrap(true);
 	_txtArmors->setVisible(false);
 
-	_lstArmors->setColumns(2, 148, 116);
+	_lstArmors->setColumns(2, 148, 132);
 	_lstArmors->setSelectable(true);
 	_lstArmors->setBackground(_window);
 	_lstArmors->setMargin(8);
 	_lstArmors->setVisible(false);
 
 	checkStartingCondition(deployment);
-
 
 	// (minimum) timeout indicator
 	{
@@ -118,6 +119,7 @@ BriefingLightState::BriefingLightState(AlienDeployment *deployment)
 		_txtTimeout->setText(ss.str());
 	}
 	//
+	_lstArmors->onMouseClick((ActionHandler)&BriefingLightState::lstArmorsClick, SDL_BUTTON_MIDDLE);
 }
 
 /**
@@ -135,31 +137,31 @@ void BriefingLightState::checkStartingCondition(AlienDeployment *deployment)
 			_txtArmors->setText(tr(messageCode).arg("")); // passing empty argument, because it is obsolete since a list display was introduced
 			_btnArmors->setVisible(true);
 
-			std::vector<std::string> armorNameList;
 			for (auto& armorType : list)
 			{
-				ArticleDefinition* article = _game->getMod()->getUfopaediaArticle(armorType, false);
-				if (article && _game->getSavedGame()->isResearched(article->_requires))
+				Armor* armor = _game->getMod()->getArmor(armorType, false);
+				ArticleDefinition* article = _game->getMod()->getUfopaediaArticle(armor ? armor->getUfopediaType() : armorType, false);
+				if (article && Ufopaedia::isArticleAvailable(_game->getSavedGame(), article))
 				{
 					std::string translation = tr(armorType);
-					armorNameList.push_back(translation);
+					_armorNameList.push_back(std::make_pair(armorType, translation));
 				}
 			}
-			if (armorNameList.empty())
+			if (_armorNameList.empty())
 			{
 				// no suitable armor yet
 				std::string translation = tr("STR_UNKNOWN");
-				armorNameList.push_back(translation);
+				_armorNameList.push_back(std::make_pair("STR_UNKNOWN", translation));
 			}
-			std::sort(armorNameList.begin(), armorNameList.end(), [&](std::string& a, std::string& b) { return Unicode::naturalCompare(a, b); });
-			if (armorNameList.size() % 2 != 0)
+			std::sort(_armorNameList.begin(), _armorNameList.end(), [&](std::pair<std::string, std::string>& a, std::pair<std::string, std::string>& b) { return Unicode::naturalCompare(a.second, b.second); });
+			if (_armorNameList.size() % 2 != 0)
 			{
-				armorNameList.push_back(""); // just padding, we want an even number of items in the list
+				_armorNameList.push_back(std::make_pair("", "")); // just padding, we want an even number of items in the list
 			}
-			size_t halfSize = armorNameList.size() / 2;
+			size_t halfSize = _armorNameList.size() / 2;
 			for (size_t i = 0; i < halfSize; ++i)
 			{
-				_lstArmors->addRow(2, armorNameList[i].c_str(), armorNameList[i + halfSize].c_str());
+				_lstArmors->addRow(2, _armorNameList[i].second.c_str(), _armorNameList[i + halfSize].second.c_str());
 			}
 		}
 	}
@@ -191,6 +193,30 @@ void BriefingLightState::btnArmorsClick(Action *)
 	_txtArmors->setVisible(_btnArmors->getPressed());
 	_lstArmors->setVisible(_btnArmors->getPressed());
 	_txtBriefing->setVisible(!_btnArmors->getPressed());
+}
+
+/**
+ * Shows corresponding Ufopaedia article.
+ * @param action Pointer to an action.
+ */
+void BriefingLightState::lstArmorsClick(Action* action)
+{
+	size_t halfSize = _armorNameList.size() / 2;
+
+	double mx = action->getAbsoluteXMouse();
+	if (mx < _btnOk->getX())
+	{
+		halfSize = 0;
+	}
+
+	auto idx = halfSize + _lstArmors->getSelectedRow();
+	const std::string& armorType = _armorNameList[idx].first;
+	Armor* armor = _game->getMod()->getArmor(armorType, false);
+	if (armor)
+	{
+		std::string articleId = armor->getUfopediaType();
+		Ufopaedia::openArticle(_game, articleId);
+	}
 }
 
 }

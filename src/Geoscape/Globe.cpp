@@ -1830,7 +1830,8 @@ void Globe::mouseOver(Action *action, State *state)
 
 		_isMouseScrolled = true;
 
-		if (Options::touchEnabled == false)
+		//if (Options::touchEnabled == false)
+		if (false && Options::touchEnabled == false) // karadoc: I've temporarily disabled this as a kludge workaround for a bug in libsdl1.2-compat . Don't commit this change!
 		{
 			// Set the mouse cursor back
 			SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
