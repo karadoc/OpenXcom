@@ -976,15 +976,15 @@ void CraftEquipmentState::btnInventoryClick(Action *)
 					// moveRightByValue(INT_MAX, true);
 					/// Direct transfer of items, without storage checks or updating UI:
 					Craft *c = _base->getCrafts()->at(_craft);
-					int bqty = _base->getStorageItems()->getItem(_items[_sel]);
+					int bqty = _base->getStorageItems()->getItem(rule);
 
 					if (bqty <= 0) continue; // nothing to transfer
 
-					c->getItems()->addItem(_items[_sel],bqty);
+					c->getItems()->addItem(rule, bqty);
 					_totalItems += bqty;
 					_totalItemStorageSize += bqty * rule->getSize();
 
-					_base->getStorageItems()->removeItem(_items[_sel],bqty);
+					_base->getStorageItems()->removeItem(rule,bqty);
 					///
 				}
 			}

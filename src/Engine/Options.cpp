@@ -525,7 +525,7 @@ void createOptionsOTHER()
 void createAdvancedOptionsOTHER()
 {
 	// your fork's advanced options here
-	_info.push_back(OptionInfo(OPTION_OTHER, "showBarOverflowLayers", &showBarOverflowLayers, true, "STR_SHOW_BAR_OVERFLOW", "STR_OXCE")); // Karadoc's overflow bars
+	_info.push_back(OptionInfo(OPTION_OTHER, "showBarOverflowLayers", &showBarOverflowLayers, true, "STR_SHOW_BAR_OVERFLOW", "STR_GENERAL")); // Karadoc's overflow bars
 }
 
 void createControlsOTHER()
