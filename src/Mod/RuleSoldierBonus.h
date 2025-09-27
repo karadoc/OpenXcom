@@ -18,7 +18,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <string>
-#include <yaml-cpp/yaml.h>
+#include "../Engine/Yaml.h"
 #include "Unit.h"
 #include "RuleStatBonus.h"
 #include "ModScript.h"
@@ -43,7 +43,13 @@ public:
 
 private:
 	std::string _name;
-	int _visibilityAtDark;
+
+	int _visibilityAtDark = 0;
+	int _visibilityAtDay = 0;
+	int _psiVision = 0;
+	int _visibilityThroughSmoke = 0;
+	int _visibilityThroughFire = 0;
+
 	int _frontArmor, _sideArmor, _leftArmorDiff, _rearArmor, _underArmor;
 	UnitStats _stats;
 	int _listOrder;
@@ -57,11 +63,21 @@ public:
 	/// Cleans up the soldier bonus ruleset.
 	~RuleSoldierBonus() = default;
 	/// Loads the soldier bonus definition from YAML.
-	void load(const YAML::Node &node, Mod* mod, const ModScript &parsers);
+	void load(const YAML::YamlNodeReader& reader, Mod* mod, const ModScript &parsers);
 	/// Gets the soldier bonus unique name/type.
 	const std::string &getName() const { return _name; }
+
 	/// Gets the bonus to night vision (in tiles).
 	int getVisibilityAtDark() const { return _visibilityAtDark; }
+	/// Gets the bonus to day vision (in tiles).
+	int getVisibilityAtDay() const { return _visibilityAtDay; }
+	/// Gets the bonus to psi vision (in tiles).
+	int getPsiVision() const { return _psiVision; }
+	/// Gets the bonus to heat vision.
+	int getVisibilityThroughSmoke() const { return _visibilityThroughSmoke; }
+	/// Gets the bonus to visibility through fire.
+	int getVisibilityThroughFire() const { return _visibilityThroughFire; }
+
 	/// Gets the bonus to front armor.
 	int getFrontArmor() const { return _frontArmor; }
 	/// Gets the bonus to left side armor.

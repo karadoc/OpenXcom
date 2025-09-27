@@ -93,7 +93,7 @@ private:
 	std::vector<Tile *> _visibleTiles;
 	std::unordered_set<Tile *> _visibleTilesLookup;
 	int _tu, _energy, _health, _morale, _stunlevel, _mana;
-	bool _kneeled, _floating, _dontReselect;
+	bool _kneeled, _floating, _dontReselect, _aiMedikitUsed;
 	bool _haveNoFloorBelow = false;
 	int _currentArmor[SIDE_MAX], _maxArmor[SIDE_MAX];
 	int _fatalWounds[BODYPART_MAX];
@@ -105,6 +105,7 @@ private:
 	UnitStats _exp, _expTmp;
 	int _motionPoints;
 	int _scannedTurn;
+	int _customMarker;
 	int _kills;
 	int _faceDirection; // used only during strafing moves
 	std::vector<int> _meleeAttackedBy;
@@ -113,7 +114,11 @@ private:
 	int _smokeMaxHit;
 	int _moraleRestored;
 	BattleUnit *_charging;
-	int _turnsSinceSpotted, _turnsLeftSpottedForSnipers, _turnsSinceStunned = 255;
+
+	Uint8 _turnsSinceSpotted[FACTION_MAX] = { 255, 255, 255 };
+	Uint8 _turnsLeftSpottedForSnipers[FACTION_MAX] = { 0, 0, 0 };
+	Uint8 _turnsSinceStunned = 255;
+
 	BattleUnit* _previousOwner = nullptr;
 	const Unit *_spawnUnit = nullptr;
 	std::string _activeHand;
@@ -141,6 +146,9 @@ private:
 	int _intelligence, _aggression;
 	int _maxViewDistanceAtDark, _maxViewDistanceAtDay;
 	int _maxViewDistanceAtDarkSquared;
+	int _psiVision = 0;
+	int _visibilityThroughSmoke = 0;
+	int _visibilityThroughFire = 100;
 	SpecialAbility _specab;
 	Armor *_armor;
 	SoldierGender _gender;
@@ -148,6 +156,7 @@ private:
 	std::vector<int> _loftempsSet;
 	Unit *_unitRules;
 	int _rankInt;
+	int _rankIntUnified = 0;
 	int _turretType;
 	int _breathFrame;
 	bool _breathing;
@@ -166,6 +175,7 @@ private:
 	bool _capturable;
 	bool _vip;
 	bool _bannedInNextStage;
+	bool _skillMenuCheck;
 	ScriptValues<BattleUnit> _scriptValues;
 
 	/// Calculate stat improvement.
@@ -191,7 +201,7 @@ private:
 	/// Helper function preparing the banned flag.
 	void prepareBannedFlag(const RuleStartingCondition* sc);
 	/// Applies percentual and/or flat adjustments to the use costs.
-	void applyPercentages(RuleItemUseCost &cost, const RuleItemUseCost &flat) const;
+	void applyPercentages(RuleItemUseCost &cost, const RuleItemUseFlat &flat) const;
 public:
 	static const int MAX_SOLDIER_ID = 1000000;
 	static const int BUBBLES_FIRST_FRAME = 3;
@@ -215,9 +225,9 @@ public:
 	/// Cleans up the BattleUnit.
 	~BattleUnit();
 	/// Loads the unit from YAML.
-	void load(const YAML::Node &node, const Mod *mod, const ScriptGlobal *shared);
+	void load(const YAML::YamlNodeReader& reader, const Mod *mod, const ScriptGlobal *shared);
 	/// Saves the unit to YAML.
-	YAML::Node save(const ScriptGlobal *shared) const;
+	void save(YAML::YamlNodeWriter writer, const ScriptGlobal *shared) const;
 	/// Gets the BattleUnit's ID.
 	int getId() const;
 	/// Calculates the distance squared between the unit and a given position.
@@ -370,7 +380,7 @@ public:
 	/// Calculate psi attack accuracy.
 	static int getPsiAccuracy(BattleActionAttack::ReadOnly attack);
 	/// Calculate firing accuracy.
-	static int getFiringAccuracy(BattleActionAttack::ReadOnly attack, Mod *mod);
+	static int getFiringAccuracy(BattleActionAttack::ReadOnly attack, const Mod *mod);
 	/// Calculate accuracy modifier.
 	int getAccuracyModifier(const BattleItem *item = 0) const;
 	/// Get the current reaction score.
@@ -398,6 +408,8 @@ public:
 
 	/// Get the list of items in the inventory.
 	std::vector<BattleItem*> *getInventory();
+	/// Get the list of items in the inventory.
+	const std::vector<BattleItem*> *getInventory() const;
 	/// Fit item into inventory slot.
 	bool fitItemToInventory(const RuleInventory *slot, BattleItem *item);
 	/// Add item to unit.
@@ -409,10 +421,19 @@ public:
 	AIModule *getAIModule() const;
 	/// Set AI Module.
 	void setAIModule(AIModule *ai);
+	/// Gets weight value as hostile unit.
+	AIAttackWeight getAITargetWeightAsHostile(const Mod *mod) const;
+	/// Gets weight value as civilian unit when consider by aliens.
+	AIAttackWeight getAITargetWeightAsHostileCivilians(const Mod *mod) const;
+	/// Gets weight value as same faction unit.
+	AIAttackWeight getAITargetWeightAsFriendly(const Mod *mod) const;
+	/// Gets weight value as neutral unit (xcom to civ or vice versa).
+	AIAttackWeight getAITargetWeightAsNeutral(const Mod *mod) const;
 	/// Set whether this unit is visible
 	void setVisible(bool flag);
 	/// Get whether this unit is visible
 	bool getVisible() const;
+
 
 	/// Check if unit can fall down.
 	void updateTileFloorState(SavedBattleGame *saveBattleGame);
@@ -435,7 +456,7 @@ public:
 	/// Gets the item in the main hand.
 	BattleItem *getMainHandWeapon(bool quickest = true, bool reactions = false) const;
 	/// Gets a grenade from the belt, if any.
-	BattleItem *getGrenadeFromBelt() const;
+	BattleItem *getGrenadeFromBelt(const SavedBattleGame* battle) const;
 	/// Gets the item from right hand.
 	BattleItem *getRightHandWeapon() const;
 	/// Gets the item from left hand.
@@ -526,12 +547,18 @@ public:
 	int getScannedTurn() const { return _scannedTurn; }
 	/// Set turn when unit was scanned by the motion scanner.
 	void setScannedTurn(int turn) { _scannedTurn = turn; }
+	/// Get unit custom marker.
+	int getCustomMarker() const { return _customMarker; }
+	/// Set unit custom marker.
+	void setCustomMarker(int customMarker) { _customMarker = customMarker; }
 	/// Gets the unit's armor.
 	const Armor *getArmor() const;
 	/// Sets the unit's name.
 	void setName(const std::string &name);
 	/// Gets the unit's name.
 	std::string getName(Language *lang, bool debugAppendId = false) const;
+	/// Gets the unit's gained experience points.
+	const UnitStats* getExpStats() const { return &_exp; }
 	/// Gets the unit's stats.
 	UnitStats *getBaseStats();
 	/// Gets the unit's stats.
@@ -574,16 +601,23 @@ public:
 	int getIntelligence() const;
 	/// Get the unit's aggression.
 	int getAggression() const;
+	/// Get the units's special ability.
+	int getSpecialAbility() const;
+
 	/// Helper method.
 	int getMaxViewDistance(int baseVisibility, int nerf, int buff) const;
 	/// Get maximum view distance at dark.
 	int getMaxViewDistanceAtDark(const BattleUnit* otherUnit) const;
+	/// Max view distance at dark squared.
 	int getMaxViewDistanceAtDarkSquared() const;
 	/// Get maximum view distance at day.
 	int getMaxViewDistanceAtDay(const BattleUnit* otherUnit) const;
-	/// Get the units's special ability.
-	int getSpecialAbility() const;
-
+	/// Get unit psi vision with bonuses.
+	int getPsiVision() const { return _psiVision; }
+	/// Get unit heat vision with bonuses.
+	int getVisibilityThroughSmoke() const { return _visibilityThroughSmoke; }
+	/// Get unit visibility through fire with bonuses.
+	int getVisibilityThroughFire() const { return _visibilityThroughFire; }
 
 	/// Gets the unit's spawn unit.
 	const Unit *getSpawnUnit() const;
@@ -636,14 +670,26 @@ public:
 	/// Get the carried weight in strength units.
 	int getCarriedWeight(BattleItem *draggingItem = 0) const;
 
+	/// Set default state on unit.
+	void resetTurnsSince();
+	/// Update counters on unit.
+	void updateTurnsSince();
 	/// Set how many turns this unit will be exposed for.
-	void setTurnsSinceSpotted (int turns);
+	void setTurnsSinceSpotted(int turns);
+	/// Set how many turns this unit will be exposed for. For specific faction.
+	void setTurnsSinceSpottedByFaction(UnitFaction faction, int turns);
 	/// Set how many turns this unit will be exposed for.
 	int getTurnsSinceSpotted() const;
+	/// Set how many turns this unit will be exposed for. For specific faction.
+	int getTurnsSinceSpottedByFaction(UnitFaction faction) const;
 	/// Set how many turns left snipers know about this target.
 	void setTurnsLeftSpottedForSnipers (int turns);
+	/// Set how many turns left snipers know about this target. For specific faction.
+	void setTurnsLeftSpottedForSnipersByFaction (UnitFaction faction, int turns);
 	/// Get how many turns left snipers know about this target.
 	int  getTurnsLeftSpottedForSnipers() const;
+	/// Get how many turns left snipers know about this target. For specific faction.
+	int  getTurnsLeftSpottedForSnipersByFaction(UnitFaction faction) const;
 	/// Reset how many turns passed since stunned last time.
 	void resetTurnsSinceStunned() { _turnsSinceStunned = 255; }
 	/// Increase how many turns passed since stunned last time.
@@ -664,8 +710,14 @@ public:
 	void setRankInt(int rank);
 	/// get the rank integer
 	int getRankInt() const;
+	/// get the rank unified integer
+	int getRankIntUnified() const { return _rankIntUnified; };
 	/// derive a rank integer based on rank string (for xcom soldiers ONLY)
-	void deriveRank();
+	void deriveSoldierRank();
+	/// derive a rank integer based on rank string (for Alien)
+	void deriveHostileRank();
+	/// derive a rank integer based on rank string (for Civilians)
+	void deriveNeutralRank();
 	/// this function checks if a tile is visible, using maths.
 	bool checkViewSector(Position pos, bool useTurretDirection = false) const;
 	/// adjust this unit's stats according to difficulty.
@@ -800,6 +852,8 @@ public:
 	bool isVIP() const { return _vip; }
 	/// Is this unit banned in the next stage?
 	bool isBannedInNextStage() const { return _bannedInNextStage; }
+	/// Is at least one soldier skill usable? (i.e. shown in the skill menu)
+	bool skillMenuCheck() const { return _skillMenuCheck; }
 	/// Is the unit eagerly picking up weapons?
 	bool getPickUpWeaponsMoreActively() const { return _pickUpWeaponsMoreActively; }
 	/// Is the unit afraid to pathfind through fire?

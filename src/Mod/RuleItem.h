@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <yaml-cpp/yaml.h>
+#include "../Engine/Yaml.h"
 #include "LoadYaml.h"
 #include "RuleStatBonus.h"
 #include "RuleDamageType.h"
@@ -89,6 +89,8 @@ enum class BattleActionOrigin { CENTRE = 0, LEFT, RIGHT }; // Used for off-centr
 
 struct BattleActionCost;
 class BattleItem;
+class SavedGame;
+class Base;
 class RuleSkill;
 class Unit;
 class SurfaceSet;
@@ -99,22 +101,52 @@ class RuleItemCategory;
 
 enum UnitFaction : int;
 
-struct RuleItemUseCost
+template<typename T>
+struct RuleItemUseRuleBase
 {
-	int Time;
-	int Energy;
-	int Morale;
-	int Health;
-	int Stun;
-	int Mana;
+	T Time;
+	T Energy;
+	T Morale;
+	T Health;
+	T Stun;
+	T Mana;
 
 	/// Default constructor.
-	RuleItemUseCost() : Time(0), Energy(0), Morale(0), Health(0), Stun(0), Mana(0)
+	RuleItemUseRuleBase() : Time(), Energy(), Morale(), Health(), Stun(), Mana()
 	{
 
 	}
 	/// Create new cost with one value for time units and another for rest.
-	RuleItemUseCost(int tu, int rest = 0) : Time(tu), Energy(rest), Morale(rest), Health(rest), Stun(rest), Mana(rest)
+	RuleItemUseRuleBase(T tu, T rest) : Time(tu), Energy(rest), Morale(rest), Health(rest), Stun(rest), Mana(rest)
+	{
+
+	}
+
+	void load(const YAML::YamlNodeReader& reader)
+	{
+		reader.tryRead("time", Time);
+		reader.tryRead("energy", Energy);
+		reader.tryRead("morale", Morale);
+		reader.tryRead("health", Health);
+		reader.tryRead("stun", Stun);
+		reader.tryRead("mana", Mana);
+	}
+};
+
+struct RuleItemUseCost : RuleItemUseRuleBase<Sint16>
+{
+	/// Default constructor.
+	RuleItemUseCost() : RuleItemUseRuleBase{ 0, 0 }
+	{
+
+	}
+	/// Create new cost with one value for time units and another for rest.
+	RuleItemUseCost(Sint16 tu, Sint16 rest = 0) : RuleItemUseRuleBase{tu, rest}
+	{
+
+	}
+	/// Copy constructor.
+	RuleItemUseCost(const RuleItemUseRuleBase<Sint16>& b) : RuleItemUseRuleBase{ b }
 	{
 
 	}
@@ -130,6 +162,39 @@ struct RuleItemUseCost
 		Mana += cost.Mana;
 		return *this;
 	}
+};
+
+struct RuleItemUseFlat : RuleItemUseRuleBase<bool>
+{
+	/// Default constructor.
+	RuleItemUseFlat() : RuleItemUseRuleBase{ false, false }
+	{
+
+	}
+	/// Create new cost with one value for time units and another for rest.
+	RuleItemUseFlat(bool tu, bool rest = false) : RuleItemUseRuleBase{tu, rest}
+	{
+
+	}
+	/// Copy constructor.
+	RuleItemUseFlat(const RuleItemUseRuleBase<bool>& b) : RuleItemUseRuleBase{ b }
+	{
+
+	}
+};
+
+struct RuleItemUseCostRule : RuleItemUseRuleBase<NullableValue<Sint16>>
+{
+	/// Default constructor.
+	RuleItemUseCostRule() : RuleItemUseRuleBase{ 0, 0 }
+	{
+
+	}
+	/// Create new cost with one value for time units and another for rest.
+	RuleItemUseCostRule(NullableValue<Sint16> tu, NullableValue<Sint16> rest = 0) : RuleItemUseRuleBase{tu, rest}
+	{
+
+	}
 
 	/**
 	 * Load use cost.
@@ -137,18 +202,27 @@ struct RuleItemUseCost
 	 * @param node YAML node.
 	 * @param name Name of action type.
 	 */
-	void loadCost(const YAML::Node& node, const std::string& name)
+	void loadCost(const YAML::YamlNodeReader& reader, const std::string& name)
 	{
-		loadIntNullable(Time, node["tu" + name]);
-		if (const YAML::Node& cost = node["cost" + name])
+		reader.tryRead(ryml::to_csubstr("tu" + name), Time);
+		if (const auto& cost = reader[ryml::to_csubstr("cost" + name)])
 		{
-			loadIntNullable(Time, cost["time"]);
-			loadIntNullable(Energy, cost["energy"]);
-			loadIntNullable(Morale, cost["morale"]);
-			loadIntNullable(Health, cost["health"]);
-			loadIntNullable(Stun, cost["stun"]);
-			loadIntNullable(Mana, cost["mana"]);
+			load(cost);
 		}
+	}
+};
+
+struct RuleItemUseFlatRule : RuleItemUseRuleBase<NullableValue<bool>>
+{
+	/// Default constructor.
+	RuleItemUseFlatRule() : RuleItemUseRuleBase{ false, false }
+	{
+
+	}
+	/// Create new cost with one value for time units and another for rest.
+	RuleItemUseFlatRule(NullableValue<bool> tu, NullableValue<bool> rest = false) : RuleItemUseRuleBase{tu, rest}
+	{
+
 	}
 
 	/**
@@ -157,26 +231,35 @@ struct RuleItemUseCost
 	 * @param node YAML node.
 	 * @param name Name of action type.
 	 */
-	void loadPercent(const YAML::Node& node, const std::string& name)
+	void loadFlat(const YAML::YamlNodeReader& reader, const std::string& name)
 	{
-		if (const YAML::Node& cost = node["flat" + name])
+		if (const auto& cost = reader[ryml::to_csubstr("flat" + name)])
 		{
-			if (cost.IsScalar())
+			if (cost.hasVal())
 			{
-				loadBoolNullable(Time, cost);
+				cost.tryReadVal(Time);
 			}
 			else
 			{
-				loadBoolNullable(Time, cost["time"]);
-				loadBoolNullable(Energy, cost["energy"]);
-				loadBoolNullable(Morale, cost["morale"]);
-				loadBoolNullable(Health, cost["health"]);
-				loadBoolNullable(Stun, cost["stun"]);
-				loadBoolNullable(Mana, cost["mana"]);
+				load(cost);
 			}
 		}
 	}
 };
+
+/// Get final value of cost.
+template<typename T, typename... Rest>
+inline RuleItemUseRuleBase<T> getDefault(const RuleItemUseRuleBase<NullableValue<T>>& a, const Rest&... b)
+{
+	RuleItemUseRuleBase<T> n;
+	n.Time = coalesceNullValues(a.Time, b.Time...);
+	n.Energy = coalesceNullValues(a.Energy, b.Energy...);
+	n.Morale = coalesceNullValues(a.Morale, b.Morale...);
+	n.Health = coalesceNullValues(a.Health, b.Health...);
+	n.Stun = coalesceNullValues(a.Stun, b.Stun...);
+	n.Mana = coalesceNullValues(a.Mana, b.Mana...);
+	return n;
+}
 
 /**
  * Common configuration of item action.
@@ -189,8 +272,11 @@ struct RuleItemAction
 	int spendPerShot = 1;
 	bool followProjectiles = true;
 	int ammoSlot = 0;
-	RuleItemUseCost cost;
-	RuleItemUseCost flat;
+	int ammoZombieUnitChanceOverride = -1;
+	int ammoSpawnUnitChanceOverride = -1;
+	int ammoSpawnItemChanceOverride = -1;
+	RuleItemUseCostRule cost;
+	RuleItemUseFlatRule flat;
 	bool arcing = false; // Only overrides arcing: false on a weapon for a specific action
 	std::string name;
 	std::string shortName;
@@ -276,7 +362,7 @@ public:
 	static const int MedikitSlots = 3;
 
 	/// Load ammo slot with checking correct range.
-	static void loadAmmoSlotChecked(int& result, const YAML::Node& node, const std::string& parentName);
+	static void loadAmmoSlotChecked(int& result, const YAML::YamlNodeReader& reader, const std::string& parentName);
 
 private:
 	std::string _ufopediaType;
@@ -292,10 +378,12 @@ private:
 	std::vector<std::string> _categories;
 
 	Unit* _vehicleUnit;
+	int _vehicleFixedAmmoSlot;
 	double _size;
 	int _monthlyBuyLimit;
 	int _costBuy, _costSell, _transferTime, _weight;
 	int _throwRange, _underwaterThrowRange;
+	int _throwDropoffRange, _underwaterThrowDropoffRange, _throwDropoff;
 	int _bigSprite;
 	int _floorSprite;
 	int _handSprite, _bulletSprite;
@@ -315,6 +403,7 @@ private:
 	int _psiMissAnimation, _psiMissAnimFrames;
 	int _power, _powerForAnimation;
 	bool _hidePower;
+	bool _ignoreAmmoPower;
 	float _powerRangeReduction;
 	float _powerRangeThreshold;
 	std::vector<std::vector<std::string>> _compatibleAmmoNames = std::vector<std::vector<std::string>>(AmmoSlotMax);
@@ -325,16 +414,18 @@ private:
 	RuleItemAction _confAimed, _confAuto, _confSnap, _confMelee;
 	int _accuracyUse, _accuracyMind, _accuracyPanic, _accuracyThrow, _accuracyCloseQuarters;
 	int _noLOSAccuracyPenalty;
-	RuleItemUseCost _costUse, _costMind, _costPanic, _costThrow, _costPrime, _costUnprime;
+	int _explodeInventory;
+	RuleItemUseCostRule _costUse, _costMind, _costPanic, _costThrow, _costPrime, _costUnprime;
 	int _clipSize, _specialChance, _tuLoad[AmmoSlotMax], _tuUnload[AmmoSlotMax];
 	BattleType _battleType;
 	BattleFuseType _fuseType;
 	RuleItemFuseTrigger _fuseTriggerEvents;
 	bool _hiddenOnMinimap;
 	std::string _medikitActionName, _psiAttackName, _primeActionName, _unprimeActionName, _primeActionMessage, _unprimeActionMessage;
+	std::string _sellActionMessage;
 
 	bool _twoHanded, _blockBothHands, _fixedWeapon, _fixedWeaponShow, _isConsumable, _isFireExtinguisher;
-	bool _isExplodingInHands, _specialUseEmptyHand, _specialUseEmptyHandShow;
+	bool _specialUseEmptyHand, _specialUseEmptyHandShow;
 	int _inventoryMoveCostPercent = 100;
 	std::string _defaultInventorySlotName;
 	const RuleInventory* _defaultInventorySlot;
@@ -348,7 +439,8 @@ private:
 	bool _medikitTargetSelf, _medikitTargetImmune;
 	int _medikitTargetMatrix;
 	std::string _medikitBackground;
-	int _woundRecovery, _healthRecovery, _stunRecovery, _energyRecovery, _manaRecovery, _moraleRecovery, _painKillerRecovery;
+	int _woundRecovery, _healthRecovery, _stunRecovery, _energyRecovery, _manaRecovery, _moraleRecovery;
+	float _painKillerRecovery;
 
 	int _recoveryPoints;
 	int _armor;
@@ -357,10 +449,11 @@ private:
 	bool _recover, _recoverCorpse, _ignoreInBaseDefense, _ignoreInCraftEquip, _liveAlien;
 	int _liveAlienPrisonType;
 	int _attraction;
-	RuleItemUseCost _flatUse, _flatThrow, _flatPrime, _flatUnprime;
+	RuleItemUseFlatRule _flatUse, _flatThrow, _flatPrime, _flatUnprime;
 	bool _arcingShot;
 	ExperienceTrainingMode _experienceTrainingMode;
 	int _manaExperience;
+	int _loadOrder;
 	int _listOrder, _maxRange, _minRange, _dropoff, _bulletSpeed, _explosionSpeed, _shotgunPellets;
 	int _shotgunBehaviorType, _shotgunSpread, _shotgunChoke;
 
@@ -387,18 +480,16 @@ private:
 	ModScript::BattleItemScripts::Container _battleItemScripts;
 	ScriptValues<RuleItem> _scriptValues;
 
-	/// Get final value of cost.
-	RuleItemUseCost getDefault(const RuleItemUseCost& a, const RuleItemUseCost& b) const;
 	/// Load RuleItemUseCost from yaml.
-	void loadCost(RuleItemUseCost& a, const YAML::Node& node, const std::string& name) const;
+	void loadCost(RuleItemUseCost& a, const YAML::YamlNodeReader& reader, const std::string& name) const;
 	/// Load RuleItemUseCost as bool from yaml.
-	void loadPercent(RuleItemUseCost& a, const YAML::Node& node, const std::string& name) const;
+	void loadPercent(RuleItemUseCost& a, const YAML::YamlNodeReader& reader, const std::string& name) const;
 	/// Load RuleItemAction from yaml.
-	void loadConfAction(RuleItemAction& a, const YAML::Node& node, const std::string& name) const;
+	void loadConfAction(RuleItemAction& a, const YAML::YamlNodeReader& reader, const std::string& name) const;
 	/// Gets a random sound from a given vector.
 	int getRandomSound(const std::vector<int> &vector, int defaultValue = -1) const;
 	/// Load RuleItemFuseTrigger from yaml.
-	void loadConfFuse(RuleItemFuseTrigger& a, const YAML::Node& node, const std::string& name) const;
+	void loadConfFuse(RuleItemFuseTrigger& a, const YAML::YamlNodeReader& reader, const std::string& name) const;
 
 public:
 	/// Name of class used in script.
@@ -413,7 +504,7 @@ public:
 	/// Updates item categories based on replacement rules.
 	void updateCategories(std::map<std::string, std::string> *replacementRules);
 	/// Loads item data from YAML.
-	void load(const YAML::Node& node, Mod *mod, const ModScript& parsers);
+	void load(const YAML::YamlNodeReader& reader, Mod *mod, const ModScript& parsers);
 	/// Cross link with other rules.
 	void afterLoad(const Mod* mod);
 
@@ -446,24 +537,30 @@ public:
 	const RuleItemCategory* getFirstCategoryWithInvOrder(const Mod* mod) const;
 	/// Gets unit rule if the item is vehicle weapon.
 	Unit* getVehicleUnit() const;
+	/// Gets the fixed ammo slot of the primary vehicle weapon.
+	int getVehicleFixedAmmoSlot() const { return _vehicleFixedAmmoSlot; }
 	/// Gets the item's size.
 	double getSize() const;
+
 	/// Gets the item's monthly buy limit.
 	int getMonthlyBuyLimit() const { return _monthlyBuyLimit; }
-	/// Gets the item's purchase cost.
+	/// Gets the item's basic purchase cost.
 	int getBuyCost() const;
-	/// Gets the item's sale cost.
+	/// Gets the item's purchase cost.
+	int getBuyCostAdjusted(const Base* base, const SavedGame* save) const;
+	/// Gets the item's basic sale cost.
 	int getSellCost() const;
+	/// Gets the item's sale cost.
+	int getSellCostAdjusted(const Base* base, const SavedGame* save) const;
 	/// Gets the item's transfer time.
 	int getTransferTime() const;
+
 	/// Gets the item's weight.
 	int getWeight() const;
 	/// Gets the item's maximum throw range.
 	int getThrowRange() const { return _throwRange; }
-	int getThrowRangeSq() const { return _throwRange * _throwRange; }
 	/// Gets the item's maximum underwater throw range.
 	int getUnderwaterThrowRange() const { return _underwaterThrowRange; }
-	int getUnderwaterThrowRangeSq() const { return _underwaterThrowRange * _underwaterThrowRange; }
 	/// Gets the item's reference in BIGOBS.PCK for use in inventory.
 	int getBigSprite() const;
 	/// Gets the item's reference in FLOOROB.PCK for use in battlescape.
@@ -572,6 +669,9 @@ public:
 	/// Ok, so this isn't a melee type weapon but we're using it for melee... how much damage should it do?
 	int getMeleePower() const;
 
+	/// Should the (selected) power attributes come from the weapon/firearm only (and not from the ammo, even if defined)?
+	bool getIgnoreAmmoPower() const { return _ignoreAmmoPower && _battleType == BT_FIREARM; }
+
 	/// Gets amount of power dropped for range in voxels.
 	float getPowerRangeReduction(float range) const;
 	float getPowerRangeReductionRaw() const { return _powerRangeReduction; }
@@ -631,9 +731,11 @@ public:
 	/// Gets the item's throw accuracy.
 	int getAccuracyThrow() const;
 	/// Gets the item's close quarters combat accuracy.
-	int getAccuracyCloseQuarters(Mod *mod) const;
+	int getAccuracyCloseQuarters(const Mod *mod) const;
 	/// Get penalty for firing this weapon on out-of-LOS targets
 	int getNoLOSAccuracyPenalty(Mod *mod) const;
+	/// Get setting for primed explosives exploding in the inventory.
+	int getExplodeInventory(const Mod* mod) const;
 
 	/// Gets the item's aimed shot cost.
 	RuleItemUseCost getCostAimed() const;
@@ -657,21 +759,21 @@ public:
 	RuleItemUseCost getCostUnprime() const;
 
 	/// Should we charge a flat rate of costAimed?
-	RuleItemUseCost getFlatAimed() const;
+	RuleItemUseFlat getFlatAimed() const;
 	/// Should we charge a flat rate of costAuto?
-	RuleItemUseCost getFlatAuto() const;
+	RuleItemUseFlat getFlatAuto() const;
 	/// Should we charge a flat rate of costSnap?
-	RuleItemUseCost getFlatSnap() const;
+	RuleItemUseFlat getFlatSnap() const;
 	/// Should we charge a flat rate of costMelee?
-	RuleItemUseCost getFlatMelee() const;
+	RuleItemUseFlat getFlatMelee() const;
 	/// Should we charge a flat rate?
-	RuleItemUseCost getFlatUse() const;
+	RuleItemUseFlat getFlatUse() const;
 	/// Should we charge a flat rate of costThrow?
-	RuleItemUseCost getFlatThrow() const;
+	RuleItemUseFlat getFlatThrow() const;
 	/// Should we charge a flat rate of costPrime?
-	RuleItemUseCost getFlatPrime() const;
-	/// Should we charge a flat rate of costPrime?
-	RuleItemUseCost getFlatUnprime() const;
+	RuleItemUseFlat getFlatPrime() const;
+	/// Should we charge a flat rate of costUnrime?
+	RuleItemUseFlat getFlatUnprime() const;
 
 	/// Gets the item's load TU cost.
 	int getTULoad(int slot) const;
@@ -698,6 +800,8 @@ public:
 	bool isMeleeTypeSet() const { return _meleeTypeSet; }
 	/// Gets the item's type.
 	BattleType getBattleType() const;
+	/// Is the item's type BT_GRENADE or BT_PROXIMITYGRENADE?
+	bool isGrenadeOrProxy() const;
 	/// Gets the item's fuse type.
 	BattleFuseType getFuseTimerType() const;
 	/// Gets the item's default fuse value.
@@ -757,8 +861,6 @@ public:
 	bool isConsumable() const;
 	/// Does this item extinguish fire?
 	bool isFireExtinguisher() const;
-	/// Is this item explode in hands?
-	bool isExplodingInHands() const;
 	/// If this is used as a speacialWeapon, is it accessed by empty hand?
 	bool isSpecialUsingEmptyHand() const;
 	/// Display icon in an empty hand?
@@ -804,6 +906,8 @@ public:
 	int getManaExperience() const { return _manaExperience; }
 	/// How much do aliens want this thing?
 	int getAttraction() const;
+	/// Get the load order for this item.
+	int getLoadOrder() const { return _loadOrder; }
 	/// Get the list weight for this item.
 	int getListOrder() const;
 	/// How fast does a projectile fired from this weapon travel?
@@ -822,6 +926,8 @@ public:
 	const std::string &getUnprimeActionName() const { return _unprimeActionName; }
 	/// Get message for unprime action.
 	const std::string &getUnprimeActionMessage() const { return _unprimeActionMessage; }
+	/// Get message when trying to sell the item.
+	const std::string& getSellActionMessage() const { return _sellActionMessage; }
 	/// is this item a 2 handed weapon?
 	bool isRifle() const;
 	/// is this item a single handed weapon?
@@ -830,6 +936,8 @@ public:
 	int getMaxRange() const;
 	/// Checks whether a given distance is out of range for this item.
 	bool isOutOfRange(int distanceSq) const;
+	/// Checks whether a given distance is out of throw range for this item.
+	bool isOutOfThrowRange(int distanceSq, int depth) const;
 	/// Get the max range of aimed shots with this weapon.
 	int getAimRange() const;
 	/// Get the max range of snap shots with this weapon.
@@ -838,8 +946,16 @@ public:
 	int getAutoRange() const;
 	/// Get the minimum effective range of this weapon.
 	int getMinRange() const;
+	/// Gets the item's throw dropoff range.
+	int getThrowDropoffRange() const { return _throwDropoffRange; }
+	/// Gets the item's underwater throw dropoff range.
+	int getUnderwaterThrowDropoffRange() const { return _underwaterThrowDropoffRange; }
+	/// Get the throwing accuracy dropoff of this weapon.
+	int getThrowDropoff() const { return _throwDropoff; }
 	/// Get the accuracy dropoff of this weapon.
 	int getDropoff() const;
+	/// Helper function to calculate limits and dropoff.
+	int calculateLimits(int& upperLimit, int& lowerLimit, int depth, BattleActionType type) const;
 	/// Get the number of projectiles to trace.
 	int getShotgunPellets() const;
 	/// Get the shotgun behavior type.
@@ -857,19 +973,19 @@ public:
 	/// Gets which faction the spawned unit should have.
 	UnitFaction getZombieUnitFaction() const { return _zombieUnitFaction; }
 	/// Gets chance for zombie transformation on attack.
-	int getZombieUnitChance() const { return _zombieUnitChance != -1 ? _zombieUnitChance : _specialChance; }
+	int getZombieUnitChance() const { return useIntNullable(_zombieUnitChance, _specialChance); }
 
 	/// Gets the weapon's spawn unit.
 	const Unit* getSpawnUnit() const { return _spawnUnit; }
 	/// Gets which faction the spawned unit should have.
 	UnitFaction getSpawnUnitFaction() const { return _spawnUnitFaction; }
 	/// Gets chance for unit spawn on attack.
-	int getSpawnUnitChance() const { return _spawnUnitChance != -1 ? _spawnUnitChance : _specialChance; }
+	int getSpawnUnitChance() const { return useIntNullable(_spawnUnitChance, _specialChance); }
 
 	/// Gets the weapon's spawn item.
 	const RuleItem* getSpawnItem() const { return _spawnItem; }
 	/// Gets chance for item spawn on attack.
-	int getSpawnItemChance() const { return _spawnItemChance != -1 ? _spawnItemChance : _specialChance; }
+	int getSpawnItemChance() const { return useIntNullable(_spawnItemChance, _specialChance); }
 
 	/// Checks if this item can be used to target a given faction.
 	bool isTargetAllowed(UnitFaction targetFaction, UnitFaction attacker) const;
@@ -897,9 +1013,9 @@ public:
 	/// Gets the index of the sprite in the CustomItemPreview sprite set
 	const std::vector<int> &getCustomItemPreviewIndex() const;
 	/// Gets the kneel bonus.
-	int getKneelBonus(Mod *mod) const;
+	int getKneelBonus(const Mod *mod) const;
 	/// Gets the one-handed penalty.
-	int getOneHandedPenalty(Mod *mod) const;
+	int getOneHandedPenalty(const Mod *mod) const;
 	/// Gets the monthly salary.
 	int getMonthlySalary() const;
 	/// Gets the monthly maintenance.

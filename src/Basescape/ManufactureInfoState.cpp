@@ -78,6 +78,7 @@ void ManufactureInfoState::buildUi()
 	_btnOk = new TextButton(136, 16, 168, 155);
 	_btnStop = new TextButton(136, 16, 16, 155);
 	_btnSell = new ToggleTextButton(60, 16, 244, 61);
+	_btnFallback = new ToggleTextButton(72, 16, 168, 61);
 	_txtAvailableEngineer = new Text(160, 9, 16, 50);
 	_txtAvailableSpace = new Text(160, 9, 16, 60);
 	_txtHoursPerUnit = new Text(150, 9, 16, 70);
@@ -131,6 +132,7 @@ void ManufactureInfoState::buildUi()
 	add(_btnOk, "button2", "manufactureInfo");
 	add(_btnStop, "button2", "manufactureInfo");
 	add(_btnSell, "button1", "manufactureInfo");
+	add(_btnFallback, "button1", "manufactureInfo");
 
 	centerAllSurfaces();
 
@@ -212,6 +214,10 @@ void ManufactureInfoState::buildUi()
 	initProfitInfo();
 	setAssignedEngineer();
 
+	_btnFallback->setText(tr("STR_FALLBACK_PRODUCTION"));
+	_btnFallback->setPressed(_production->isFallback());
+	_btnFallback->setVisible(Options::oxceBaseManufactureFallbackButton);
+
 	if (Options::oxceBaseManufactureInfinityButton)
 	{
 		if (_production->getRules()->getProducedCraft())
@@ -257,8 +263,8 @@ void ManufactureInfoState::initProfitInfo ()
 	{
 		for (auto& pair : manuf->getProducedItems())
 		{
-			int64_t adjustedSellValue = pair.first->getSellCost();
-			adjustedSellValue = adjustedSellValue * pair.second * _game->getSavedGame()->getSellPriceCoefficient() / 100;
+			int64_t adjustedSellValue = pair.first->getSellCostAdjusted(_base, _game->getSavedGame());
+			adjustedSellValue *= pair.second;
 			_producedItemsValue += adjustedSellValue;
 		}
 	}
@@ -335,6 +341,14 @@ void ManufactureInfoState::btnOkClick(Action *)
 		_production->startItem(_base, _game->getSavedGame(), _game->getMod());
 	}
 	_production->setSellItems(_btnSell->getPressed());
+	if (_btnFallback->getPressed())
+	{
+		for (auto* p : _base->getProductions())
+		{
+			p->setFallback(false);
+		}
+		_production->setFallback(true);
+	}
 	exitState();
 }
 
@@ -391,6 +405,7 @@ void ManufactureInfoState::moreEngineer(int change)
 	}
 	else if (availableWorkSpace <= 0 && availableEngineer > 0 && _production->isQueuedOnly() && _production->getRules()->getRequiredSpace() > 0)
 	{
+		_timerMoreEngineer->stop();
 		_game->pushState(new ErrorMessageState(
 			tr("STR_NOT_ENOUGH_WORK_SPACE"),
 			_palette,

@@ -20,6 +20,7 @@
 #include "BattleItem.h"
 #include "BattleUnit.h"
 #include "Tile.h"
+#include "SavedGame.h"
 #include "SavedBattleGame.h"
 #include "../Mod/Mod.h"
 #include "../Mod/RuleItem.h"
@@ -33,6 +34,7 @@
 #include "../Engine/RNG.h"
 #include "../Battlescape/Particle.h"
 #include "../fmath.h"
+#include <optional>
 
 namespace OpenXcom
 {
@@ -101,110 +103,101 @@ BattleItem::~BattleItem()
  * @param node YAML node.
  * @param mod Mod for the item.
  */
-void BattleItem::load(const YAML::Node &node, Mod *mod, const ScriptGlobal *shared)
+void BattleItem::load(const YAML::YamlNodeReader& reader, Mod *mod, const ScriptGlobal *shared)
 {
-	if (const YAML::Node& cost = node["inventoryMoveCost"])
-	{
-		_inventoryMoveCostPercent = cost["basePercent"].as<int>(_inventoryMoveCostPercent);
-	}
-	std::string slot = node["inventoryslot"].as<std::string>("NULL");
+	if (const auto& cost = reader["inventoryMoveCost"])
+		_inventoryMoveCostPercent = cost["basePercent"].readVal(_inventoryMoveCostPercent);
+	std::string slot = reader["inventoryslot"].readVal<std::string>("NULL");
 	if (slot != "NULL")
 	{
-		if (mod->getInventory(slot))
-		{
-			_inventorySlot = mod->getInventory(slot);
-
-		}
-		else
-		{
+		_inventorySlot = mod->getInventory(slot);
+		if (!_inventorySlot)
 			_inventorySlot = mod->getInventoryGround();
-		}
 	}
-	_inventoryX = node["inventoryX"].as<int>(_inventoryX);
-	_inventoryY = node["inventoryY"].as<int>(_inventoryY);
-	_ammoQuantity = node["ammoqty"].as<int>(_ammoQuantity);
-	_painKiller = node["painKiller"].as<int>(_painKiller);
-	_heal = node["heal"].as<int>(_heal);
-	_stimulant = node["stimulant"].as<int>(_stimulant);
-	//_fuseTimer = node["fuseTimer"].as<int>(_fuseTimer);
-	if (node["fuseTimer"])
-	{
-		// needed for compatibility with OXC
-		setFuseTimer(node["fuseTimer"].as<int>());
-	}
-	_fuseEnabled = node["fuseEnabed"].as<bool>(_fuseEnabled);
-	_droppedOnAlienTurn = node["droppedOnAlienTurn"].as<bool>(_droppedOnAlienTurn);
-	_XCOMProperty = node["XCOMProperty"].as<bool>(_XCOMProperty);
-	_scriptValues.load(node, shared);
+	reader.tryRead("inventoryX", _inventoryX);
+	reader.tryRead("inventoryY", _inventoryY);
+	reader.tryRead("ammoqty", _ammoQuantity);
+	reader.tryRead("painKiller", _painKiller);
+	reader.tryRead("heal", _heal);
+	reader.tryRead("stimulant", _stimulant);
+	//reader.tryRead("fuseTimer", _fuseTimer);
+	if (const auto& fuseTimer = reader["fuseTimer"]) // needed for compatibility with OXC
+		setFuseTimer(fuseTimer.readVal<int>());
+	reader.tryRead("fuseEnabed", _fuseEnabled);
+	reader.tryRead("droppedOnAlienTurn", _droppedOnAlienTurn);
+	reader.tryRead("XCOMProperty", _XCOMProperty);
+	_scriptValues.load(reader, shared);
 }
 
 /**
  * Saves the item to a YAML file.
  * @return YAML node.
  */
-YAML::Node BattleItem::save(const ScriptGlobal *shared) const
+void BattleItem::save(YAML::YamlNodeWriter writer, const ScriptGlobal *shared) const
 {
-	YAML::Node node;
-	node["id"] = _id;
-	node["type"] = _rules->getType();
+	writer.setAsMap();
+	writer.write("id", _id);
+	writer.write("type", _rules->getType());
 	if (_owner)
-		node["owner"] = _owner->getId();
+		writer.write("owner", _owner->getId());
 	if (_previousOwner)
-		node["previousOwner"] = _previousOwner->getId();
+		writer.write("previousOwner", _previousOwner->getId());
 	if (_unit)
-		node["unit"] = _unit->getId();
-
+		writer.write("unit", _unit->getId());
 	if (_inventoryMoveCostPercent != _rules->getInventoryMoveCostPercent())
 	{
-		node["inventoryMoveCost"]["basePercent"] = _inventoryMoveCostPercent;
+		auto mcWriter = writer["inventoryMoveCost"];
+		mcWriter.setAsMap();
+		mcWriter.write("basePercent", _inventoryMoveCostPercent);
 	}
 	if (_inventorySlot)
 	{
-		node["inventoryslot"] = _inventorySlot->getId();
+		writer.write("inventoryslot", _inventorySlot->getId());
 		if (_inventorySlot->getType() == INV_SLOT) // only for slot items this matter, for hands and ground it can be `0` for both
 		{
-			node["inventoryX"] = _inventoryX;
-			node["inventoryY"] = _inventoryY;
+			writer.write("inventoryX", _inventoryX);
+			writer.write("inventoryY", _inventoryY);
 		}
 	}
-
 	if (_tile)
-		node["position"] = _tile->getPosition();
+		writer.write("position", _tile->getPosition());
 	if (_ammoQuantity)
-		node["ammoqty"] = _ammoQuantity;
+		writer.write("ammoqty", _ammoQuantity);
 	if (_ammoItem[0])
-	{
-		node["ammoItem"] = _ammoItem[0]->getId();
-	}
+		writer.write("ammoItem", _ammoItem[0]->getId());
+	std::optional<YAML::YamlNodeWriter> ammoSlotWriter;
 	Collections::untilLastIf(
 		_ammoItem,
-		[](BattleItem *i)
+		[](BattleItem* i)
 		{
 			return i != nullptr;
 		},
-		[&](BattleItem *i)
+		[&](BattleItem* i)
 		{
-			node["ammoItemSlots"].SetStyle(YAML::EmitterStyle::Flow); // called multiple times but prevent creating empty `ammoItemSlots: ~`
-			node["ammoItemSlots"].push_back(i ? i->getId() : -1);
-		}
-	);
+			if (!ammoSlotWriter.has_value())
+			{
+				ammoSlotWriter.emplace(writer["ammoItemSlots"]);
+				ammoSlotWriter->setAsSeq();
+				ammoSlotWriter->setFlowStyle();
+			}
+			ammoSlotWriter->write(i ? i->getId() : -1);
+		});
 	if (_rules && _rules->getBattleType() == BT_MEDIKIT)
 	{
-		node["painKiller"] = _painKiller;
-		node["heal"] = _heal;
-		node["stimulant"] = _stimulant;
+		writer.write("painKiller", _painKiller);
+		writer.write("heal", _heal);
+		writer.write("stimulant", _stimulant);
 	}
 	if (_fuseTimer != -1)
-		node["fuseTimer"] = _fuseTimer;
+		writer.write("fuseTimer", _fuseTimer);
 	if (_fuseEnabled)
-		node["fuseEnabed"] = _fuseEnabled;
+		writer.write("fuseEnabed", _fuseEnabled);
 	if (_droppedOnAlienTurn)
-		node["droppedOnAlienTurn"] = _droppedOnAlienTurn;
+		writer.write("droppedOnAlienTurn", _droppedOnAlienTurn);
 	if (_XCOMProperty)
-		node["XCOMProperty"] = _XCOMProperty;
-	_scriptValues.save(node, shared);
+		writer.write("XCOMProperty", _XCOMProperty);
 
-	return node;
+	_scriptValues.save(writer, shared);
 }
 
 /**
@@ -1407,8 +1400,8 @@ std::string debugDisplayScript(const BattleItem* bt)
 		auto* rule = bt->getRules();
 		std::string s;
 		s += BattleItem::ScriptName;
-		s += "(name: \"";
-		s += rule->getName();
+		s += "(type: \"";
+		s += rule->getType();
 		s += "\" id: ";
 		s += std::to_string(bt->getId());
 
@@ -1494,6 +1487,13 @@ void setStimulantQuantityScript(BattleItem* bt, int i)
 	}
 }
 
+
+void commonBattleItemAnimations(ScriptParserBase* parser)
+{
+	SavedBattleGame::ScriptRegisterUnitAnimations(parser);
+}
+
+
 } // namespace
 
 /**
@@ -1530,6 +1530,7 @@ void BattleItem::ScriptRegister(ScriptParserBase* parser)
 	bi.add<&BattleItem::isAmmo>("isAmmo");
 	bi.add<&BattleItem::isSpecialWeapon>("isSpecialWeapon");
 
+	bi.add<&BattleItem::getRules, &RuleItem::getClipSize>("getAmmoQuantityMax");
 	bi.add<&BattleItem::getAmmoQuantity>("getAmmoQuantity");
 	bi.add<&setAmmoQuantityScript>("setAmmoQuantity");
 
@@ -1598,6 +1599,7 @@ ModScript::RecolorItemParser::RecolorItemParser(ScriptGlobal* shared, const std:
 	BindBase b { this };
 
 	commonImpl(b, mod);
+	commonBattleItemAnimations(this);
 
 	setDefault("add_shade new_pixel shade; return new_pixel;");
 }
@@ -1614,6 +1616,7 @@ ModScript::SelectItemParser::SelectItemParser(ScriptGlobal* shared, const std::s
 	BindBase b { this };
 
 	commonImpl(b, mod);
+	commonBattleItemAnimations(this);
 
 	setDefault("add sprite_index sprite_offset; return sprite_index;");
 }
@@ -1737,6 +1740,33 @@ ModScript::TryMeleeAttackItemParser::TryMeleeAttackItemParser(ScriptGlobal* shar
 		"add melee_attack_success defense_strength_penalty;\n"
 		"return melee_attack_success;\n"
 	);
+}
+
+ModScript::SellCostItemParser::SellCostItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"cost_current",
+	"cost_base",
+
+	"item_rule",
+	"geoscape_game",
+	"difficulty_coefficient"
+}
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
+}
+ModScript::BuyCostItemParser::BuyCostItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod) : ScriptParserEvents{ shared, name,
+	"cost_current",
+	"cost_base",
+
+	"item_rule",
+	"geoscape_game",
+	"difficulty_coefficient"
+}
+{
+	BindBase b { this };
+
+	b.addCustomPtr<const Mod>("rules", mod);
 }
 
 /**

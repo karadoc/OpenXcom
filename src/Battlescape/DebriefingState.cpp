@@ -291,7 +291,8 @@ DebriefingState::DebriefingState() :
 	_lstSoldierStats->setDot(true);
 
 	// Third page
-	_lstRecoveredItems->setColumns(2, 254, 18);
+	int firstColumnWidth = Clamp(_game->getMod()->getInterface("debriefing")->getElement("list")->custom, 90, 254);
+	_lstRecoveredItems->setColumns(2, firstColumnWidth, 18);
 	_lstRecoveredItems->setAlign(ALIGN_LEFT);
 	_lstRecoveredItems->setDot(true);
 }
@@ -755,13 +756,14 @@ void DebriefingState::init()
 			bu->getStatistics()->delta = *bu->getGeoscapeSoldier()->getCurrentStats() - *bu->getGeoscapeSoldier()->getInitStats();
 
 			bu->getGeoscapeSoldier()->getDiary()->updateDiary(bu->getStatistics(), _game->getSavedGame()->getMissionStatistics(), _game->getMod());
-			if (!bu->getStatistics()->MIA && !bu->getStatistics()->KIA && bu->getGeoscapeSoldier()->getDiary()->manageCommendations(_game->getMod(), _game->getSavedGame()->getMissionStatistics()))
+			if (!bu->getStatistics()->MIA && !bu->getStatistics()->KIA &&
+				bu->getGeoscapeSoldier()->getDiary()->manageCommendations(_game->getMod(), _game->getSavedGame(), bu->getGeoscapeSoldier()))
 			{
 				_soldiersCommended.push_back(bu->getGeoscapeSoldier());
 			}
 			else if (bu->getStatistics()->MIA || bu->getStatistics()->KIA)
 			{
-				bu->getGeoscapeSoldier()->getDiary()->manageCommendations(_game->getMod(), _game->getSavedGame()->getMissionStatistics());
+				bu->getGeoscapeSoldier()->getDiary()->manageCommendations(_game->getMod(), _game->getSavedGame(), bu->getGeoscapeSoldier());
 				_deadSoldiersCommended.push_back(bu->getGeoscapeSoldier());
 			}
 		}
@@ -869,6 +871,16 @@ void DebriefingState::btnOkClick(Action *)
 	}
 	else
 	{
+		// Autosave after mission
+		if (_game->getSavedGame()->isIronman())
+		{
+			_game->pushState(new SaveGameState(OPT_GEOSCAPE, SAVE_IRONMAN, _palette));
+		}
+		else if (Options::autosave)
+		{
+			_game->pushState(new SaveGameState(OPT_GEOSCAPE, SAVE_AUTO_GEOSCAPE, _palette));
+		}
+
 		if (_eventToSpawn)
 		{
 			bool canSpawn = _game->getSavedGame()->canSpawnInstantEvent(_eventToSpawn);
@@ -947,16 +959,6 @@ void DebriefingState::btnOkClick(Action *)
 				_game->pushState(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg(_base->getName()), _palette, _game->getMod()->getInterface("debriefing")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("debriefing")->getElement("errorPalette")->color));
 			}
 		}
-
-		// Autosave after mission
-		if (_game->getSavedGame()->isIronman())
-		{
-			_game->pushState(new SaveGameState(OPT_GEOSCAPE, SAVE_IRONMAN, _palette));
-		}
-		else if (Options::autosave)
-		{
-			_game->pushState(new SaveGameState(OPT_GEOSCAPE, SAVE_AUTO_GEOSCAPE, _palette));
-		}
 	}
 }
 
@@ -1030,10 +1032,10 @@ void DebriefingState::prepareDebriefing()
 	Base *base = 0;
 	std::string target;
 
-	int playersInExitArea = 0; // if this stays 0 the craft is lost...
+	int playersInExitArea1 = 0; // if playersInExitArea2 stays 0 the craft is lost...
 	int playersSurvived = 0; // if this stays 0 the craft is lost...
 	int playersUnconscious = 0;
-	int playersInEntryArea = 0;
+	int playersInEntryArea1 = 0;
 	int playersMIA = 0;
 
 	_stats.push_back(new DebriefingStat("STR_ALIENS_KILLED", false));
@@ -1216,11 +1218,17 @@ void DebriefingState::prepareDebriefing()
 	}
 
 	// mission site disappears (even when you abort)
+	Ufo* ignoredUfo = nullptr;
 	for (auto msIt = save->getMissionSites()->begin(); msIt != save->getMissionSites()->end(); ++msIt)
 	{
 		MissionSite* ms = (*msIt);
 		if (ms->isInBattlescape())
 		{
+			if (ms->getUfo())
+			{
+				ignoredUfo = ms->getUfo();
+				ms->setUfo(nullptr);
+			}
 			_missionStatistics->alienRace = ms->getAlienRace();
 			delete ms;
 			save->getMissionSites()->erase(msIt);
@@ -1270,11 +1278,11 @@ void DebriefingState::prepareDebriefing()
 			}
 			else if (bu->isInExitArea(END_POINT))
 			{
-				playersInExitArea++;
+				playersInExitArea1++;
 			}
 			else if (bu->isInExitArea(START_POINT))
 			{
-				playersInEntryArea++;
+				playersInEntryArea1++;
 			}
 			else if (aborted)
 			{
@@ -1353,16 +1361,16 @@ void DebriefingState::prepareDebriefing()
 	{
 		if (ruleDeploy->getEscapeType() != ESCAPE_EXIT)
 		{
-			success = playersInEntryArea > 0;
+			success = playersInEntryArea1 > 0;
 		}
 
 		if (ruleDeploy->getEscapeType() != ESCAPE_ENTRY)
 		{
-			success = success || playersInExitArea > 0;
+			success = success || playersInExitArea1 > 0;
 		}
 	}
 
-	playersInExitArea = 0;
+	int playersInExitArea2 = 0;
 
 	if (playersSurvived == 1)
 	{
@@ -1463,6 +1471,11 @@ void DebriefingState::prepareDebriefing()
 
 	// time to care for units.
 	bool psiStrengthEval = (Options::psiStrengthEval && save->isResearched(_game->getMod()->getPsiRequirements()));
+	bool ignoreLivingCivilians = false;
+	if (ruleDeploy)
+	{
+		ignoreLivingCivilians = ruleDeploy->getIgnoreLivingCivilians();
+	}
 	for (auto* bunit : *battle->getUnits())
 	{
 		UnitStatus status = bunit->getStatus();
@@ -1525,6 +1538,7 @@ void DebriefingState::prepareDebriefing()
 				else
 				{ // non soldier player = tank
 					addStat("STR_TANKS_DESTROYED", 1, -value);
+					save->increaseVehiclesLost();
 				}
 			}
 			else if (oldFaction == FACTION_NEUTRAL)
@@ -1558,7 +1572,7 @@ void DebriefingState::prepareDebriefing()
 					bunit->postMissionProcedures(_game->getMod(), save, battle, statIncrease);
 					if (bunit->getGeoscapeSoldier())
 						_soldierStats.push_back(std::pair<std::string, UnitStats>(bunit->getGeoscapeSoldier()->getName(), statIncrease.statGrowth));
-					playersInExitArea++;
+					playersInExitArea2++;
 
 					recoverItems(bunit->getInventory(), base, craft);
 
@@ -1575,19 +1589,22 @@ void DebriefingState::prepareDebriefing()
 						{
 							if (weapon)
 							{
-								const RuleItem *primaryRule = weapon->getRules();
-								const BattleItem *ammoItem = weapon->getAmmoForSlot(0);
-								const RuleItem *compatible = primaryRule->getVehicleClipAmmo();
-								if (primaryRule->getVehicleUnit() && compatible && ammoItem != 0 && ammoItem->getAmmoQuantity() > 0)
+								const RuleItem* primaryWeaponRule = weapon->getRules();
+								const RuleItem* fixedAmmoRule = primaryWeaponRule->getVehicleClipAmmo();
+								if (primaryWeaponRule->getVehicleUnit() && fixedAmmoRule)
 								{
-									int total = ammoItem->getAmmoQuantity();
-
-									if (primaryRule->getClipSize()) // meaning this tank can store multiple clips
+									const BattleItem* fixedAmmoItem = weapon->getAmmoForSlot(primaryWeaponRule->getVehicleFixedAmmoSlot());
+									if (fixedAmmoItem != 0 && fixedAmmoItem->getAmmoQuantity() > 0)
 									{
-										total /= ammoItem->getRules()->getClipSize();
-									}
+										int total = fixedAmmoItem->getAmmoQuantity();
 
-									addItemsToBaseStores(compatible, base, total, false);
+										if (primaryWeaponRule->getClipSize()) // meaning this tank can store multiple clips
+										{
+											total /= fixedAmmoItem->getRules()->getClipSize();
+										}
+
+										addItemsToBaseStores(fixedAmmoRule, base, total, false);
+									}
 								}
 							}
 						};
@@ -1656,7 +1673,7 @@ void DebriefingState::prepareDebriefing()
 					}
 				}
 			}
-			else if (oldFaction == FACTION_NEUTRAL)
+			else if (oldFaction == FACTION_NEUTRAL && !ignoreLivingCivilians)
 			{
 				// if mission fails, all civilians die
 				if ((aborted && !success) || playersSurvived == 0)
@@ -1679,7 +1696,7 @@ void DebriefingState::prepareDebriefing()
 	}
 
 	bool lostCraft = false;
-	if (craft != 0 && ((playersInExitArea == 0 && aborted) || (playersSurvived == 0)))
+	if (craft != 0 && ((playersInExitArea2 == 0 && aborted) || (playersSurvived == 0)))
 	{
 		if (craft->getRules()->keepCraftAfterFailedMission())
 		{
@@ -1795,11 +1812,11 @@ void DebriefingState::prepareDebriefing()
 				{
 					if (ruleDeploy->getEscapeType() != ESCAPE_EXIT)
 					{
-						victoryStat += playersInEntryArea;
+						victoryStat += playersInEntryArea1;
 					}
 					if (ruleDeploy->getEscapeType() != ESCAPE_ENTRY)
 					{
-						victoryStat += playersInExitArea;
+						victoryStat += playersInExitArea1;
 					}
 				}
 				else
@@ -2116,7 +2133,7 @@ void DebriefingState::prepareDebriefing()
 	{
 		// Unlock research defined in alien deployment, if the mission was a success
 		const RuleResearch *research = _game->getMod()->getResearch(ruleDeploy->getUnlockedResearchOnSuccess());
-		save->handleResearchUnlockedByMissions(research, _game->getMod());
+		save->handleResearchUnlockedByMissions(research, _game->getMod(), ruleDeploy);
 
 		// Give bounty item defined in alien deployment, if the mission was a success
 		const RuleItem *bountyItem = _game->getMod()->getItem(ruleDeploy->getMissionBountyItem());
@@ -2148,7 +2165,7 @@ void DebriefingState::prepareDebriefing()
 	{
 		// Unlock research defined in alien deployment, if the mission was a failure
 		const RuleResearch* research = _game->getMod()->getResearch(ruleDeploy->getUnlockedResearchOnFailure());
-		save->handleResearchUnlockedByMissions(research, _game->getMod());
+		save->handleResearchUnlockedByMissions(research, _game->getMod(), ruleDeploy);
 
 		// Increase counters
 		save->increaseCustomCounter(ruleDeploy->getCounterFailure());
@@ -2159,6 +2176,20 @@ void DebriefingState::prepareDebriefing()
 
 		// Generate a failure event
 		_eventToSpawn = _game->getMod()->getEvent(ruleDeploy->chooseFailureEvent());
+	}
+
+	if (ignoredUfo)
+	{
+		if (!success || aborted || playersSurvived <= 0)
+		{
+			// either "reactivate" the corresponding Ufo
+			ignoredUfo->getMission()->ufoLifting(*ignoredUfo, *save);
+		}
+		else
+		{
+			// or finally destroy it
+			ignoredUfo->setStatus(Ufo::DESTROYED);
+		}
 	}
 
 	// remember the base for later use (of course only if it's not lost already (in that case base=0))
@@ -2488,16 +2519,37 @@ void DebriefingState::recoverItems(std::vector<BattleItem*> *from, Base *base, C
 					}
 				}
 			}
-			// special case of fixed weapons on a soldier's armor, but not HWPs
+			// special case of fixed weapons on a soldier's armor (and HWPs, but only non-fixed ammo)
 			// makes sure we recover the ammunition from this weapon
-			else if (rule->isFixed() && bi->getOwner() && bi->getOwner()->getOriginalFaction() == FACTION_PLAYER && bi->getOwner()->getGeoscapeSoldier())
+			else if (rule->isFixed() && bi->getOwner() && bi->getOwner()->getOriginalFaction() == FACTION_PLAYER)
 			{
 				switch (rule->getBattleType())
 				{
 					case BT_FIREARM:
 					case BT_MELEE:
-						// It's a weapon, count any rounds left in the clip.
-						recoveryAmmoInWeapon(bi);
+						if (bi->getOwner()->getGeoscapeSoldier())
+						{
+							// It's a weapon, count any rounds left in the clip.
+							recoveryAmmoInWeapon(bi);
+						}
+						else
+						{
+							BattleItem* hwpFixedAmmoItem = nullptr;
+							if (rule->getVehicleUnit() && rule->getVehicleClipAmmo())
+							{
+								// remove fixed ammo (it will be recovered later elsewhere)
+								hwpFixedAmmoItem = bi->setAmmoForSlot(rule->getVehicleFixedAmmoSlot(), nullptr);
+							}
+
+							// recover the rest (i.e. non-fixed ammo)
+							recoveryAmmoInWeapon(bi);
+
+							if (hwpFixedAmmoItem)
+							{
+								// put fixed ammo back in
+								bi->setAmmoForSlot(rule->getVehicleFixedAmmoSlot(), hwpFixedAmmoItem);
+							}
+						}
 						break;
 					default:
 						break;
@@ -2544,7 +2596,8 @@ void DebriefingState::recoverCivilian(BattleUnit *from, Base *base, Craft* craft
 			}
 			int nationality = _game->getSavedGame()->selectSoldierNationalityByLocation(_game->getMod(), ruleSoldier, target);
 			Soldier *s = _game->getMod()->genSoldier(_game->getSavedGame(), ruleSoldier, nationality);
-			s->load(from->getUnitRules()->getSpawnedSoldierTemplate(), _game->getMod(), _game->getSavedGame(), _game->getMod()->getScriptGlobal(), true); // load from soldier template
+			YAML::YamlRootNodeReader reader(from->getUnitRules()->getSpawnedSoldierTemplate(), "(spawned soldier template)");
+			s->load(reader.toBase(), _game->getMod(), _game->getSavedGame(), _game->getMod()->getScriptGlobal(), true); // load from soldier template
 			if (!from->getUnitRules()->getSpawnedPersonName().empty())
 			{
 				s->setName(tr(from->getUnitRules()->getSpawnedPersonName()));

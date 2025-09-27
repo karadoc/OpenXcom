@@ -72,19 +72,30 @@ BriefingState::BriefingState(Craft *craft, Base *base, bool infoOnly, BriefingDa
 
 	std::string mission = battleSave->getMissionType();
 	AlienDeployment *deployment = _game->getMod()->getDeployment(mission);
-	Ufo * ufo = 0;
-	if (!deployment && craft)
+	if (mission == "STR_BASE_DEFENSE")
 	{
-		ufo = dynamic_cast <Ufo*> (craft->getDestination());
-		if (ufo) // landing site or crash site.
+		AlienDeployment* customDeployment = _game->getMod()->getDeployment(battleSave->getAlienCustomDeploy());
+		if (customDeployment && !customDeployment->getBriefingData().desc.empty())
 		{
-			std::string ufoMissionName = ufo->getRules()->getType();
-			if (!battleSave->getAlienCustomMission().empty())
+			deployment = customDeployment;
+		}
+	}
+	else
+	{
+		Ufo* ufo = 0;
+		if (!deployment && craft)
+		{
+			ufo = dynamic_cast <Ufo*> (craft->getDestination());
+			if (ufo) // landing site or crash site.
 			{
-				// fake underwater UFO
-				ufoMissionName = battleSave->getAlienCustomMission();
+				std::string ufoMissionName = ufo->getRules()->getType();
+				if (!battleSave->getAlienCustomMission().empty())
+				{
+					// fake underwater UFO
+					ufoMissionName = battleSave->getAlienCustomMission();
+				}
+				deployment = _game->getMod()->getDeployment(ufoMissionName);
 			}
-			deployment = _game->getMod()->getDeployment(ufoMissionName);
 		}
 	}
 
@@ -137,39 +148,42 @@ BriefingState::BriefingState(Craft *craft, Base *base, bool infoOnly, BriefingDa
 	_txtTarget->setBig();
 	_txtCraft->setBig();
 
-	std::string s;
-	if (craft)
+	if (!_infoOnly)
 	{
-		if (craft->getDestination())
+		std::string s;
+		if (craft)
 		{
-			s = craft->getDestination()->getName(_game->getLanguage());
-			battleSave->setMissionTarget(s);
+			if (craft->getDestination())
+			{
+				s = craft->getDestination()->getName(_game->getLanguage());
+				battleSave->setMissionTarget(s);
+			}
+
+			s = tr("STR_CRAFT_").arg(craft->getName(_game->getLanguage()));
+			battleSave->setMissionCraftOrBase(s);
+		}
+		else if (base)
+		{
+			s = tr("STR_BASE_UC_").arg(base->getName());
+			battleSave->setMissionCraftOrBase(s);
 		}
 
-		s = tr("STR_CRAFT_").arg(craft->getName(_game->getLanguage()));
-		battleSave->setMissionCraftOrBase(s);
-	}
-	else if (base)
-	{
-		s = tr("STR_BASE_UC_").arg(base->getName());
-		battleSave->setMissionCraftOrBase(s);
-	}
-
-	// random operation names
-	if (craft || base)
-	{
-		if (!_game->getMod()->getOperationNamesFirst().empty())
+		// random operation names
+		if (craft || base)
 		{
-			std::ostringstream ss;
-			int pickFirst = RNG::seedless(0, _game->getMod()->getOperationNamesFirst().size() - 1);
-			ss << _game->getMod()->getOperationNamesFirst().at(pickFirst);
-			if (!_game->getMod()->getOperationNamesLast().empty())
+			if (!_game->getMod()->getOperationNamesFirst().empty())
 			{
-				int pickLast = RNG::seedless(0, _game->getMod()->getOperationNamesLast().size() - 1);
-				ss << " " << _game->getMod()->getOperationNamesLast().at(pickLast);
+				std::ostringstream ss;
+				int pickFirst = RNG::seedless(0, _game->getMod()->getOperationNamesFirst().size() - 1);
+				ss << _game->getMod()->getOperationNamesFirst().at(pickFirst);
+				if (!_game->getMod()->getOperationNamesLast().empty())
+				{
+					int pickLast = RNG::seedless(0, _game->getMod()->getOperationNamesLast().size() - 1);
+					ss << " " << _game->getMod()->getOperationNamesLast().at(pickLast);
+				}
+				s = ss.str();
+				battleSave->setMissionTarget(s);
 			}
-			s = ss.str();
-			battleSave->setMissionTarget(s);
 		}
 	}
 

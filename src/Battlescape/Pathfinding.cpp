@@ -23,6 +23,7 @@
 #include "../Savegame/SavedBattleGame.h"
 #include "../Savegame/Tile.h"
 #include "../Mod/Armor.h"
+#include "../Mod/Mod.h"
 #include "../Savegame/BattleUnit.h"
 #include "../Engine/Options.h"
 #include "../fmath.h"
@@ -489,17 +490,53 @@ PathfindingStep Pathfinding::getTUCost(Position startPosition, int direction, co
 			}
 		}
 
+		int wallCounter = 0;
+		int wallTmp = 0;
 		int wallcost = 0; // walking through rubble walls, but don't charge for walking diagonally through doors (which is impossible),
 						// they're a special case unto themselves, if we can walk past them diagonally, it means we can go around,
 						// as there is no wall blocking us.
 		if ((direction == 0 || direction == 7 || direction == 1) && !startTile[i]->hasLadderOnNorthWall())
-			wallcost += startTile[i]->getTUCost(O_NORTHWALL, movementType);
+		{
+			wallTmp = startTile[i]->getTUCost(O_NORTHWALL, movementType);
+			if (wallTmp > 0)
+			{
+				wallcost += wallTmp;
+				wallCounter += 1;
+			}
+		}
 		if (!triedStairsDown && (direction == 2 || direction == 1 || direction == 3) && !destinationTile[i]->hasLadderOnWestWall())
-			wallcost += destinationTile[i]->getTUCost(O_WESTWALL, movementType);
+		{
+			wallTmp = destinationTile[i]->getTUCost(O_WESTWALL, movementType);
+			if (wallTmp > 0)
+			{
+				wallcost += wallTmp;
+				wallCounter += 1;
+			}
+		}
 		if (!triedStairsDown && (direction == 4 || direction == 3 || direction == 5) && !destinationTile[i]->hasLadderOnNorthWall())
-			wallcost += destinationTile[i]->getTUCost(O_NORTHWALL, movementType);
+		{
+			wallTmp = destinationTile[i]->getTUCost(O_NORTHWALL, movementType);
+			if (wallTmp > 0)
+			{
+				wallcost += wallTmp;
+				wallCounter += 1;
+			}
+		}
 		if ((direction == 6 || direction == 5 || direction == 7) && !startTile[i]->hasLadderOnWestWall())
-			wallcost += startTile[i]->getTUCost(O_WESTWALL, movementType);
+		{
+			wallTmp = startTile[i]->getTUCost(O_WESTWALL, movementType);
+			if (wallTmp > 0)
+			{
+				wallcost += wallTmp;
+				wallCounter += 1;
+			}
+		}
+
+		// "average" cost: https://openxcom.org/forum/index.php?topic=12589.0
+		if (wallCounter > 0)
+		{
+			wallcost /= wallCounter;
+		}
 
 		// for backward compatiblity (100 + 100 + 100 > 255) or for (255 + 10 > 255)
 		if (wallcost >= INVALID_MOVE_COST)
@@ -536,7 +573,6 @@ PathfindingStep Pathfinding::getTUCost(Position startPosition, int direction, co
 		// diagonal walking (uneven directions) costs 50% more tu's
 		if (direction < DIR_UP && direction & 1)
 		{
-			wallcost /= 2;
 			cost = (int)((double)cost * 1.5);
 		}
 
@@ -557,7 +593,7 @@ PathfindingStep Pathfinding::getTUCost(Position startPosition, int direction, co
 				{
 					return {{INVALID_MOVE_COST, 0}}; // consider any tile occupied by a friendly as being blocked
 				}
-				else if (unit->getUnitRules() && unitHere->getTurnsSinceSpotted() <= unit->getUnitRules()->getIntelligence())
+				else if (unit->getUnitRules() && unitHere->getTurnsSinceSpottedByFaction(unit->getFaction()) <= unit->getUnitRules()->getIntelligence())
 				{
 					return {{INVALID_MOVE_COST, 0}}; // consider any tile occupied by a known unit that isn't our target as being blocked
 				}
@@ -712,8 +748,13 @@ PathfindingStep Pathfinding::getTUCost(Position startPosition, int direction, co
 		assert(false && "Unreachable code in pathfinding cost");
 	}
 
-	const int timeCost = (cost.TimePercent - 1 + (costDiv / 2)) / costDiv;
-	const int energyCost = (cost.EnergyPercent - 1 + (costDiv / 2)) / costDiv;
+	const int timeCost = Mod::EXTENDED_MOVEMENT_COST_ROUNDING == 0 ? (cost.TimePercent) / costDiv :
+		                 Mod::EXTENDED_MOVEMENT_COST_ROUNDING == 1 ? (cost.TimePercent + (costDiv / 2)) / costDiv :
+		                                                             (cost.TimePercent - 1 + (costDiv / 2)) / costDiv;
+
+	const int energyCost = Mod::EXTENDED_MOVEMENT_COST_ROUNDING == 0 ? (cost.EnergyPercent) / costDiv :
+		                   Mod::EXTENDED_MOVEMENT_COST_ROUNDING == 1 ? (cost.EnergyPercent + (costDiv / 2)) / costDiv :
+		                                                               (cost.EnergyPercent - 1 + (costDiv / 2)) / costDiv;
 
 	return { { Clamp(timeCost, 1, INVALID_MOVE_COST - 1), Clamp(energyCost, 0, INVALID_MOVE_COST) }, { firePenaltyCost, 0 }, pos };
 }
@@ -1211,9 +1252,9 @@ void Pathfinding::refreshPath()
 		_save->getBattleGame()->setTUReserved(BA_AUTOSHOT);
 	}
 
-	const bool running = _ctrlUsed && _unit->getArmor()->allowsRunning(_unit->isSmallUnit()) && _path.size() > 1;
-	const bool strafing = _ctrlUsed && _unit->getArmor()->allowsStrafing(_unit->isSmallUnit()) && _path.size() == 1;
-	const bool sneaking = _altUsed && _unit->getArmor()->allowsSneaking(_unit->isSmallUnit());
+	const bool running = _ctrlUsed && _unit->getArmor()->allowsRunning(_unit->isSmallUnit()) && (_path.size() > 1 || _altUsed);
+	const bool strafing = !running && _ctrlUsed && _unit->getArmor()->allowsStrafing(_unit->isSmallUnit()) && _path.size() == 1;
+	const bool sneaking = !running && _altUsed && _unit->getArmor()->allowsSneaking(_unit->isSmallUnit());
 
 	const BattleActionMove bam = strafing ? BAM_STRAFE : running ? BAM_RUN : sneaking ? BAM_SNEAK : BAM_NORMAL;
 	const MovementType movementType = getMovementType(_unit, nullptr, bam); //preview always for unit not missiles

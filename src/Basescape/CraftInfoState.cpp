@@ -31,6 +31,7 @@
 #include "../Interface/TextEdit.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Engine/Action.h"
+#include "../Savegame/ItemContainer.h"
 #include "../Savegame/Craft.h"
 #include "../Mod/RuleCraft.h"
 #include "../Savegame/CraftWeapon.h"
@@ -171,6 +172,7 @@ CraftInfoState::CraftInfoState(Base *base, size_t craftId) : _base(base), _craft
 		_btnW[i]->setText(num);
 		_btnW[i]->onMouseClick((ActionHandler)&CraftInfoState::btnWClick);
 		_weapon[i]->onMouseClick((ActionHandler)&CraftInfoState::btnWIconClick);
+		_weapon[i]->onMouseClick((ActionHandler)&CraftInfoState::btnWIconMiddleClick, SDL_BUTTON_MIDDLE);
 	}
 
 	_sprite->onMouseClick((ActionHandler)&CraftInfoState::btnCraftIconClick);
@@ -318,9 +320,79 @@ void CraftInfoState::init()
 		}
 
 		Surface *frame3 = texture->getFrame(39);
-		for (int i = 0; i < _craft->getNumEquipment(); i += 4, x += 10)
+
+		using ArrayIndexes = std::array<int, 3>;
+		using ArraySurfaces = std::array<const Surface *, 3>;
+		std::map<ArrayIndexes, std::tuple<ArraySurfaces, size_t>, std::greater<>> itemsBySprite;
+
+		for (auto& item : *_craft->getItems()->getContents())
 		{
-			frame3->blitNShade(_equip, x, 0);
+			ArrayIndexes ind = { };
+
+			// fill default values
+			for (auto& arr : ind)
+			{
+				arr = -1;
+			}
+
+			// load values from config, zip will clip range to min length of one of arguments
+			for (auto [arr, prev] : Collections::zipTie(Collections::range(ind), Collections::range(item.first->getCustomItemPreviewIndex())))
+			{
+				arr = prev;
+			}
+
+			auto& pos = itemsBySprite[ind];
+
+			// update surfaces if not set yet
+			for (auto [surf, arr] : Collections::zipTie(Collections::range(std::get<ArraySurfaces>(pos)), Collections::range(ind)))
+			{
+				if (surf != nullptr || arr < 0)
+				{
+					break;
+				}
+
+				surf = customItemPreviews->getFrame(arr);
+			}
+
+			std::get<size_t>(pos) += item.second;
+		}
+
+		for (const auto& pair : itemsBySprite)
+		{
+			const auto& pos = pair.second;
+			if (std::get<ArraySurfaces>(pos)[0])
+			{
+				// new logic for items grouped by sprite
+				size_t i = 4, next = 8;
+
+				// draw icons for next "fibonacci" item count
+				do
+				{
+					for (auto& s : std::get<ArraySurfaces>(pos))
+					{
+						if (s)
+						{
+							s->blitNShade(_equip, x, 0);
+							x += 10;
+							i = std::exchange(next, next + i); // calling this here make multi part sprites occupy similar size to single part ones
+						}
+						else
+						{
+							break;
+						}
+					}
+				}
+				while (i <= std::get<size_t>(pos));
+			}
+			else
+			{
+				// classic behavior
+				for (size_t i = 0; i < std::get<size_t>(pos); i += 4)
+				{
+					frame3->blitNShade(_equip, x, 0);
+					x += 10;
+				}
+			}
 		}
 	}
 	else
@@ -348,7 +420,18 @@ void CraftInfoState::init()
 			weaponLine << Unicode::TOK_COLOR_FLIP << tr(w1->getRules()->getType());
 			_txtWName[i]->setText(weaponLine.str());
 			weaponLine.str("");
-			if (w1->getRules()->getAmmoMax())
+			if (!w1->getRules()->getTooltip().empty())
+			{
+				weaponLine << (tr(w1->getRules()->getTooltip())
+					.arg(w1->getAmmo())                                    // {0}
+					.arg(w1->getRules()->getAmmoMax())                     // {1}
+					.arg(w1->getRules()->getBonusStats().fuelMax)          // {2}
+					.arg(w1->getRules()->getBonusStats().speedMax)         // {3}
+					.arg(w1->getRules()->getBonusStats().damageMax)        // {4}
+					.arg(w1->getRules()->getBonusStats().armor)            // {5}
+					.arg(w1->getRules()->getBonusStats().shieldCapacity)); // {6}
+			}
+			else if (w1->getRules()->getAmmoMax())
 			{
 				weaponLine << tr("STR_AMMO_").arg(w1->getAmmo()) << "\n" << Unicode::TOK_COLOR_FLIP;
 				weaponLine << tr("STR_MAX").arg(w1->getRules()->getAmmoMax());
@@ -443,14 +526,14 @@ void CraftInfoState::btnNewBattleClick(Action *)
 	{
 		try
 		{
-			YAML::Node doc = YAML::Load(*CrossPlatform::readFile(s));
-			mission = doc["mission"].as<size_t>(0);
-			//craft = doc["craft"].as<size_t>(0);
-			darkness = doc["darkness"].as<size_t>(0);
-			terrain = doc["terrain"].as<size_t>(0);
-			alienRace = doc["alienRace"].as<size_t>(0);
-			//difficulty = doc["difficulty"].as<size_t>(0);
-			alienTech = doc["alienTech"].as<size_t>(0);
+			YAML::YamlRootNodeReader reader(s);
+			mission = reader["mission"].readVal(0);
+			//craft = reader["craft"].readVal(0);
+			darkness = reader["darkness"].readVal(0);
+			terrain = reader["terrain"].readVal(0);
+			alienRace = reader["alienRace"].readVal(0);
+			//difficulty = reader["difficulty"].readVal(0);
+			alienTech = reader["alienTech"].readVal(0);
 		}
 		catch (YAML::Exception& e)
 		{
@@ -481,19 +564,19 @@ void CraftInfoState::btnNewBattleClick(Action *)
 	// transfer also the difficulty
 	difficulty = _game->getSavedGame()->getDifficulty();
 
-	YAML::Emitter out;
-	YAML::Node node;
-	node["mission"] = mission;
-	node["craft"] = craft;
-	node["darkness"] = darkness;
-	node["terrain"] = terrain;
-	node["alienRace"] = alienRace;
-	node["difficulty"] = difficulty;
-	node["alienTech"] = alienTech;
-	node["base"] = _base->save();
-	out << node;
+	YAML::YamlRootNodeWriter writer;
+	writer.setAsMap();
+	writer.write("mission", mission);
+	writer.write("craft", craft);
+	writer.write("darkness", darkness);
+	writer.write("terrain", terrain);
+	writer.write("alienRace", alienRace);
+	writer.write("difficulty", difficulty);
+	writer.write("alienTech", alienTech);
+	_base->save(writer["base"]);
+	std::string yaml = writer.emit().yaml;
 
-	if (!CrossPlatform::writeFile(s, out.c_str()))
+	if (!CrossPlatform::writeFile(s, yaml))
 	{
 		Log(LOG_WARNING) << "Failed to save " << s;
 	}
@@ -541,6 +624,30 @@ void CraftInfoState::btnWIconClick(Action *action)
 				// Update the onscreen info.
 				// Note: This method is overkill, since we only need to update a few things. But at least this ensures we haven't missed anything.
 				init();
+			}
+		}
+	}
+}
+
+/**
+ * Opens the corresponding Ufopaedia craft weapon article.
+ * @param action Pointer to an action.
+ */
+void CraftInfoState::btnWIconMiddleClick(Action* action)
+{
+	for (int i = 0; i < _weaponNum; ++i)
+	{
+		if (action->getSender() == _weapon[i])
+		{
+			CraftWeapon* w1 = _craft->getWeapons()->at(i);
+			if (w1)
+			{
+				RuleCraftWeapon* rule = w1->getRules();
+				if (rule)
+				{
+					std::string articleId = rule->getType();
+					Ufopaedia::openArticle(_game, articleId);
+				}
 			}
 		}
 	}

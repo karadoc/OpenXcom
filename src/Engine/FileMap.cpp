@@ -265,25 +265,32 @@ SDL_RWops *FileRecord::getRWopsReadAll() const
 std::unique_ptr<std::istream> FileRecord::getIStream() const
 {
 	if (zip != NULL) {
-		size_t size;
-		void *data = mz_zip_reader_extract_to_heap((mz_zip_archive *)zip, findex, &size, 0);
-		if (data == NULL) {
-			auto err = "FileRecord::getIStream(): failed to decompress " + fullpath + ": ";
-			err += mz_zip_get_error_string(mz_zip_get_last_error((mz_zip_archive *)zip));
-			Log(LOG_FATAL) << err;
-			throw Exception(err);
-		}
-		return std::unique_ptr<std::istream>(new StreamData(RawData{data, size, mz_free}));
+		return std::unique_ptr<std::istream>(new StreamData(getUnzippedData()));
 	} else {
 		return CrossPlatform::readFile(fullpath);
 	}
 }
 
-YAML::Node FileRecord::getYAML() const
+RawData FileRecord::getUnzippedData() const
+{
+	size_t size;
+	void* data = mz_zip_reader_extract_to_heap((mz_zip_archive*)zip, findex, &size, 0);
+	if (data == NULL)
+	{
+		auto err = "FileRecord::getIStream(): failed to decompress " + fullpath + ": ";
+		err += mz_zip_get_error_string(mz_zip_get_last_error((mz_zip_archive*)zip));
+		Log(LOG_FATAL) << err;
+		throw Exception(err);
+	}
+	return RawData(data, size, mz_free);
+}
+
+YAML::YamlRootNodeReader FileRecord::getYAML() const
 {
 	try
 	{
-		return YAML::Load(*getIStream());
+		RawData data = zip != NULL ? getUnzippedData() : CrossPlatform::readFileRaw(fullpath);
+		return YAML::YamlRootNodeReader(data, fullpath);
 	}
 	catch(...)
 	{
@@ -292,17 +299,14 @@ YAML::Node FileRecord::getYAML() const
 	}
 }
 
-std::vector<YAML::Node> FileRecord::getAllYAML() const
+std::vector<YAML::YamlNodeReader> FileRecord::getAllYAML() const
 {
-	try
-	{
-		return YAML::LoadAll(*getIStream());
-	}
-	catch(...)
-	{
-		Log(LOG_FATAL) << "Error loading file '" << fullpath << "'";
-		throw;
-	}
+	Log(LOG_FATAL) << "Error loading file '" << fullpath << "'";
+	throw Exception("getAllYAML(): Not implemented");
+	/*
+	The function would have to load a file, parse it, then emit each document child separately, and parse each child again.
+	This obviously doesn't make sense. Just use a normal getYAML() and handle multiple yaml documents accordingly
+	*/
 }
 
 
@@ -344,11 +348,14 @@ static bool ls_r(const std::string &basePath, const std::string &relPath, dirlis
 	}
 	return true;
 }
-static bool isRuleset(const std::string& fname) {
+static bool isRuleset(const std::string& fname)
+{
 	if (fname.size() < 4) { return false; }
-	auto last4 = fname.substr(fname.size() - 4);
-	auto canext = canonicalize(last4);
-	return last4 == ".rul";
+	constexpr Uint32 dotRul =           '.' << 0 |  'r' << 8 |  'u' << 16 |  'l' << 24;
+	constexpr Uint32 toLowerCaseMask = 0x00 << 0 | 0x20 << 8 | 0x20 << 16 | 0x20 << 24;
+	Uint32 last4; // Pack last 4 chars into Uint32
+	std::memcpy(&last4, fname.data() + fname.size() - 4, 4); // Need memcpy because unaligned ptr
+	return (last4 | toLowerCaseMask) == dotRul;
 }
 
 typedef std::unordered_map<std::string, FileRecord> FileSet;
@@ -656,16 +663,14 @@ struct VFS {
 		rsorder.push_back(std::make_pair(modId, rulesets));
 	}
 	void map_common(bool embeddedOnly) {
-		auto mrec = new ModRecord("common");
-		if (!mapExtResources(mrec, "common", embeddedOnly)) {
+		auto mrec = std::make_unique<ModRecord>("common");
+		if (!mapExtResources(mrec.get(), "common", embeddedOnly)) {
 			Log(LOG_ERROR) << "VFS::map_common(): failed to map 'common'";
-			delete mrec;
 			return;
 		}
 		for (auto layer: mrec->stack.layers) {
 			stack.push_back(layer);
 		}
-		delete mrec;
 	}
 	void clear() {
 		rsorder.clear();
@@ -679,10 +684,30 @@ struct VFS {
 
 static std::unordered_map<std::string, ModRecord *> ModsAvailable;
 static std::unordered_set<VFSLayer *> MappedVFSLayers; // owned here so we can have some sense of their lifetime
-												       // only the layers that get dropped on FileMap::clear()
+													   // only the layers that get dropped on FileMap::clear()
 static std::vector<mz_zip_archive *> ZipContexts;	   // zip decompression contexts shared between layers that came from
 													   // the same .zip. this makes the whole thing very thread-unsafe
 static VFS TheVFS;
+
+static VFSLayer* MappedVFSLayersAdd(std::unique_ptr<VFSLayer>&& layer)
+{
+	auto [it, ok] = MappedVFSLayers.insert(layer.get());
+	if (ok) {
+		return layer.release();
+	}
+
+	throw Exception("MappedVFSLayersAdd(): fail");
+}
+static void ModsAvailableAdd(std::unique_ptr<ModRecord>&& mrec)
+{
+	auto [it, ok] = ModsAvailable.insert(std::make_pair(mrec->modInfo.getId(), mrec.get()));
+	if (ok) {
+		mrec.release();
+		return;
+	}
+
+	throw Exception("ModsAvailableAdd(): fail");
+}
 
 const RSOrder &getRulesets() { return TheVFS.get_rulesets(); }
 
@@ -798,13 +823,10 @@ static bool mapExtResources(ModRecord *mrec, const std::string& basename, bool e
 		}
 		if (CrossPlatform::folderExists(fullname)) {
 			Log(LOG_VERBOSE) << log_ctx << "found dir ("<<fullname<<")";
-			auto layer = new VFSLayer(fullname);
+			auto layer = std::make_unique<VFSLayer>(fullname);
 			if (layer->mapPlainDir(fullname, true)) {
-				mrec->push_front(layer);
-				MappedVFSLayers.insert(layer);
+				mrec->push_front(MappedVFSLayersAdd(std::move(layer)));
 				mapped_anything = true;
-			} else {
-				delete layer;
 			}
 		} else {
 			Log(LOG_VERBOSE) << log_ctx << "dir not found ("<<fullname<<")";
@@ -818,13 +840,16 @@ static bool mapExtResources(ModRecord *mrec, const std::string& basename, bool e
 		}
 		if (CrossPlatform::fileExists(fullname)) {
 			Log(LOG_VERBOSE) << log_ctx << "found zip ("<<fullname<<")";
-			auto layer = new VFSLayer(fullname);
-			if (layer->mapZipFile(fullname, basename + "/", true) || layer->mapZipFile(fullname, "", true)) {
-				mrec->push_front(layer);
-				MappedVFSLayers.insert(layer);
+			auto layer = std::make_unique<VFSLayer>(fullname);
+			auto mapped = layer->mapZipFile(fullname, basename + "/", true);
+			if (!mapped) {
+				// some garbage can stay in `layer` after failed mapping, clean up and try different path
+				layer = std::make_unique<VFSLayer>(fullname);
+				mapped = layer->mapZipFile(fullname, "", true);
+			}
+			if (mapped) {
+				mrec->push_front(MappedVFSLayersAdd(std::move(layer)));
 				mapped_anything = true;
-			} else {
-				delete layer;
 			}
 		} else {
 			Log(LOG_VERBOSE) << log_ctx << "zip not found ("<<fullname<<")";
@@ -835,13 +860,10 @@ static bool mapExtResources(ModRecord *mrec, const std::string& basename, bool e
 		if (embedded_rwops) {
 			Log(LOG_VERBOSE) << log_ctx << "found embedded asset ("<<zipname<<")";
 			std::string ezipname = "exe:" + zipname;
-			auto layer = new VFSLayer(ezipname);
+			auto layer = std::make_unique<VFSLayer>(ezipname);
 			if (layer->mapZipFileRW(embedded_rwops, ezipname, "", true)) {
-				mrec->push_front(layer);
-				MappedVFSLayers.insert(layer);
+				mrec->push_front(MappedVFSLayersAdd(std::move(layer)));
 				mapped_anything = true;
-			} else {
-				delete layer;
 			}
 		} else {
 			Log(LOG_VERBOSE) << log_ctx << "embedded asset not found ("<<zipname<<")";
@@ -858,39 +880,33 @@ static bool mapExtResources(ModRecord *mrec, const std::string& basename, bool e
  */
 static void mapZippedMod(mz_zip_archive *zip, const std::string& zipfname, const std::string& prefix) {
 	std::string log_ctx = "mapZippedMod(" + zipfname + ", '" + prefix + "'): ";
-	auto layer = new VFSLayer(concatPaths(zipfname, prefix));
+	auto layer = std::make_unique<VFSLayer>(concatPaths(zipfname, prefix));
 	if (!layer->mapZip(zip, zipfname, prefix)) {
 		Log(LOG_WARNING) << log_ctx << "Failed to map, skipping.";
-		delete layer;
 		return;
 	}
 	auto frec = layer->at("metadata.yml");
 	if (frec == NULL) { // whoa, no metadata
 		Log(LOG_WARNING) << log_ctx << "No metadata.yml found, skipping.";
-		delete layer;
 		return;
 	}
 	auto modpath = concatOptionalPaths(zipfname, prefix);
-	auto doc = frec->getYAML();
-	if (!doc.IsMap()) {
+	const auto& reader = frec->getYAML();
+	if (!reader.isMap()) {
 		Log(LOG_WARNING) << log_ctx << "Bad metadata.yml found, skipping.";
-		delete layer;
 		return;
 	}
-	auto mrec = new ModRecord(modpath);
-	mrec->modInfo.load(doc);
+	auto mrec = std::make_unique<ModRecord>(modpath);
+	mrec->modInfo.load(reader);
 	auto mri = ModsAvailable.find(mrec->modInfo.getId());
 	if (mri != ModsAvailable.end()) {
 		Log(LOG_ERROR) << log_ctx << "modId " << mrec->modInfo.getId() << " already mapped in, skipping " << modpath;
-		delete mrec;
-		delete layer;
 		return;
 	}
 	Log(LOG_VERBOSE) << log_ctx << "mapped mod '" << mrec->modInfo.getId() << "' from " << modpath
 					 << " master=" << mrec->modInfo.getMaster() << " version=" << mrec->modInfo.getVersion();
-	MappedVFSLayers.insert(layer);
-	mrec->push_back(layer);
-	ModsAvailable.insert(std::make_pair(mrec->modInfo.getId(), mrec));
+	mrec->push_back(MappedVFSLayersAdd(std::move(layer)));
+	ModsAvailableAdd(std::move(mrec));
 }
 /** now this scans a zip of mods or of a single mod
  * @param rwops - SDL_RWops to the zip data
@@ -1070,7 +1086,7 @@ void scanModDir(const std::string& dirname, const std::string& basename, bool pr
 	};
 
 	std::string log_ctx = "scanModDir('" + dirname + "', '" + basename + "'): ";
- 	// first check for a .zip
+	// first check for a .zip
 	std::string fullname = dirname + basename + ".zip";
 	if (CrossPlatform::fileExists(fullname)) {
 		Log(LOG_VERBOSE) << log_ctx << "scanning zip " << fullname;
@@ -1116,37 +1132,31 @@ void scanModDir(const std::string& dirname, const std::string& basename, bool pr
 		auto mp_basename = *di;
 		auto modpath = concatPaths(fullname, mp_basename);
 		// map dat dir! (if it has metadata.yml, naturally)
-		auto layer = new VFSLayer(modpath);
+		auto layer = std::make_unique<VFSLayer>(modpath);
 		if (!layer->mapPlainDir(modpath)) {
 			Log(LOG_WARNING) << log_ctx << "Can't scan " << mp_basename << ", skipping.";
-			delete layer;
 			continue;
 		}
 		auto frec = layer->at("metadata.yml");
 		if (frec == NULL) { // whoa, no metadata
 			Log(LOG_WARNING) << log_ctx << "No metadata.yml in " << mp_basename << ", skipping.";
-			delete layer;
 			continue;
 		}
-		auto doc = frec->getYAML();
-		if (!doc.IsMap()) {
+		const auto& reader = frec->getYAML();
+		if (!reader.isMap()) {
 			Log(LOG_WARNING) << log_ctx << "Bad metadata.yml " << mp_basename << ", skipping.";
-			delete layer;
 			return;
 		}
-		auto mrec = new ModRecord(modpath);
-		mrec->modInfo.load(doc);
+		auto mrec = std::make_unique<ModRecord>(modpath);
+		mrec->modInfo.load(reader);
 		auto mri = ModsAvailable.find(mrec->modInfo.getId());
 		if (mri != ModsAvailable.end()) {
 			Log(LOG_ERROR) << log_ctx << "modId " << mrec->modInfo.getId() << " already mapped in, skipping " << mp_basename;
-			delete layer;
-			delete mrec;
 			continue;
 		}
 		Log(LOG_VERBOSE) << log_ctx << "modId " << mrec->modInfo.getId() << " mapped in from " << mp_basename;
-		MappedVFSLayers.insert(layer);
-		mrec->push_back(layer);
-		ModsAvailable.insert(std::make_pair(mrec->modInfo.getId(), mrec));
+		mrec->push_back(MappedVFSLayersAdd(std::move(layer)));
+		ModsAvailableAdd(std::move(mrec));
 	}
 }
 /**
@@ -1286,10 +1296,11 @@ SDL_RWops *getRWopsReadAll(const std::string &relativeFilePath)
 std::unique_ptr<std::istream> getIStream(const std::string &relativeFilePath) {
 	return at(relativeFilePath)->getIStream();
 }
-YAML::Node getYAML(const std::string &relativeFilePath) {
+YAML::YamlRootNodeReader getYAML(const std::string &relativeFilePath) {
 	return at(relativeFilePath)->getYAML();
 }
-std::vector<YAML::Node> getAllYAML(const std::string &relativeFilePath) {
+std::vector<YAML::YamlNodeReader> getAllYAML(const std::string& relativeFilePath)
+{
 	return at(relativeFilePath)->getAllYAML();
 }
 const std::vector<const FileRecord *> getSlice(const std::string &relativeFilePath) {

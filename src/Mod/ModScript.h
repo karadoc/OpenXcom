@@ -113,6 +113,12 @@ class ModScript
 	{
 		VisibilityUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
+
+	struct AiCalculateTargetWeightParser : ScriptParserEvents<Output, const BattleUnit*, const BattleUnit*, const SavedBattleGame*>
+	{
+		AiCalculateTargetWeightParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
 	struct HitUnitParser : ScriptParserEvents<ScriptOutputArgs<int&, int&, int&>, BattleUnit*, BattleItem*, BattleItem*, BattleUnit*, SavedBattleGame*, const RuleSkill*, int, int, int>
 	{
 		HitUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
@@ -133,7 +139,7 @@ class ModScript
 	{
 		DamageUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
-	struct DamageSpecialUnitParser : ScriptParserEvents<ScriptOutputArgs<int, int&, int, int&, int&, int&>, BattleUnit*, BattleItem*, BattleItem*, BattleUnit*, SavedBattleGame*, const RuleSkill*, int, int, int, int, int, int>
+	struct DamageSpecialUnitParser : ScriptParserEvents<ScriptOutputArgs<int, int&, int, int&, int&, int&, int&, int&>, BattleUnit*, BattleItem*, BattleItem*, BattleUnit*, SavedBattleGame*, const RuleSkill*, int, int, int, int, int, int>
 	{
 		DamageSpecialUnitParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
@@ -208,6 +214,15 @@ class ModScript
 	struct TryMeleeAttackItemParser : ScriptParserEvents<ScriptOutputArgs<int&>, const BattleItem*, const BattleUnit*, const BattleUnit*, const RuleSkill*, int, int, int, RNG::RandomState*, int, int, const SavedBattleGame*>
 	{
 		TryMeleeAttackItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+
+	struct SellCostItemParser : ScriptParserEvents<Output, const RuleItem*, const SavedGame*, int>
+	{
+		SellCostItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
+	};
+	struct BuyCostItemParser : ScriptParserEvents<Output, const RuleItem*, const SavedGame*, int>
+	{
+		BuyCostItemParser(ScriptGlobal* shared, const std::string& name, Mod* mod);
 	};
 
 	struct StatsForNerdsItemParser : ScriptParserEvents<ScriptOutputArgs<>, const RuleItem*, StatsForNerdsState*, const SavedGame*>
@@ -338,6 +353,8 @@ public:
 
 	using VisibilityUnit = MACRO_NAMED_SCRIPT("visibilityUnit", VisibilityUnitParser);
 
+	using AiCalculateTargetWeight = MACRO_NAMED_SCRIPT("aiCalculateTargetWeight", AiCalculateTargetWeightParser);
+
 	using StatsForNerdsArmor = MACRO_NAMED_SCRIPT("statsForNerdsArmor", StatsForNerdsArmorParser);
 
 	////////////////////////////////////////////////////////////
@@ -359,6 +376,9 @@ public:
 
 	using CreateItem = MACRO_NAMED_SCRIPT("createItem", CreateItemParser);
 	using NewTurnItem = MACRO_NAMED_SCRIPT("newTurnItem", NewTurnItemParser);
+
+	using SellCostItem = MACRO_NAMED_SCRIPT("sellCostItem", SellCostItemParser);
+	using BuyCostItem = MACRO_NAMED_SCRIPT("buyCostItem", BuyCostItemParser);
 
 	using StatsForNerdsItem = MACRO_NAMED_SCRIPT("statsForNerdsItem", StatsForNerdsItemParser);
 
@@ -450,6 +470,8 @@ public:
 
 		VisibilityUnit,
 
+		AiCalculateTargetWeight,
+
 		StatsForNerdsArmor
 	>;
 
@@ -469,6 +491,9 @@ public:
 
 		CreateItem,
 		NewTurnItem,
+
+		SellCostItem,
+		BuyCostItem,
 
 		StatsForNerdsItem
 	>;

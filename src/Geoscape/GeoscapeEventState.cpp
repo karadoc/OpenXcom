@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "GeoscapeEventState.h"
+#include "GeoscapeState.h"
 #include <map>
 #include "../Basescape/SellState.h"
 #include "../Engine/Game.h"
@@ -27,6 +28,7 @@
 #include "../Interface/TextButton.h"
 #include "../Interface/ToggleTextButton.h"
 #include "../Interface/Window.h"
+#include "../Menu/CutsceneState.h"
 #include "../Menu/ErrorMessageState.h"
 #include "../Mod/City.h"
 #include "../Mod/Mod.h"
@@ -34,9 +36,11 @@
 #include "../Mod/RuleInterface.h"
 #include "../Mod/RuleRegion.h"
 #include "../Mod/RuleSoldier.h"
+#include "../Mod/RuleVideo.h"
 #include "../Savegame/Base.h"
 #include "../Savegame/ItemContainer.h"
 #include "../Savegame/Region.h"
+#include "../Savegame/ResearchDiary.h"
 #include "../Savegame/SavedGame.h"
 #include "../Savegame/Soldier.h"
 #include "../Savegame/Transfer.h"
@@ -116,7 +120,11 @@ GeoscapeEventState::GeoscapeEventState(const RuleEvent& eventRule) : _eventRule(
 	_txtQuantity->setVisible(false);
 	_lstTransfers->setVisible(false);
 
-	if (_lstTransfers->getTexts() == 0 || !Options::oxceGeoscapeEventsInstantDelivery)
+	if (_eventRule.getInvert())
+	{
+		_btnItemsArriving->setText(tr("STR_SUMMARY"));
+	}
+	else if (_lstTransfers->getTexts() == 0 || !Options::oxceGeoscapeEventsInstantDelivery)
 	{
 		_btnOk->setX((_btnOk->getX() + _btnItemsArriving->getX()) / 2);
 		_btnItemsArriving->setVisible(false);
@@ -128,6 +136,12 @@ GeoscapeEventState::GeoscapeEventState(const RuleEvent& eventRule) : _eventRule(
  */
 void GeoscapeEventState::eventLogic()
 {
+	if (!_eventRule.getAdhocMissionScriptTags().empty())
+	{
+		auto* geo = _game->getGeoscapeState();
+		geo->determineAlienMissions(false, &_eventRule);
+	}
+
 	SavedGame *save = _game->getSavedGame();
 	Base *hq = save->getBases()->front();
 	const Mod *mod = _game->getMod();
@@ -220,7 +234,8 @@ void GeoscapeEventState::eventLogic()
 					Transfer* t = new Transfer(24);
 					int nationality = _game->getSavedGame()->selectSoldierNationalityByLocation(_game->getMod(), ruleSoldier, city);
 					Soldier* s = mod->genSoldier(save, ruleSoldier, nationality);
-					s->load(rule.getSpawnedSoldierTemplate(), mod, save, mod->getScriptGlobal(), true); // load from soldier template
+					YAML::YamlRootNodeReader reader(rule.getSpawnedSoldierTemplate(), "(spawned soldier template)");
+					s->load(reader, mod, save, mod->getScriptGlobal(), true); // load from soldier template
 					if (!rule.getSpawnedPersonName().empty())
 					{
 						s->setName(tr(rule.getSpawnedPersonName()));
@@ -232,6 +247,52 @@ void GeoscapeEventState::eventLogic()
 					t->setSoldier(s);
 					hq->getTransfers()->push_back(t);
 				}
+			}
+		}
+	}
+
+	// 3. spawn/transfer multiple soldiers into the HQ
+	{
+		std::map<const RuleSoldier*, int> soldiersToTransfer;
+
+		for (auto& pair : rule.getEveryMultiSoldierList())
+		{
+			const RuleSoldier* soldierRule = mod->getSoldier(pair.first, true);
+			if (soldierRule)
+			{
+				soldiersToTransfer[soldierRule] += pair.second;
+			}
+		}
+
+		if (!rule.getRandomMultiSoldierList().empty())
+		{
+			size_t pickSoldier = RNG::generate(0, rule.getRandomMultiSoldierList().size() - 1);
+			auto& sublist = rule.getRandomMultiSoldierList().at(pickSoldier);
+			for (auto& pair : sublist)
+			{
+				const RuleSoldier* soldierRule = mod->getSoldier(pair.first, true);
+				if (soldierRule)
+				{
+					soldiersToTransfer[soldierRule] += pair.second;
+				}
+			}
+		}
+
+		for (auto& ts : soldiersToTransfer)
+		{
+			for (int i = 0; i < ts.second; ++i)
+			{
+				Transfer* t = new Transfer(24);
+				int nationality = _game->getSavedGame()->selectSoldierNationalityByLocation(_game->getMod(), ts.first, city);
+				Soldier* s = mod->genSoldier(save, ts.first, nationality);
+				YAML::YamlRootNodeReader reader(rule.getSpawnedSoldierTemplate(), "(spawned soldier template)");
+				s->load(reader, mod, save, mod->getScriptGlobal(), true); // load from soldier template
+				{
+					// reset what may have been loaded
+					s->genName();
+				}
+				t->setSoldier(s);
+				hq->getTransfers()->push_back(t);
 			}
 		}
 	}
@@ -292,9 +353,53 @@ void GeoscapeEventState::eventLogic()
 
 	for (auto& ti : itemsToTransfer)
 	{
-		if (Options::oxceGeoscapeEventsInstantDelivery)
+		if (rule.getInvert())
+		{
+			RuleItem* r = mod->getItem(ti.first, true);
+			int removed = 0;
+			for (auto* xbase : *save->getBases())
+			{
+				int bQty = xbase->getStorageItems()->getItem(r);
+				if (bQty > 0)
+				{
+					int toRemove = std::min(bQty, ti.second);
+					xbase->getStorageItems()->removeItem(r, toRemove);
+					ti.second -= toRemove;
+					removed += toRemove;
+				}
+				if (ti.second <= 0) break; // already removed enough
+			}
+			if (ti.second > 0)
+			{
+				for (auto* xbase : *save->getBases())
+				{
+					for (auto* xcraft : *xbase->getCrafts())
+					{
+						int cQty = xcraft->getItems()->getItem(r);
+						if (cQty > 0 && xcraft->getStatus() != "STR_OUT")
+						{
+							int toRemove = std::min(cQty, ti.second);
+							xcraft->getItems()->removeItem(r, toRemove);
+							ti.second -= toRemove;
+							removed += toRemove;
+						}
+						if (ti.second <= 0) break; // already removed enough
+					}
+					if (ti.second <= 0) break; // already removed enough
+				}
+			}
+
+			std::ostringstream ss;
+			ss << -removed;
+			_lstTransfers->addRow(2, tr(ti.first).c_str(), ss.str().c_str());
+		}
+		else if (Options::oxceGeoscapeEventsInstantDelivery)
 		{
 			hq->getStorageItems()->addItem(mod->getItem(ti.first, true), ti.second);
+
+			std::ostringstream ss;
+			ss << ti.second;
+			_lstTransfers->addRow(2, tr(ti.first).c_str(), ss.str().c_str());
 		}
 		else
 		{
@@ -302,10 +407,6 @@ void GeoscapeEventState::eventLogic()
 			t->setItems(mod->getItem(ti.first, true), ti.second);
 			hq->getTransfers()->push_back(t);
 		}
-
-		std::ostringstream ss;
-		ss << ti.second;
-		_lstTransfers->addRow(2, tr(ti.first).c_str(), ss.str().c_str());
 	}
 
 	// 3b. spawn craft into the HQ
@@ -333,9 +434,8 @@ void GeoscapeEventState::eventLogic()
 	// 4. give bonus research
 	std::vector<const RuleResearch*> possibilities;
 
-	for (auto& rName : rule.getResearchList())
+	for (auto* rRule : rule.getResearchList())
 	{
-		const RuleResearch *rRule = mod->getResearch(rName, true);
 		if (!save->isResearched(rRule, false) || save->hasUndiscoveredGetOneFree(rRule, true))
 		{
 			possibilities.push_back(rRule);
@@ -348,13 +448,31 @@ void GeoscapeEventState::eventLogic()
 		size_t pickResearch = RNG::generate(0, possibilities.size() - 1);
 		const RuleResearch *eventResearch = possibilities.at(pickResearch);
 
-		bool alreadyResearched = false;
 		std::string name = eventResearch->getLookup().empty() ? eventResearch->getName() : eventResearch->getLookup();
-		if (save->isResearched(name, false))
-		{
-			alreadyResearched = true; // we have seen the pedia article already, don't show it again
-		}
+		bool alreadyResearched = save->isResearched(name, false); // we have seen the pedia article already, don't show it again
 
+		auto addResearchDiaryEntryForEvent = [&](const RuleResearch* discoveredResearch, DiscoverySourceType sourceType, const RuleEvent* sourceEvent, const RuleResearch* sourceResearch)
+		{
+			if (!save->isResearched(discoveredResearch, false) && !save->isResearchRuleStatusDisabled(discoveredResearch->getName()))
+			{
+				ResearchDiaryEntry* entry = new ResearchDiaryEntry(discoveredResearch);
+				entry->setDate(save->getTime());
+				entry->source.type = sourceType;
+				if (sourceType == DiscoverySourceType::EVENT)
+				{
+					entry->source.event = sourceEvent;
+					entry->source.name = sourceEvent->getName();
+				}
+				else // sourceType == DiscoverySourceType::FREE_FROM
+				{
+					entry->source.research = sourceResearch;
+					entry->source.name = sourceResearch->getName();
+				}
+				save->addResearchDiaryEntry(entry);
+			}
+		};
+
+		addResearchDiaryEntryForEvent(eventResearch, DiscoverySourceType::EVENT, &rule, nullptr);
 		save->addFinishedResearch(eventResearch, mod, hq, true);
 		topicsToCheck.push_back(eventResearch);
 		_researchName = alreadyResearched ? "" : eventResearch->getName();
@@ -362,12 +480,14 @@ void GeoscapeEventState::eventLogic()
 		if (!eventResearch->getLookup().empty())
 		{
 			const RuleResearch *lookupResearch = mod->getResearch(eventResearch->getLookup(), true);
+			addResearchDiaryEntryForEvent(lookupResearch, DiscoverySourceType::EVENT, &rule, nullptr);
 			save->addFinishedResearch(lookupResearch, mod, hq, true);
 			_researchName = alreadyResearched ? "" : lookupResearch->getName();
 		}
 
 		if (auto* bonus = save->selectGetOneFree(eventResearch))
 		{
+			addResearchDiaryEntryForEvent(bonus, DiscoverySourceType::FREE_FROM, nullptr, eventResearch);
 			save->addFinishedResearch(bonus, mod, hq, true);
 			topicsToCheck.push_back(bonus);
 			_bonusResearchName = bonus->getName();
@@ -375,6 +495,7 @@ void GeoscapeEventState::eventLogic()
 			if (!bonus->getLookup().empty())
 			{
 				const RuleResearch *bonusLookup = mod->getResearch(bonus->getLookup(), true);
+				addResearchDiaryEntryForEvent(bonusLookup, DiscoverySourceType::FREE_FROM, nullptr, eventResearch);
 				save->addFinishedResearch(bonusLookup, mod, hq, true);
 				_bonusResearchName = bonusLookup->getName();
 			}
@@ -425,11 +546,25 @@ void GeoscapeEventState::btnOkClick(Action *)
 {
 	_game->popState();
 
-	Base *base = _game->getSavedGame()->getBases()->front();
-	if (_game->getSavedGame()->getMonthsPassed() > -1 && Options::storageLimitsEnforced && base != 0 && base->storesOverfull())
+	if (!_eventRule.getCutscene().empty())
 	{
-		_game->pushState(new SellState(base, 0));
-		_game->pushState(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg(base->getName()), _palette, _game->getMod()->getInterface("debriefing")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("debriefing")->getElement("errorPalette")->color));
+		_game->pushState(new CutsceneState(_eventRule.getCutscene()));
+		if (_game->getSavedGame()->getEnding() == END_NONE)
+		{
+			const RuleVideo* videoRule = _game->getMod()->getVideo(_eventRule.getCutscene(), true);
+			if (videoRule->getWinGame()) _game->getSavedGame()->setEnding(END_WIN);
+			if (videoRule->getLoseGame()) _game->getSavedGame()->setEnding(END_LOSE);
+		}
+	}
+
+	if (_game->getSavedGame()->getEnding() == END_NONE)
+	{
+		Base* base = _game->getSavedGame()->getBases()->front();
+		if (_game->getSavedGame()->getMonthsPassed() > -1 && Options::storageLimitsEnforced && base != 0 && base->storesOverfull())
+		{
+			_game->pushState(new SellState(base, 0));
+			_game->pushState(new ErrorMessageState(tr("STR_STORAGE_EXCEEDED").arg(base->getName()), _palette, _game->getMod()->getInterface("debriefing")->getElement("errorMessage")->color, "BACK01.SCR", _game->getMod()->getInterface("debriefing")->getElement("errorPalette")->color));
+		}
 	}
 
 	if (!_bonusResearchName.empty())
