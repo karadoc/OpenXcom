@@ -2813,7 +2813,7 @@ inline void BattlescapeState::handle(Action *action)
 					updateSoldierInfo();
 				}
 				// "ctrl-s" - switch xcom unit speed to max and back
-				else if (key == SDLK_s && ctrlPressed)
+				else if (key == SDLK_s && ctrlPressed && shiftPressed) // K-Mod: added shift, so that I don't accidentally enable it so often!
 				{
 					if (Options::battleXcomSpeedOrig >= 1 && Options::battleXcomSpeedOrig <= 40)
 					{

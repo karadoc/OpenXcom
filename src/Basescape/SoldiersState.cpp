@@ -709,7 +709,8 @@ void SoldiersState::lstSoldiersClick(Action *action)
 	{
 		if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
 		{
-			btnInventoryClick(nullptr);
+			// btnInventoryClick(nullptr);
+			_game->pushState(new SoldierInfoState(_base, _lstSoldiers->getSelectedRow())); // K-Mod. I don't want to ever accidentally open the inventory screen. Please!
 		}
 		else
 		{
