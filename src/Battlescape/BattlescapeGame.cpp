@@ -813,6 +813,10 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 						if (!victim->isCosmetic())
 						{
 							bu->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
+							if (killStat.status == STATUS_DEAD)
+							{
+								bu->addKillCount();
+							}
 							if (victim->getFaction() == FACTION_HOSTILE)
 							{
 								bu->getStatistics()->slaveKills++;
@@ -834,145 +838,142 @@ void BattlescapeGame::checkForCasualties(const RuleDamageType *damageType, Battl
 		}
 
 		bool noSound = false;
-		if (victim->getStatus() != STATUS_DEAD)
+		if (killStat.status == STATUS_DEAD)
 		{
-			if (victim->getHealth() <= 0)
+			int moraleLossModifierWhenKilled = _save->getMoraleLossModifierWhenKilled(victim);
+
+			if (murderer)
 			{
-				int moraleLossModifierWhenKilled = _save->getMoraleLossModifierWhenKilled(victim);
+				murderer->addKillCount();
+				victim->killedBy(murderer->getFaction());
+				int modifier = murderer->getFaction() == FACTION_PLAYER ? _save->getFactionMoraleModifier(true) : 100;
 
-				if (murderer)
+				// if there is a known murderer, he will get a morale bonus if he is of a different faction (what with neutral?)
+				if ((victim->getOriginalFaction() == FACTION_PLAYER && murderer->getFaction() == FACTION_HOSTILE) ||
+					(victim->getOriginalFaction() == FACTION_HOSTILE && murderer->getFaction() == FACTION_PLAYER))
 				{
-					murderer->addKillCount();
-					victim->killedBy(murderer->getFaction());
-					int modifier = murderer->getFaction() == FACTION_PLAYER ? _save->getFactionMoraleModifier(true) : 100;
+					murderer->moraleChange(20 * modifier / 100);
+				}
+				// murderer will get a penalty with friendly fire
+				if (victim->getOriginalFaction() == murderer->getOriginalFaction())
+				{
+					// morale loss by friendly fire
+					murderer->moraleChange(-(2000 * moraleLossModifierWhenKilled / modifier / 100));
+				}
+				if (victim->getOriginalFaction() == FACTION_NEUTRAL)
+				{
+					if (murderer->getOriginalFaction() == FACTION_PLAYER)
+					{
+						// morale loss by xcom killing civilians
+						murderer->moraleChange(-(1000 * moraleLossModifierWhenKilled / modifier / 100));
+					}
+					else
+					{
+						murderer->moraleChange(10);
+					}
+				}
+			}
 
-					// if there is a known murderer, he will get a morale bonus if he is of a different faction (what with neutral?)
-					if ((victim->getOriginalFaction() == FACTION_PLAYER && murderer->getFaction() == FACTION_HOSTILE) ||
-						(victim->getOriginalFaction() == FACTION_HOSTILE && murderer->getFaction() == FACTION_PLAYER))
+			if (victim->getFaction() != FACTION_NEUTRAL)
+			{
+				int modifier = _save->getUnitMoraleModifier(victim);
+				int loserMod =  _save->getFactionMoraleModifier(victim->getOriginalFaction() != FACTION_HOSTILE);
+				int winnerMod = _save->getFactionMoraleModifier(victim->getOriginalFaction() == FACTION_HOSTILE);
+				for (auto* bu : *_save->getUnits())
+				{
+					if (!bu->isOut())
 					{
-						murderer->moraleChange(20 * modifier / 100);
-					}
-					// murderer will get a penalty with friendly fire
-					if (victim->getOriginalFaction() == murderer->getOriginalFaction())
-					{
-						// morale loss by friendly fire
-						murderer->moraleChange(-(2000 * moraleLossModifierWhenKilled / modifier / 100));
-					}
-					if (victim->getOriginalFaction() == FACTION_NEUTRAL)
-					{
-						if (murderer->getOriginalFaction() == FACTION_PLAYER)
+						// the losing squad all get a morale loss
+						if (bu->getOriginalFaction() == victim->getOriginalFaction())
 						{
-							// morale loss by xcom killing civilians
-							murderer->moraleChange(-(1000 * moraleLossModifierWhenKilled / modifier / 100));
+							// morale loss by losing a team member (not counting mind-controlled units)
+							int bravery = bu->reduceByBravery(10);
+							bu->moraleChange(-(modifier * moraleLossModifierWhenKilled * 200 * bravery / loserMod / 100 / 100));
+
+							if (victim->getFaction() == FACTION_HOSTILE && murderer)
+							{
+								murderer->setTurnsSinceSpotted(0);
+							}
 						}
+						// the winning squad all get a morale increase
 						else
 						{
-							murderer->moraleChange(10);
+							bu->moraleChange(10 * winnerMod / 100);
 						}
 					}
 				}
-
-				if (victim->getFaction() != FACTION_NEUTRAL)
+			}
+			if (damageType)
+			{
+				statePushNext(new UnitDieBState(this, victim, damageType, noSound));
+			}
+			else
+			{
+				if (hiddenExplosion)
 				{
-					int modifier = _save->getUnitMoraleModifier(victim);
-					int loserMod =  _save->getFactionMoraleModifier(victim->getOriginalFaction() != FACTION_HOSTILE);
-					int winnerMod = _save->getFactionMoraleModifier(victim->getOriginalFaction() == FACTION_HOSTILE);
-					for (auto* bu : *_save->getUnits())
-					{
-						if (!bu->isOut())
-						{
-							// the losing squad all get a morale loss
-							if (bu->getOriginalFaction() == victim->getOriginalFaction())
-							{
-								// morale loss by losing a team member (not counting mind-controlled units)
-								int bravery = bu->reduceByBravery(10);
-								bu->moraleChange(-(modifier * moraleLossModifierWhenKilled * 200 * bravery / loserMod / 100 / 100));
-
-								if (victim->getFaction() == FACTION_HOSTILE && murderer)
-								{
-									murderer->setTurnsSinceSpotted(0);
-								}
-							}
-							// the winning squad all get a morale increase
-							else
-							{
-								bu->moraleChange(10 * winnerMod / 100);
-							}
-						}
-					}
-				}
-				if (damageType)
-				{
-					statePushNext(new UnitDieBState(this, victim, damageType, noSound));
+					// this is instant death from UFO power sources, without screaming sounds
+					noSound = true;
+					statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_HE), noSound));
 				}
 				else
 				{
-					if (hiddenExplosion)
+					if (terrainExplosion)
 					{
-						// this is instant death from UFO power sources, without screaming sounds
-						noSound = true;
+						// terrain explosion
 						statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_HE), noSound));
 					}
 					else
 					{
-						if (terrainExplosion)
-						{
-							// terrain explosion
-							statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_HE), noSound));
-						}
-						else
-						{
-							// no murderer, and no terrain explosion, must be fatal wounds
-							statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_NONE), noSound));  // DT_NONE = STR_HAS_DIED_FROM_A_FATAL_WOUND
-						}
+						// no murderer, and no terrain explosion, must be fatal wounds
+						statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_NONE), noSound));  // DT_NONE = STR_HAS_DIED_FROM_A_FATAL_WOUND
 					}
-				}
-				// one of our own died, record the murderer instead of the victim
-				if (victim->getGeoscapeSoldier())
-				{
-					victim->getStatistics()->KIA = true;
-					BattleUnitKills *deathStat = new BattleUnitKills(killStat);
-					if (murderer)
-					{
-						deathStat->setUnitStats(murderer);
-						deathStat->faction = murderer->getOriginalFaction();
-					}
-					_parentState->getGame()->getSavedGame()->killSoldier(false, victim->getGeoscapeSoldier(), deathStat);
 				}
 			}
-			else if (victim->getStunlevel() >= victim->getHealth() && victim->getStatus() != STATUS_UNCONSCIOUS)
+			// one of our own died, record the murderer instead of the victim
+			if (victim->getGeoscapeSoldier())
 			{
-				// morale change when an enemy is stunned (only for the first time!)
-				if (getMod()->getStunningImprovesMorale() && murderer && !victim->getStatistics()->wasUnconcious)
+				victim->getStatistics()->KIA = true;
+				BattleUnitKills *deathStat = new BattleUnitKills(killStat);
+				if (murderer)
 				{
-					if ((victim->getOriginalFaction() == FACTION_PLAYER && murderer->getFaction() == FACTION_HOSTILE) ||
-						(victim->getOriginalFaction() == FACTION_HOSTILE && murderer->getFaction() == FACTION_PLAYER))
-					{
-						// the murderer gets a morale bonus if he is of a different faction (excluding neutrals)
-						murderer->moraleChange(20);
+					deathStat->setUnitStats(murderer);
+					deathStat->faction = murderer->getOriginalFaction();
+				}
+				_parentState->getGame()->getSavedGame()->killSoldier(false, victim->getGeoscapeSoldier(), deathStat);
+			}
+		}
+		else if (killStat.status == STATUS_UNCONSCIOUS)
+		{
+			// morale change when an enemy is stunned (only for the first time!)
+			if (getMod()->getStunningImprovesMorale() && murderer && !victim->getStatistics()->wasUnconcious)
+			{
+				if ((victim->getOriginalFaction() == FACTION_PLAYER && murderer->getFaction() == FACTION_HOSTILE) ||
+					(victim->getOriginalFaction() == FACTION_HOSTILE && murderer->getFaction() == FACTION_PLAYER))
+				{
+					// the murderer gets a morale bonus if he is of a different faction (excluding neutrals)
+					murderer->moraleChange(20);
 
-						for (auto* winner : *_save->getUnits())
+					for (auto* winner : *_save->getUnits())
+					{
+						if (!winner->isOut() && winner->getOriginalFaction() == murderer->getOriginalFaction())
 						{
-							if (!winner->isOut() && winner->getOriginalFaction() == murderer->getOriginalFaction())
-							{
-								// the winning squad gets a morale increase (the losing squad is NOT affected)
-								winner->moraleChange(10);
-							}
+							// the winning squad gets a morale increase (the losing squad is NOT affected)
+							winner->moraleChange(10);
 						}
 					}
 				}
-
-				victim->getStatistics()->wasUnconcious = true;
-				noSound = true;
-				statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_NONE), noSound)); // no damage type used there
 			}
-			else
+
+			victim->getStatistics()->wasUnconcious = true;
+			noSound = true;
+			statePushNext(new UnitDieBState(this, victim, getMod()->getDamageType(DT_NONE), noSound)); // no damage type used there
+		}
+		else
+		{
+			// piggyback of cleanup after script that change move type
+			if (victim->haveNoFloorBelow() && victim->getMovementType() != MT_FLY)
 			{
-				// piggyback of cleanup after script that change move type
-				if (victim->haveNoFloorBelow() && victim->getMovementType() != MT_FLY)
-				{
-					_save->addFallingUnit(victim);
-				}
+				_save->addFallingUnit(victim);
 			}
 		}
 	}
