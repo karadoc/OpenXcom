@@ -4775,15 +4775,15 @@ bool TileEngine::psiAttack(BattleActionAttack attack, BattleUnit *victim)
 				victim->moraleChange(-moraleLoss);
 			victim->setMindControllerId(attack.attacker->getId());
 
-			// Award Panic battle unit kill
-			if (!attack.attacker->getStatistics()->duplicateEntry(STATUS_PANICKING, victim->getId()))
+			// Award Panic battle unit kill  (Disabled for K-Mod, to avoid save-file bloat and 'trademark weapon' pollution.)
+			/* if (!attack.attacker->getStatistics()->duplicateEntry(STATUS_PANICKING, victim->getId()))
 			{
 				killStat.status = STATUS_PANICKING;
 				if (!victim->isCosmetic())
 				{
 					attack.attacker->getStatistics()->kills.push_back(new BattleUnitKills(killStat));
 				}
-			}
+			} */
 		}
 		else if (attack.type == BA_MINDCONTROL)
 		{
