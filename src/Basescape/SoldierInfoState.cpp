@@ -454,6 +454,18 @@ void SoldierInfoState::init()
 			ss << Unicode::TOK_COLOR_FLIP;
 		}
 		ss << withArmor2;
+		// K-Mod: add a subtle indicator for when we're within one mission of the stat cap. (helpful for obsessive stat-maxers.)
+		if (current2+6 >= max2 && current2 < max2)
+		{
+			if (current2+1 == max2)
+			{
+				ss << "'"; // 1 point away!
+			}
+			else
+			{
+				ss << "."; // between 2 and 6 points away.
+			}
+		}
 		number->setText(ss.str());
 		bar->setMax(current2);
 		bar->setValue(withArmor2);
