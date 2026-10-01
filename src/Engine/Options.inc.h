@@ -77,6 +77,7 @@ OPT bool oxceBattleTouchButtonsEnabled;
 OPT bool oxceQuickSearchButton;
 OPT bool oxceHighlightNewTopics;
 OPT bool oxcePediaShowClipSize;
+OPT int oxcePediaSortResistances; // hidden, unhide if becomes popular?
 
 OPT int oxceInterceptTableSize;
 OPT bool oxceEnableSlackingIndicator;
@@ -130,6 +131,7 @@ OPT std::string password;
 
 // OXCE hidden, but moddable via fixedUserOptions and/or recommendedUserOptions
 OPT int oxceStartUpTextMode;
+OPT bool oxceMaximizeCutsceneScreens;
 
 OPT int oxceGeoscapeDebugLogMaxEntries;
 OPT int oxceGeoSlowdownFactor;
@@ -141,8 +143,10 @@ OPT bool oxceGeoGoToNearestBase;
 OPT bool oxceGeoSortCraftByDistanceToTarget;
 
 OPT int oxceBaseInfoDefenseScaleMultiplier;
+OPT int oxceBaseSoldierInfoColumnDefault;
 OPT bool oxceBaseSoldierTransformationShowOnlyEligible;
 OPT bool oxceBaseFilterResearchable;
+OPT bool oxceBaseResearchReorder;
 OPT bool oxceBaseManufactureFallbackButton;
 OPT bool oxceBaseManufactureInfinityButton;
 OPT bool oxceBaseTouchButtons;
@@ -163,12 +167,14 @@ OPT bool oxceShowBurningAsWounded;
 OPT bool oxceDisableInfoOnThrowCursor;
 OPT bool oxceSwapDontReselectActions;
 OPT bool oxceEnableUnitResponseSounds;
+OPT bool oxceResetUnitResponseSoundsOnAvatarChange;
 OPT int oxceHiddenMovementBackgroundChangeFrequency;
 OPT bool oxceInventoryShowUnitSlot;
 OPT bool oxceReplaceNotesLink;
 
 OPT bool oxceInventorySplitScrollButton;
 OPT bool oxceInventoryDropItemOverPaperdoll;
+OPT bool oxceInventoryUnloadFixedWeapons;
 
 OPT int oxceMaxEquipmentLayoutTemplates;
 
@@ -180,3 +186,4 @@ OPT std::vector< std::pair<std::string, bool> > mods; // ordered list of availab
 OPT SoundFormat currentSound;
 
 OPT int battleXcomSpeedOrig;
+OPT int battleAlienSpeedOrig;

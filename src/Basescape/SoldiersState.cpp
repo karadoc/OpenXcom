@@ -54,7 +54,7 @@ namespace OpenXcom
  * @param game Pointer to the core game.
  * @param base Pointer to the base to get info from.
  */
-SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL)
+SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base->getSoldiers()), _dynGetter(NULL), _mainOffset(0)
 {
 	bool isPsiBtnVisible = Options::anytimePsiTraining && _base->getAvailablePsiLabs() > 0;
 	bool isTrnBtnVisible = _base->getAvailableTraining() > 0;
@@ -71,17 +71,17 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	_window = new Window(this, 320, 200, 0, 0);
 	if (showThreeButtons)
 	{
-		_btnOk = new TextButton(96, 16, 216, 176);
-		_btnMemorial = new TextButton(96, 16, 8, 176);
+		_btnOk = preAdd(new TextButton(96, 16, 216, 176));
+		_btnMemorial = preAdd(new TextButton(96, 16, 8, 176));
 	}
 	else
 	{
-		_btnOk = new TextButton(148, 16, 164, 176);
-		_btnMemorial = new TextButton(148, 16, 8, 176);
+		_btnOk = preAdd(new TextButton(148, 16, 164, 176));
+		_btnMemorial = preAdd(new TextButton(148, 16, 8, 176));
 	}
-	_btnPsiTraining = new TextButton(96, 16, 112, 176);
-	_btnTraining = new TextButton(96, 16, 112, 176);
-	_cbxScreenActions = new ComboBox(this, 148, 16, 8, 176, true);
+	_btnPsiTraining = preAdd(new TextButton(96, 16, 112, 176));
+	_btnTraining = preAdd(new TextButton(96, 16, 112, 176));
+	_cbxScreenActions = preAdd(new ComboBox(this, 148, 16, 8, 176, true));
 	_txtTitle = new Text(168, 17, 16, 8);
 	_cbxSortBy = new ComboBox(this, 120, 16, 192, 8, false);
 	_txtName = new Text(114, 9, 16, 32);
@@ -120,6 +120,7 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 	_btnOk->onMouseClick((ActionHandler)&SoldiersState::btnOkClick);
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnOkClick, Options::keyCancel);
 	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnInventoryClick, Options::keyBattleInventory);
+	_btnOk->onKeyboardPress((ActionHandler)&SoldiersState::btnTransformationsOverviewClick, SDLK_t);
 
 	_btnPsiTraining->setText(tr("STR_PSI_TRAINING"));
 	_btnPsiTraining->onMouseClick((ActionHandler)&SoldiersState::btnPsiTrainingClick);
@@ -150,7 +151,10 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 			_availableOptions.push_back("STR_TRAINING");
 
 		if (isTransformationAvailable)
+		{
+			_mainOffset = _availableOptions.size();
 			_availableOptions.push_back("STR_TRANSFORMATIONS_OVERVIEW");
+		}
 
 		bool refreshDeadSoldierStats = false;
 		for (const auto* transformationRule : availableTransformations)
@@ -225,10 +229,31 @@ SoldiersState::SoldiersState(Base *base) : _base(base), _origSoldierOrder(*_base
 
 #undef PUSH_IN
 
+	size_t selIdx = Options::oxceBaseSoldierInfoColumnDefault;
+	if (selIdx >= sortOptions.size())
+	{
+		selIdx = 0;
+		Options::oxceBaseSoldierInfoColumnDefault = 0;
+	}
+	{
+		SortFunctor* compFunc = _sortFunctors[selIdx];
+		_dynGetter = NULL;
+		if (compFunc)
+		{
+			if (selIdx != 2 && selIdx != 3)
+			{
+				_dynGetter = compFunc->getGetter();
+			}
+		}
+	}
+
 	_cbxSortBy->setOptions(sortOptions);
-	_cbxSortBy->setSelected(0);
+	_cbxSortBy->setSelected(selIdx);
 	_cbxSortBy->onChange((ActionHandler)&SoldiersState::cbxSortByChange);
-	_cbxSortBy->setText(tr("STR_SORT_BY"));
+	if (selIdx == 0)
+	{
+		_cbxSortBy->setText(tr("STR_SORT_BY"));
+	}
 
 	//_lstSoldiers->setArrowColumn(188, ARROW_VERTICAL);
 	_lstSoldiers->setColumns(3, 106, 98, 76);
@@ -265,6 +290,10 @@ void SoldiersState::cbxSortByChange(Action *action)
 	if (selIdx == (size_t)-1)
 	{
 		return;
+	}
+	if (_game->isAltPressed(true))
+	{
+		Options::oxceBaseSoldierInfoColumnDefault = selIdx;
 	}
 
 	SortFunctor *compFunc = _sortFunctors[selIdx];
@@ -358,7 +387,7 @@ void SoldiersState::init()
 	_base->setInBattlescape(false);
 
 	_base->prepareSoldierStatsWithBonuses(); // refresh stats for sorting
-	initList(0);
+	initList(_lstSoldiers->getScroll());
 }
 
 /**
@@ -604,6 +633,21 @@ void SoldiersState::btnTrainingClick(Action *)
 void SoldiersState::btnMemorialClick(Action *)
 {
 	_game->pushState(new SoldierMemorialState);
+}
+
+/**
+ * Opens the Transformations Overview screen.
+ * @param action Pointer to an action.
+ */
+void SoldiersState::btnTransformationsOverviewClick(Action *)
+{
+	if (_mainOffset > 0)
+	{
+		// needed in SoldierTransformationListState::lstTransformationsClick()
+		_cbxScreenActions->setSelected(_mainOffset);
+
+		_game->pushState(new SoldierTransformationListState(_base, _cbxScreenActions));
+	}
 }
 
 /**

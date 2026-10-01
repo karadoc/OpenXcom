@@ -1235,7 +1235,18 @@ void Map::drawTerrain(Surface *surface)
 							{
 								frameNumber += Mod::SMOKE_OFFSET;
 							}
-							frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+							if (Mod::EXTENDED_SMOKE_OFFSET == 0)
+							{
+								frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+							}
+							else if (Mod::EXTENDED_SMOKE_OFFSET == 1)
+							{
+								frameNumber += int(floor((tile->getSmoke() / 6.0) - 0.1)) * 4;
+							}
+							else // if (Mod::EXTENDED_SMOKE_OFFSET == 2)
+							{
+								frameNumber += (tile->getSmoke() - 1) / 5 * 4;
+							}
 							shade = tileShade;
 						}
 
@@ -1569,10 +1580,11 @@ void Map::drawTerrain(Surface *surface)
 							if (_save->getBattleGame()->getCurrentAction()->type == BA_LAUNCH || _save->getBattleGame()->getCurrentAction()->sprayTargeting)
 							{
 								_numWaypid->setValue(waypid);
+								_numWaypid->setBordered(true); // OXCE, not configurable
 								_numWaypid->draw();
 								_numWaypid->blitNShade(surface, screenPosition.x + waypXOff, screenPosition.y + waypYOff, 0);
 
-								waypXOff += waypid > 9 ? 8 : 6;
+								waypXOff += waypid > 9 ? 10 : 6; // OXCE
 								if (waypXOff >= 26)
 								{
 									waypXOff = 2;
@@ -1915,7 +1927,7 @@ void Map::persistToggles()
  * @param original tile/item/unit shade
  */
 
-int Map::reShade(Tile *tile)
+int Map::reShade(Tile *tile) const
 {
 	// when modders just don't know where to stop...
 	if (_debugVisionMode > 0)
@@ -1955,6 +1967,25 @@ int Map::reShade(Tile *tile)
 
 	// hybrid night vision (global)
 	return std::min(+NIGHT_VISION_MAX_SHADE, tile->getShade());
+}
+
+int Map::reShadeMinimap(int maxShade) const
+{
+	if (_debugVisionMode > 0)
+	{
+		if (_debugVisionMode == 1)
+		{
+			return maxShade / 2;
+		}
+		return 0;
+	}
+
+	if (_nvColor == 0)
+	{
+		return maxShade;
+	}
+
+	return std::min(+NIGHT_VISION_MAX_SHADE / 2, maxShade);
 }
 
 /**

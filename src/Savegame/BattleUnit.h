@@ -28,6 +28,19 @@
 
 namespace OpenXcom
 {
+/**
+ * User interface string identifier of body parts.
+ */
+const std::string PARTS_STRING[6] =
+{
+	"STR_HEAD",
+	"STR_TORSO",
+	"STR_RIGHT_ARM",
+	"STR_LEFT_ARM",
+	"STR_RIGHT_LEG",
+	"STR_LEFT_LEG"
+};
+
 
 class Tile;
 class BattleItem;
@@ -113,6 +126,7 @@ private:
 	int _fireMaxHit;
 	int _smokeMaxHit;
 	int _moraleRestored;
+	int _notificationShown;
 	BattleUnit *_charging;
 
 	Uint8 _turnsSinceSpotted[FACTION_MAX] = { 255, 255, 255 };
@@ -142,7 +156,8 @@ private:
 	int _lastReloadSound;
 	std::vector<int> _deathSound, _aggroSound;
 	std::vector<int> _selectUnitSound, _startMovingSound, _selectWeaponSound, _annoyedSound;
-	int _value, _moveSound;
+	int _valueKilled, _valueCaptured, _valueCapturedResearched, _valueCivilian, _valueCivilianKilledByXcom, _valueVIP;
+	int _moveSound;
 	int _intelligence, _aggression;
 	int _maxViewDistanceAtDark, _maxViewDistanceAtDay;
 	int _maxViewDistanceAtDarkSquared;
@@ -150,11 +165,12 @@ private:
 	int _visibilityThroughSmoke = 0;
 	int _visibilityThroughFire = 100;
 	SpecialAbility _specab;
-	Armor *_armor;
+	const Armor *_armor;
 	SoldierGender _gender;
 	Soldier *_geoscapeSoldier;
 	std::vector<int> _loftempsSet;
-	Unit *_unitRules;
+	const Unit *_unitRules;
+	const RuleVoiceSet* _unitVoiceSet = nullptr;
 	int _rankInt;
 	int _rankIntUnified = 0;
 	int _turretType;
@@ -217,11 +233,11 @@ public:
 	/// Creates a BattleUnit from solder.
 	BattleUnit(const Mod *mod, Soldier *soldier, int depth, const RuleStartingCondition* sc);
 	/// Creates a BattleUnit from unit.
-	BattleUnit(const Mod *mod, Unit *unit, UnitFaction faction, int id, const RuleEnviroEffects* enviro, Armor *armor, StatAdjustment *adjustment, int depth, const RuleStartingCondition* sc);
+	BattleUnit(const Mod *mod, const Unit *unit, UnitFaction faction, int id, const RuleEnviroEffects* enviro, const Armor *armor, StatAdjustment *adjustment, int depth, const RuleStartingCondition* sc);
 	/// Updates BattleUnit's armor and related attributes (after a change/transformation of armor).
-	void updateArmorFromSoldier(const Mod *mod, Soldier *soldier, Armor *ruleArmor, int depth, bool nextStage, const RuleStartingCondition* sc);
+	void updateArmorFromSoldier(const Mod *mod, Soldier *soldier, const Armor *ruleArmor, int depth, bool nextStage, const RuleStartingCondition* sc);
 	/// Updates BattleUnit's armor and related attributes (after a change/transformation of armor).
-	void updateArmorFromNonSoldier(const Mod* mod, Armor* newArmor, int depth, bool nextStage, const RuleStartingCondition* sc);
+	void updateArmorFromNonSoldier(const Mod* mod, const Armor* newArmor, int depth, bool nextStage, const RuleStartingCondition* sc);
 	/// Cleans up the BattleUnit.
 	~BattleUnit();
 	/// Loads the unit from YAML.
@@ -421,6 +437,8 @@ public:
 	AIModule *getAIModule() const;
 	/// Set AI Module.
 	void setAIModule(AIModule *ai);
+	/// Increases the AI walk abort counter.
+	void increaseAIWalkAbortCounter();
 	/// Gets weight value as hostile unit.
 	AIAttackWeight getAITargetWeightAsHostile(const Mod *mod) const;
 	/// Gets weight value as civilian unit when consider by aliens.
@@ -526,6 +544,8 @@ public:
 	void setArmor(int armor, UnitSide side);
 	/// Get armor value.
 	int getArmor(UnitSide side) const;
+	/// Set max armor value.
+	void setMaxArmor(int armor, UnitSide side);
 	/// Get max armor value.
 	int getMaxArmor(UnitSide side) const;
 	/// Set fatal wound amount of a body part
@@ -569,8 +589,13 @@ public:
 	int getKneelHeight() const;
 	/// Get the unit's loft ID.
 	int getLoftemps(int entry = 0) const;
-	/// Get the unit's value.
-	int getValue() const;
+	/// Get the unit's value. Used for score at debriefing.
+	int getValueKilled() const { return _valueKilled; }
+	int getValueCaptured() const { return _valueCaptured; }
+	int getValueCapturedResearched() const { return _valueCapturedResearched; }
+	int getValueCivilian() const { return _valueCivilian; }
+	int getValueCivilianKilledByXcom() const { return _valueCivilianKilledByXcom; }
+	int getValueVIP() const { return _valueVIP; }
 	/// Get the reload sound (of the last reloaded weapon).
 	int getReloadSound() const { return _lastReloadSound; }
 	/// Get the unit's death sounds.
@@ -700,7 +725,12 @@ public:
 	/// Get this unit's original faction
 	UnitFaction getOriginalFaction() const;
 	/// Get alien/HWP unit.
-	Unit *getUnitRules() const { return _unitRules; }
+	const Unit *getUnitRules() const { return _unitRules; }
+	/// Get unit voice set.
+	const RuleVoiceSet* getUnitVoiceSet() const { return _unitVoiceSet; }
+	/// Set unit voice set. Propagate to geoscape soldier if possible.
+	void setUnitAndSoldierVoiceSet(const RuleVoiceSet* voiceSet);
+
 	Position lastCover;
 	/// get the vector of units we've seen this turn.
 	std::vector<BattleUnit *> &getUnitsSpottedThisTurn();
@@ -830,6 +860,10 @@ public:
 	bool hasAlreadyExploded() const { return _alreadyExploded; }
 	/// Set the already exploded flag.
 	void setAlreadyExploded(bool alreadyExploded) { _alreadyExploded = alreadyExploded; }
+	/// Get the unconscious/dead notification shown flag.
+	int getNotificationShown() const { return _notificationShown; }
+	/// Set the unconscious/dead notification shown flag.
+	void setNotificationShown(int notificationShown) { _notificationShown = notificationShown; }
 	/// Gets whether this unit can be captured alive (applies to aliens).
 	bool getCapturable() const;
 	/// free up the patrol node target, to allow others to use it.

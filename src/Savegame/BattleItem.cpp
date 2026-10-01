@@ -161,7 +161,7 @@ void BattleItem::save(YAML::YamlNodeWriter writer, const ScriptGlobal *shared) c
 	}
 	if (_tile)
 		writer.write("position", _tile->getPosition());
-	if (_ammoQuantity)
+	if (_ammoQuantity || _rules->isAmmoRechargeable()) // To consider: maybe it would be better to just always write also zero?
 		writer.write("ammoqty", _ammoQuantity);
 	if (_ammoItem[0])
 		writer.write("ammoItem", _ammoItem[0]->getId());
@@ -745,8 +745,8 @@ bool BattleItem::isWeaponWithAmmo() const
 }
 
 /**
- * Check if weapon has enough ammo to shoot.
- * @return True if has enough ammo.
+ * Check if the weapon is loaded with any ammo item(s). IMPORTANT: ammo quantity can also be zero!
+ * @return True if the weapon is loaded. IMPORTANT: empty clip also counts as a loaded weapon! empty "built-in" clip also counts as a loaded weapon!
  */
 bool BattleItem::haveAnyAmmo() const
 {
@@ -871,7 +871,7 @@ const BattleItem *BattleItem::getAmmoForAction(BattleActionType action) const
 	}
 
 	auto* ammo = getAmmoForSlot(conf->ammoSlot);
-	if (ammo && ammo->getAmmoQuantity() == 0)
+	if (ammo && ammo->getAmmoQuantity() == 0 && !ammo->getRules()->isAmmoRechargeable())
 	{
 		return nullptr;
 	}
@@ -931,7 +931,7 @@ void BattleItem::spendAmmoForAction(BattleActionType action, SavedBattleGame* sa
 	auto* ammo = getAmmoForAction(action, nullptr, &spendPerShot);
 	if (ammo)
 	{
-		if (ammo->getRules()->getClipSize() > 0 && ammo->spendBullet(spendPerShot) == false)
+		if (ammo->getRules()->getClipSize() > 0 && ammo->spendBullet(spendPerShot) == false && !ammo->getRules()->isAmmoRechargeable())
 		{
 			save->removeItem(ammo);
 			ammo->setIsAmmo(false);
@@ -1717,6 +1717,7 @@ ModScript::TryMeleeAttackItemParser::TryMeleeAttackItemParser(ScriptGlobal* shar
 	"item",
 	"attacker",
 	"victim",
+	"is_same_faction",
 	"skill",
 	"attack_strength",
 	"defense_strength",
@@ -1736,8 +1737,10 @@ ModScript::TryMeleeAttackItemParser::TryMeleeAttackItemParser(ScriptGlobal* shar
 		"random.randomRange r 0 99;\n"
 		"sub melee_attack_success r;\n"
 		"add melee_attack_success attack_strength;\n"
-		"sub melee_attack_success defense_strength;\n"
-		"add melee_attack_success defense_strength_penalty;\n"
+		"if eq is_same_faction 0;\n"
+		"  sub melee_attack_success defense_strength;\n"
+		"  add melee_attack_success defense_strength_penalty;\n"
+		"end;\n"
 		"return melee_attack_success;\n"
 	);
 }

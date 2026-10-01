@@ -88,7 +88,6 @@
 #include "../Mod/RuleInventory.h"
 #include "../Mod/RuleSoldier.h"
 #include "../Mod/RuleVideo.h"
-#include <algorithm>
 
 namespace OpenXcom
 {
@@ -1189,7 +1188,10 @@ void BattlescapeState::btnShowMapClick(Action *)
 {
 	//MiniMapState
 	if (allowButtons())
-		_game->pushState (new MiniMapState (_map->getCamera(), _save));
+	{
+		int maxShade = _map->reShadeMinimap(7); // 7 = vanilla
+		_game->pushState (new MiniMapState (_map->getCamera(), _save, maxShade));
+	}
 }
 
 void BattlescapeState::toggleKneelButton(BattleUnit* unit)
@@ -2766,6 +2768,29 @@ inline void BattlescapeState::handle(Action *action)
 					else
 						warning("STR_SINGLE_MAP_LAYER_DEACTIVATED");
 				}
+				// "ctrl-f" - show fatal wounds
+				else if (key == SDLK_f && ctrlPressed)
+				{
+					if (_save->getSide() == FACTION_PLAYER)
+					{
+						auto* bu = _save->getSelectedUnit();
+						if (bu)
+						{
+							std::ostringstream ss;
+							ss << tr("STR_FATAL_WOUNDS");
+							ss << "\n";
+							for (int i = 0; i < BODYPART_MAX; ++i)
+							{
+								if (bu->getFatalWound((UnitBodyPart)i))
+								{
+									ss << "\n";
+									ss << _game->getLanguage()->getString(PARTS_STRING[i]);
+								}
+							}
+							_game->pushState(new InfoboxState(ss.str()));
+						}
+					}
+				}
 				// "ctrl-h" - show hit log
 				else if (key == SDLK_h && ctrlPressed)
 				{
@@ -2803,29 +2828,50 @@ inline void BattlescapeState::handle(Action *action)
 				// "ctrl-shift-Del" - clear TUs for all allied units
 				else if (key == SDLK_DELETE && ctrlPressed && shiftPressed)
 				{
-					for (auto* bu : *_save->getUnits())
+					if (_save->getSide() == FACTION_PLAYER)
 					{
-						if (bu->getFaction() == _save->getSide() && !bu->isOut())
+						for (auto* bu : *_save->getUnits())
 						{
-							bu->clearTimeUnits();
+							if (bu->getFaction() == _save->getSide() && !bu->isOut())
+							{
+								bu->clearTimeUnits();
+							}
 						}
+						updateSoldierInfo();
 					}
-					updateSoldierInfo();
 				}
 				// "ctrl-s" - switch xcom unit speed to max and back
 				else if (key == SDLK_s && ctrlPressed && shiftPressed) // K-Mod: added shift, so that I don't accidentally enable it so often!
 				{
-					if (Options::battleXcomSpeedOrig >= 1 && Options::battleXcomSpeedOrig <= 40)
+					if (_save->getSide() == FACTION_PLAYER)
 					{
-						Options::battleXcomSpeed = Options::battleXcomSpeedOrig;
-						Options::battleXcomSpeedOrig = -1;
-						warning("STR_QUICK_MODE_DEACTIVATED");
+						if (Options::battleXcomSpeedOrig >= 1 && Options::battleXcomSpeedOrig <= 40)
+						{
+							Options::battleXcomSpeed = Options::battleXcomSpeedOrig;
+							Options::battleXcomSpeedOrig = -1;
+							warning("STR_QUICK_MODE_DEACTIVATED");
+						}
+						else
+						{
+							Options::battleXcomSpeedOrig = Options::battleXcomSpeed;
+							Options::battleXcomSpeed = 1;
+							warningLongRaw(tr("STR_QUICK_MODE_ACTIVATED"));
+						}
 					}
 					else
 					{
-						Options::battleXcomSpeedOrig = Options::battleXcomSpeed;
-						Options::battleXcomSpeed = 1;
-						warningLongRaw(tr("STR_QUICK_MODE_ACTIVATED"));
+						if (Options::battleAlienSpeedOrig >= 1 && Options::battleAlienSpeedOrig <= 40)
+						{
+							Options::battleAlienSpeed = Options::battleAlienSpeedOrig;
+							Options::battleAlienSpeedOrig = -1;
+							warning("STR_QUICK_MODE_DEACTIVATED");
+						}
+						else
+						{
+							Options::battleAlienSpeedOrig = Options::battleAlienSpeed;
+							Options::battleAlienSpeed = 1;
+							warning("STR_QUICK_MODE_ACTIVATED");
+						}
 					}
 				}
 				// "ctrl-x" - mute/unmute unit response sounds
@@ -3972,6 +4018,12 @@ void BattlescapeState::resize(int &dX, int &dY)
 	}
 	switch (Options::battlescapeScale)
 	{
+	case SCALE_SCREEN_DIV_10:
+		divisor = 10;
+		break;
+	case SCALE_SCREEN_DIV_8:
+		divisor = 8;
+		break;
 	case SCALE_SCREEN_DIV_6:
 		divisor = 6;
 		break;

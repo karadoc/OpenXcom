@@ -18,6 +18,7 @@
  */
 
 #include "ArticleDefinition.h"
+#include "Mod.h"
 #include "../Engine/Exception.h"
 #include "../Mod/RuleItem.h"
 
@@ -58,8 +59,8 @@ namespace OpenXcom
 		reader.tryRead("id", id);
 		_pages[0].title = id;
 		reader.tryRead("section", section);
-		reader.tryRead("requires", _requires);
-		reader.tryRead("disabledBy", disabledBy);
+		reader.tryRead("requires", requireNames);
+		reader.tryRead("disabledBy", disabledByNames);
 		reader.tryRead("hiddenCommendation", hiddenCommendation);
 		//_type_id = (UfopaediaTypeId)node["type_id"].as<int>(_type_id);
 		reader.tryRead("listOrder", _listOrder);
@@ -99,6 +100,15 @@ namespace OpenXcom
 	}
 
 	/**
+	 * Cross link with other rules.
+	 */
+	void ArticleDefinition::afterLoad(const Mod* mod)
+	{
+		mod->linkRule(_requires, requireNames);
+		mod->linkRule(disabledBy, disabledByNames);
+	}
+
+	/**
 	 * Gets the list weight of the article.
 	 * @return The list weight of the article.
 	 */
@@ -125,6 +135,53 @@ namespace OpenXcom
 		y = set_y;
 		width = set_width;
 		height = set_height;
+	}
+
+	/**
+	 * Constructor (only setting type of base class).
+	 */
+	ArticleDefinitionUnit::ArticleDefinitionUnit() : ArticleDefinition(UFOPAEDIA_TYPE_UNIT), unit_mode(0)
+	{
+	}
+
+	/**
+	 * Loads the article definition from a YAML file.
+	 * @param node YAML node.
+	 * @param listOrder The list weight for this article.
+	 */
+	void ArticleDefinitionUnit::load(const YAML::YamlNodeReader& reader, int listOrder)
+	{
+		ArticleDefinition::load(reader, listOrder);
+		reader.tryRead("unit_mode", unit_mode);
+		reader.tryRead("image_id", image_id);
+		if (image_id.find("_CPAL") != std::string::npos)
+			customPalette = true;
+		reader.tryRead("rect_stats", rect_stats);
+		reader.tryRead("rect_armor", rect_armor);
+		reader.tryRead("rect_text", rect_text);
+	}
+
+	/**
+	 * Constructor (only setting type of base class).
+	 */
+	ArticleDefinitionSoldier::ArticleDefinitionSoldier() : ArticleDefinition(UFOPAEDIA_TYPE_SOLDIER), psi_skill_mode(0)
+	{
+	}
+
+	/**
+	 * Loads the article definition from a YAML file.
+	 * @param node YAML node.
+	 * @param listOrder The list weight for this article.
+	 */
+	void ArticleDefinitionSoldier::load(const YAML::YamlNodeReader& reader, int listOrder)
+	{
+		ArticleDefinition::load(reader, listOrder);
+		reader.tryRead("psi_skill_mode", psi_skill_mode);
+		reader.tryRead("image_id", image_id);
+		if (image_id.find("_CPAL") != std::string::npos)
+			customPalette = true;
+		reader.tryRead("rect_stats", rect_stats);
+		reader.tryRead("rect_text", rect_text);
 	}
 
 	/**

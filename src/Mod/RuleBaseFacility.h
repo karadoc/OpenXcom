@@ -31,6 +31,7 @@ class Mod;
 class Base;
 class Position;
 class RuleItem;
+class RuleResearch;
 struct VerticalLevel;
 enum BasePlacementErrors : int;
 
@@ -43,8 +44,10 @@ enum BasePlacementErrors : int;
 class RuleBaseFacility
 {
 private:
+	std::string _ufopediaType;
 	std::string _type;
-	std::vector<std::string> _requires;
+	std::vector<std::string> _requireNames;
+	std::vector<const RuleResearch*> _requires;
 	RuleBaseFacilityFunctions _requiresBaseFunc = 0;
 	RuleBaseFacilityFunctions _provideBaseFunc = 0;
 	RuleBaseFacilityFunctions _forbiddenBaseFunc = 0;
@@ -98,10 +101,14 @@ public:
 	void load(const YAML::YamlNodeReader& reader, Mod *mod);
 	/// Cross link with other rules.
 	void afterLoad(const Mod* mod);
+
+	/// Gets the custom name of the Ufopedia article related to this facility.
+	const std::string& getUfopediaType() const;
+
 	/// Gets the facility's type.
 	const std::string& getType() const;
 	/// Gets the facility's requirements.
-	const std::vector<std::string> &getRequirements() const;
+	const std::vector<const RuleResearch*> &getRequirements() const { return _requires; }
 	/// Gets the facility's required function in base to build.
 	RuleBaseFacilityFunctions getRequireBaseFunc() const { return _requiresBaseFunc; }
 	/// Gets the functions that facility provide in base.

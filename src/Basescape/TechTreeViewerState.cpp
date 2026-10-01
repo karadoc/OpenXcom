@@ -394,7 +394,7 @@ void TechTreeViewerState::initLists()
 		for (auto& j : manufactureList)
 		{
 			RuleManufacture *temp = _game->getMod()->getManufacture(j);
-			for (auto& i : temp->getRequirements())
+			for (auto* i : temp->getRequirements())
 			{
 				if (i == rule)
 				{
@@ -406,9 +406,9 @@ void TechTreeViewerState::initLists()
 		for (auto& f : _game->getMod()->getBaseFacilitiesList())
 		{
 			RuleBaseFacility *temp = _game->getMod()->getBaseFacility(f);
-			for (auto& i : temp->getRequirements())
+			for (auto* i : temp->getRequirements())
 			{
-				if (i == rule->getName())
+				if (i == rule)
 				{
 					requiredByFacilities.push_back(f);
 				}
@@ -418,14 +418,14 @@ void TechTreeViewerState::initLists()
 		for (auto& item : _game->getMod()->getItemsList())
 		{
 			RuleItem *temp = _game->getMod()->getItem(item);
-			for (auto& i : temp->getRequirements())
+			for (auto* i : temp->getRequirements())
 			{
 				if (i == rule)
 				{
 					requiredByItems.push_back(item);
 				}
 			}
-			for (auto& i : temp->getBuyRequirements())
+			for (auto* i : temp->getBuyRequirements())
 			{
 				if (i == rule)
 				{
@@ -437,9 +437,9 @@ void TechTreeViewerState::initLists()
 		for (auto& transf : _game->getMod()->getSoldierTransformationList())
 		{
 			RuleSoldierTransformation* temp = _game->getMod()->getSoldierTransformation(transf);
-			for (auto& i : temp->getRequiredResearch())
+			for (auto* i : temp->getRequiredResearch())
 			{
-				if (i == rule->getName())
+				if (i == rule)
 				{
 					requiredByTransformations.push_back(transf);
 				}
@@ -449,9 +449,9 @@ void TechTreeViewerState::initLists()
 		for (auto& c : _game->getMod()->getCraftsList())
 		{
 			RuleCraft *temp = _game->getMod()->getCraft(c);
-			for (auto& i : temp->getRequirements())
+			for (auto* i : temp->getRequirements())
 			{
-				if (i == rule->getName())
+				if (i == rule)
 				{
 					requiredByCrafts.push_back(c);
 				}
@@ -461,28 +461,28 @@ void TechTreeViewerState::initLists()
 		for (auto& j : researchList)
 		{
 			RuleResearch *temp = _game->getMod()->getResearch(j);
-			for (auto& i : temp->getUnlocked())
+			for (auto* i : temp->getUnlocked())
 			{
 				if (i == rule)
 				{
 					unlockedBy.push_back(j);
 				}
 			}
-			for (auto& i : temp->getDisabled())
+			for (auto* i : temp->getDisabled())
 			{
 				if (i == rule)
 				{
 					disabledBy.push_back(j);
 				}
 			}
-			for (auto& i : temp->getReenabled())
+			for (auto* i : temp->getReenabled())
 			{
 				if (i == rule)
 				{
 					reenabledBy.push_back(j);
 				}
 			}
-			for (auto& i : temp->getGetOneFree())
+			for (auto* i : temp->getGetOneFree())
 			{
 				if (i == rule)
 				{
@@ -491,7 +491,7 @@ void TechTreeViewerState::initLists()
 			}
 			for (auto& itMap : temp->getGetOneFreeProtected())
 			{
-				for (auto& i : itMap.second)
+				for (auto* i : itMap.second)
 				{
 					if (i == rule)
 					{
@@ -499,21 +499,21 @@ void TechTreeViewerState::initLists()
 					}
 				}
 			}
-			if (!Mod::isEmptyRuleName(temp->getLookup()))
+			if (temp->getLookup())
 			{
-				if (temp->getLookup() == rule->getName())
+				if (temp->getLookup() == rule)
 				{
 					lookupOf.push_back(j);
 				}
 			}
-			for (auto& i : temp->getRequirements())
+			for (auto* i : temp->getRequirements())
 			{
 				if (i == rule)
 				{
 					requiredByResearch.push_back(j);
 				}
 			}
-			for (auto& i : temp->getDependencies())
+			for (auto* i : temp->getDependencies())
 			{
 				if (i == rule)
 				{
@@ -725,7 +725,7 @@ void TechTreeViewerState::initLists()
 		row = 0;
 
 		// lookup link
-		if (!Mod::isEmptyRuleName(rule->getLookup()))
+		if (rule->getLookup())
 		{
 			_lstRight->addRow(1, tr("STR_LOOKUP").c_str());
 			_lstRight->setRowColor(row, _blue);
@@ -733,11 +733,11 @@ void TechTreeViewerState::initLists()
 			_rightFlags.push_back(TTV_NONE);
 			++row;
 
-			std::string name = tr(rule->getLookup());
+			std::string name = tr(rule->getLookup()->getName());
 			name.insert(0, "  ");
 			_lstRight->addRow(1, name.c_str());
-			_lstRight->setRowColor(row, getResearchColor(rule->getLookup()));
-			_rightTopics.push_back(rule->getLookup());
+			_lstRight->setRowColor(row, getResearchColor(rule->getLookup()->getName()));
+			_rightTopics.push_back(rule->getLookup()->getName());
 			_rightFlags.push_back(TTV_RESEARCH);
 			++row;
 		}
@@ -793,6 +793,27 @@ void TechTreeViewerState::initLists()
 			_rightTopics.push_back("-");
 			_rightFlags.push_back(TTV_NONE);
 			++row;
+		}
+
+		// spawned random events
+		auto& randomEvents = rule->getEventsRaw();
+		if (!randomEvents.empty())
+		{
+			_lstRight->addRow(1, tr("STR_RANDOM_EVENTS").c_str());
+			_lstRight->setRowColor(row, _blue);
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(TTV_NONE);
+			++row;
+			for (auto& randomEvent : randomEvents.getChoicesRaw())
+			{
+				std::ostringstream chance;
+				chance << "  " << tr(randomEvent.first) << ": " << randomEvent.second;
+				_lstRight->addRow(1, chance.str().c_str());
+				_lstRight->setRowColor(row, _white);
+				_rightTopics.push_back("-");
+				_rightFlags.push_back(TTV_NONE);
+				++row;
+			}
 		}
 
 		// 6. required by
@@ -1088,7 +1109,7 @@ void TechTreeViewerState::initLists()
 			{
 				for (auto& trigger : arcScript->getResearchTriggers())
 				{
-					if (trigger.first == _selectedTopic)
+					if (trigger.first->getName() == _selectedTopic)
 					{
 						if (trigger.second)
 							unlocksArcs.insert(arcScriptId);
@@ -1105,7 +1126,7 @@ void TechTreeViewerState::initLists()
 			{
 				for (auto& trigger : eventScript->getResearchTriggers())
 				{
-					if (trigger.first == _selectedTopic)
+					if (trigger.first->getName() == _selectedTopic)
 					{
 						if (eventScript->getAffectsGameProgression()) affectsGameProgression = true; // remember for later
 						if (trigger.second)
@@ -1123,7 +1144,7 @@ void TechTreeViewerState::initLists()
 			{
 				for (auto& trigger : missionScript->getResearchTriggers())
 				{
-					if (trigger.first == _selectedTopic)
+					if (trigger.first->getName() == _selectedTopic)
 					{
 						if (trigger.second)
 							unlocksMissions.insert(missionScriptId);
@@ -1442,6 +1463,27 @@ void TechTreeViewerState::initLists()
 			}
 		}
 
+		// 4c. random events
+		auto& randomEvents = rule->getEventsRaw();
+		if (!randomEvents.empty())
+		{
+			_lstRight->addRow(1, tr("STR_RANDOM_EVENTS").c_str());
+			_lstRight->setRowColor(row, _blue);
+			_rightTopics.push_back("-");
+			_rightFlags.push_back(TTV_NONE);
+			++row;
+			for (auto& randomEvent : randomEvents.getChoicesRaw())
+			{
+				std::ostringstream chance;
+				chance << "  " << tr(randomEvent.first) << ": " << randomEvent.second;
+				_lstRight->addRow(1, chance.str().c_str());
+				_lstRight->setRowColor(row, _white);
+				_rightTopics.push_back("-");
+				_rightFlags.push_back(TTV_NONE);
+				++row;
+			}
+		}
+
 		// 5. person joining
 		if (rule->getSpawnedPersonType() != "")
 		{
@@ -1474,7 +1516,7 @@ void TechTreeViewerState::initLists()
 			return;
 
 		// 1. requires
-		const std::vector<std::string> reqs = rule->getRequirements();
+		const std::vector<const RuleResearch*> reqs = rule->getRequirements();
 		if (reqs.size() > 0)
 		{
 			_lstLeft->addRow(1, tr("STR_RESEARCH_REQUIRED").c_str());
@@ -1482,13 +1524,13 @@ void TechTreeViewerState::initLists()
 			_leftTopics.push_back("-");
 			_leftFlags.push_back(TTV_NONE);
 			++row;
-			for (const auto& res : reqs)
+			for (const auto* res : reqs)
 			{
-				std::string name = tr(res);
+				std::string name = tr(res->getName());
 				name.insert(0, "  ");
 				_lstLeft->addRow(1, name.c_str());
-				_lstLeft->setRowColor(row, getResearchColor(res));
-				_leftTopics.push_back(res);
+				_lstLeft->setRowColor(row, getResearchColor(res->getName()));
+				_leftTopics.push_back(res->getName());
 				_leftFlags.push_back(TTV_RESEARCH);
 				++row;
 			}
@@ -1758,7 +1800,7 @@ void TechTreeViewerState::initLists()
 			return;
 
 		// 1. requires
-		const std::vector<std::string> reqs = rule->getRequirements();
+		const std::vector<const RuleResearch*> reqs = rule->getRequirements();
 		if (reqs.size() > 0)
 		{
 			_lstLeft->addRow(1, tr("STR_RESEARCH_REQUIRED").c_str());
@@ -1766,13 +1808,13 @@ void TechTreeViewerState::initLists()
 			_leftTopics.push_back("-");
 			_leftFlags.push_back(TTV_NONE);
 			++row;
-			for (const auto& res : reqs)
+			for (const auto* res : reqs)
 			{
-				std::string name = tr(res);
+				std::string name = tr(res->getName());
 				name.insert(0, "  ");
 				_lstLeft->addRow(1, name.c_str());
-				_lstLeft->setRowColor(row, getResearchColor(res));
-				_leftTopics.push_back(res);
+				_lstLeft->setRowColor(row, getResearchColor(res->getName()));
+				_leftTopics.push_back(res->getName());
 				_leftFlags.push_back(TTV_RESEARCH);
 				++row;
 			}

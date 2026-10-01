@@ -17,6 +17,7 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Screen.h"
+#include "../resource.h"
 #include <algorithm>
 #include <sstream>
 #include <cmath>
@@ -34,7 +35,6 @@
 #include "Zoom.h"
 #include "Timer.h"
 #include <SDL.h>
-#include <algorithm>
 
 namespace OpenXcom
 {
@@ -370,6 +370,7 @@ void Screen::resetDisplay(bool resetVideo, bool noShaders)
 			// recreate operations done by `Game::Game` constructor
 			SDL_ShowCursor(SDL_ENABLE);
 			SDL_EnableUNICODE(1);
+			CrossPlatform::setWindowIcon(IDI_ICON1, "openxcom.png");
 			SDL_WM_SetCaption(title.c_str(), 0);
 			SDL_WM_GrabInput(Options::captureMouse);
 			SDL_SetCursor(SDL_CreateCursor(&cursor, &cursor, 1,1,0,0));
@@ -685,6 +686,14 @@ void Screen::updateScale(int type, int &width, int &height, bool change)
 	case SCALE_2X:
 		width = Screen::ORIGINAL_WIDTH * 2;
 		height = Screen::ORIGINAL_HEIGHT * 2;
+		break;
+	case SCALE_SCREEN_DIV_10:
+		width = Options::displayWidth / 10.0;
+		height = Options::displayHeight / pixelRatioY / 10.0;
+		break;
+	case SCALE_SCREEN_DIV_8:
+		width = Options::displayWidth / 8.0;
+		height = Options::displayHeight / pixelRatioY / 8.0;
 		break;
 	case SCALE_SCREEN_DIV_6:
 		width = Options::displayWidth / 6.0;

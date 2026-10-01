@@ -243,7 +243,7 @@ void SoldierTransformationState::initTransformationData()
 	UnitStats changedStatsMin = _sourceSoldier->calculateStatChanges(_game->getMod(), _transformationRule, _sourceSoldier, 1, _sourceSoldier->getRules());
 	UnitStats changedStatsMax = _sourceSoldier->calculateStatChanges(_game->getMod(), _transformationRule, _sourceSoldier, 2, _sourceSoldier->getRules());
 	UnitStats bonusStats;
-	auto* bonusRule = _game->getMod()->getSoldierBonus(_transformationRule->getSoldierBonusType(), false);
+	auto* bonusRule = _transformationRule->getSoldierBonus();
 	if (bonusRule)
 	{
 		bonusStats += *bonusRule->getStats();
@@ -444,6 +444,17 @@ void SoldierTransformationState::btnStartClick(Action *action)
 		if (rule != 0)
 		{
 			_base->getStorageItems()->removeItem(rule, requiredItem.second);
+		}
+	}
+
+	// Generate an event (side effect)
+	const std::string choice = _transformationRule->chooseEvent();
+	if (!choice.empty())
+	{
+		RuleEvent* eventToSpawn = _game->getMod()->getEvent(choice, false);
+		if (eventToSpawn)
+		{
+			_game->getSavedGame()->spawnEvent(eventToSpawn);
 		}
 	}
 

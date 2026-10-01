@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <functional>
 #include <climits>
-#include <algorithm>
 #include "../Engine/Action.h"
 #include "../Engine/Game.h"
 #include "../Mod/Mod.h"
@@ -174,10 +173,31 @@ CraftSoldiersState::CraftSoldiersState(Base *base, size_t craft)
 
 #undef PUSH_IN
 
+	size_t selIdx = Options::oxceBaseSoldierInfoColumnDefault;
+	if (selIdx >= sortOptions.size())
+	{
+		selIdx = 0;
+		Options::oxceBaseSoldierInfoColumnDefault = 0;
+	}
+	{
+		SortFunctor* compFunc = _sortFunctors[selIdx];
+		_dynGetter = NULL;
+		if (compFunc)
+		{
+			if (selIdx != 2 && selIdx != 3)
+			{
+				_dynGetter = compFunc->getGetter();
+			}
+		}
+	}
+
 	_cbxSortBy->setOptions(sortOptions);
-	_cbxSortBy->setSelected(0);
+	_cbxSortBy->setSelected(selIdx);
 	_cbxSortBy->onChange((ActionHandler)&CraftSoldiersState::cbxSortByChange);
-	_cbxSortBy->setText(tr("STR_SORT_BY"));
+	if (selIdx == 0)
+	{
+		_cbxSortBy->setText(tr("STR_SORT_BY"));
+	}
 
 	_lstSoldiers->setArrowColumn(188, ARROW_VERTICAL);
 	_lstSoldiers->setColumns(3, 106, 98, 76);
@@ -213,6 +233,10 @@ void CraftSoldiersState::cbxSortByChange(Action *)
 	if (selIdx == (size_t)-1)
 	{
 		return;
+	}
+	if (_game->isAltPressed(true))
+	{
+		Options::oxceBaseSoldierInfoColumnDefault = selIdx;
 	}
 
 	SortFunctor *compFunc = _sortFunctors[selIdx];
@@ -396,7 +420,7 @@ void CraftSoldiersState::init()
 {
 	State::init();
 	_base->prepareSoldierStatsWithBonuses(); // refresh stats for sorting
-	initList(0);
+	initList(_lstSoldiers->getScroll());
 
 	// update the label to indicate presence of a saved craft deployment
 	Craft* c = _base->getCrafts()->at(_craft);

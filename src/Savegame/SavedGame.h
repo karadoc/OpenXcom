@@ -158,7 +158,7 @@ private:
 	int _toggleBrightness;
 	int _monthsPassed;
 	int _daysPassed;
-	int _vehiclesLost;
+	int _vehiclesLost, _craftLostDogfight, _craftLostMission;
 	std::string _graphRegionToggles;
 	std::string _graphCountryToggles;
 	std::string _graphFinanceToggles;
@@ -342,11 +342,7 @@ public:
 	/// Gets if a research still has undiscovered non-disabled "protected unlocks".
 	bool hasUndiscoveredProtectedUnlock(const RuleResearch * r) const;
 	/// Gets if a certain research has been completed.
-	bool isResearched(const std::string &research, bool considerDebugMode = true) const;
-	/// Gets if a certain research has been completed.
 	bool isResearched(const RuleResearch *research, bool considerDebugMode = true) const;
-	/// Gets if a certain list of research topics has been completed.
-	bool isResearched(const std::vector<std::string> &research, bool considerDebugMode = true) const;
 	/// Gets if a certain list of research topics has been completed.
 	bool isResearched(const std::vector<const RuleResearch *> &research, bool considerDebugMode = true, bool skipDisabled = false) const;
 	/// Gets if a certain item has been obtained.
@@ -429,6 +425,12 @@ public:
 	/// Return the vehicles lost counter.
 	int getVehiclesLost() const { return _vehiclesLost; }
 	void increaseVehiclesLost() { _vehiclesLost++; }
+	/// Return the craft lost in dogfight counter.
+	int getCraftLostDogfight() const { return _craftLostDogfight; }
+	void increaseCraftLostDogfight() { _craftLostDogfight++; }
+	/// Return the craft lost in mission counter.
+	int getCraftLostMission() const { return _craftLostMission; }
+	void increaseCraftLostMission() { _craftLostMission++; }
 	/// Return the GraphRegionToggles.
 	const std::string &getGraphRegionToggles() const;
 	/// Return the GraphCountryToggles.

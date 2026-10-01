@@ -38,6 +38,7 @@ private:
 	Surface *_bg, *_soldier;
 	BattlescapeButton *_btnArmor;
 	Text *_txtName;
+	Text *_txtFatalWounds;
 	Text *_txtLeftHand, *_txtRightHand;
 	AlienInventory *_inv;
 
@@ -52,6 +53,8 @@ public:
 	void btnOkClick(Action *action);
 	/// Handler for clicking the [Toggle] button.
 	void btnToggleClick(Action *action);
+	/// Handler for clicking the [Voice] button.
+	void btnVoiceClick(Action *action);
 	/// Handler for clicking the Armor button.
 	void btnArmorClickMiddle(Action *action);
 };
